@@ -1,0 +1,30 @@
+import 'activity_model.dart';
+
+final ActivityRoutine workoutFullBody20MinIntense = ActivityRoutine(
+  id: 'fullbody_20min_intense',
+  title: '20 Min Full Body (Intense)',
+  duration: '20 min',
+  difficulty: 'Advanced',
+  focus: 'HIIT / Total Body',
+  equipment: 'No equipment',
+  colorValue: 0xFFF44336,
+  icon: '⚡',
+  description: 'High‑Intensity Interval Training – fast, sweaty, explosive.',
+  exercises: [
+    Exercise(name: 'Jump Squats', reps: '45 sec', sets: 3),
+    Exercise(name: 'Jump Lunges', reps: '45 sec', sets: 3),
+    Exercise(name: 'Squat Pulses', reps: '45 sec', sets: 3),
+    Exercise(name: 'Burpees', reps: '45 sec', sets: 3),
+    Exercise(name: 'High Knees', reps: '45 sec', sets: 3),
+    Exercise(name: 'Jumping Jacks', reps: '45 sec', sets: 3),
+    Exercise(name: 'Full Push-ups', reps: '45 sec', sets: 3),
+    Exercise(name: 'Tricep Push-ups', reps: '45 sec', sets: 3),
+    Exercise(name: 'Walkouts', reps: '45 sec', sets: 3),
+    Exercise(name: 'Explosive Mountain Climbers', reps: '45 sec', sets: 3),
+    Exercise(name: 'Plank with Shoulder Taps', reps: '45 sec', sets: 3),
+    Exercise(name: 'Russian Twists with Leg Extensions', reps: '45 sec', sets: 3),
+    Exercise(name: 'Glute Bridge Pulses', reps: '45 sec', sets: 3),
+    Exercise(name: 'Superman Holds', reps: '45 sec', sets: 3),
+    Exercise(name: 'Breathe / March', reps: '15 sec'),
+  ],
+);

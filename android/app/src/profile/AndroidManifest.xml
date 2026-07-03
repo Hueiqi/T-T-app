@@ -1,0 +1,70 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- Basic internet permission (required for Flutter debugging) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- Health Connect permissions (required to read heart rate from smartwatch) -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    
+    <!-- Optional: Allow reading health data in the background -->
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+
+    <application
+        android:label="TT AI"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            
+            <!-- Main launcher intent -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            
+            <!-- Spotify OAuth redirect intent-filter -->
+            <!-- The scheme "fitsync" must match your Spotify app's Redirect URI -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="myfitnessTTapp" android:host="callback" />
+            </intent-filter>
+        </activity>
+
+        <!-- Required for flutter_web_auth to capture the redirect on Android -->
+        <activity android:name="com.linusu.flutter_web_auth.CallbackActivity"
+         android:exported="true">
+        <intent-filter android:label="flutter_web_auth">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="myfitnessTTapp" android:host="callback" />
+        </intent-filter>
+        </activity>
+        <!-- Required for Health Connect permission rationale screen -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Required for Spotify Remote SDK -->
+        <receiver
+            android:name="com.spotify.android.app.remote.notification.SpotifyNotificationReceiver"
+            android:exported="true" />
+    </application>
+</manifest>
