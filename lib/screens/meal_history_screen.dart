@@ -15,7 +15,10 @@ class MealHistoryScreen extends StatefulWidget {
 
 class _MealHistoryScreenState extends State<MealHistoryScreen> {
   List<Meal> _allMeals = [];
+  List<Meal> _filteredMeals = [];
   bool _loading = true;
+  DateTime _selectedDate = DateTime.now();
+  final ScrollController _calendarScrollController = ScrollController();
 
   @override
   void initState() {
@@ -23,14 +26,32 @@ class _MealHistoryScreenState extends State<MealHistoryScreen> {
     _loadMeals();
   }
 
+  @override
+  void dispose() {
+    _calendarScrollController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadMeals() async {
     final auth = context.read<AuthProvider>();
     if (auth.user == null) return;
     setState(() => _loading = true);
     final meals = await context.read<NutritionProvider>().loadRecentMeals(auth.user!.uid, days: 30);
+    if (!mounted) return;
     setState(() {
       _allMeals = meals;
+      _filterByDate(_selectedDate);
       _loading = false;
+    });
+  }
+
+  void _filterByDate(DateTime date) {
+    setState(() {
+      _selectedDate = date;
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = startOfDay.add(const Duration(hours: 24));
+      _filteredMeals = _allMeals.where((m) =>
+          m.dateTime.isAfter(startOfDay) && m.dateTime.isBefore(endOfDay)).toList();
     });
   }
 
@@ -46,64 +67,132 @@ class _MealHistoryScreenState extends State<MealHistoryScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _allMeals.isEmpty
-              ? _buildEmptyState()
-              : _buildGroupedList(),
+      body: Column(
+        children: [
+          _buildCalendarStrip(),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredMeals.isEmpty
+                    ? _buildEmptyState()
+                    : _buildGroupedList(),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildGroupedList() {
-    final grouped = <String, List<Meal>>{};
-    for (final meal in _allMeals) {
-      final key = DateFormat('yyyy-MM-dd').format(meal.dateTime);
-      grouped.putIfAbsent(key, () => []);
-      grouped[key]!.add(meal);
-    }
-    final sortedKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+    final dateStr = DateFormat('EEEE, MMMM d, yyyy').format(_selectedDate);
+    final totalCal = _filteredMeals.fold<double>(0, (s, m) => s + m.calories);
 
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.all(16),
-      itemCount: sortedKeys.length,
-      itemBuilder: (ctx, index) {
-        final key = sortedKeys[index];
-        final meals = grouped[key]!;
-        final date = DateTime.parse(key);
-        final dateStr = DateFormat('EEEE, MMMM d, yyyy').format(date);
-        final totalCal = meals.fold<double>(0, (s, m) => s + m.calories);
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 12),
+          child: Row(
+            children: [
+              Text(
+                dateStr,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${totalCal.toStringAsFixed(0)} kcal',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppTheme.warningColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        ..._filteredMeals.map((meal) => _HistoryMealCard(meal: meal)),
+      ],
+    );
+  }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 4),
-              child: Row(
+  Widget _buildCalendarStrip() {
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final selectedDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    final startDate = todayDate.subtract(const Duration(days: 7));
+    const totalDays = 21;
+
+    return SizedBox(
+      height: 90,
+      child: ListView.builder(
+        controller: _calendarScrollController,
+        scrollDirection: Axis.horizontal,
+        itemCount: totalDays,
+        itemBuilder: (context, index) {
+          final date = startDate.add(Duration(days: index));
+          final dateDay = DateTime(date.year, date.month, date.day);
+          final isSelected = dateDay == selectedDate;
+          final isToday = dateDay == todayDate;
+          final isFuture = dateDay.isAfter(todayDate);
+          final dayName = DateFormat('E').format(date);
+          final dayNum = date.day.toString();
+
+          return GestureDetector(
+            onTap: isFuture
+                ? null
+                : () => _filterByDate(date),
+            child: Container(
+              width: 52,
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppTheme.primaryColor
+                    : isFuture
+                        ? Colors.grey.shade100
+                        : AppTheme.primaryColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: isSelected
+                    ? null
+                    : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.15)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    dateStr,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${totalCal.toStringAsFixed(0)} kcal',
+                    dayName,
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: AppTheme.warningColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isSelected ? Colors.white : AppTheme.textSecondary,
                     ),
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dayNum,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.white : AppTheme.textPrimary,
+                    ),
+                  ),
+                  if (isToday)
+                    Container(
+                      width: 4,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 2),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.white : AppTheme.primaryColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                 ],
               ),
             ),
-            ...meals.map((meal) => _HistoryMealCard(meal: meal)),
-            const SizedBox(height: 8),
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -130,9 +219,6 @@ class _HistoryMealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasNetworkImage = meal.imageUrl.isNotEmpty;
-    final hasBytesImage = meal.imageBytes != null;
-    final hasImage = hasNetworkImage || hasBytesImage;
     final timeStr = DateFormat('hh:mm a').format(meal.dateTime);
 
     return Card(
@@ -144,62 +230,21 @@ class _HistoryMealCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                bottomLeft: Radius.circular(16),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
+                ),
               ),
-              child: hasNetworkImage
-                  ? Image.network(
-                      meal.imageUrl,
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (_, child, progress) {
-                        if (progress == null) return child;
-                        return Container(
-                          width: 80,
-                          height: 80,
-                          color: Colors.grey.shade200,
-                          child: const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                        );
-                      },
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 80,
-                        height: 80,
-                        color: Colors.grey.shade100,
-                        child: Icon(Icons.broken_image, color: Colors.grey.shade400),
-                      ),
-                    )
-                  : hasBytesImage
-                      ? Image.memory(
-                          meal.imageBytes!,
-                          width: 80,
-                          height: 80,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            width: 80,
-                            height: 80,
-                            color: Colors.grey.shade100,
-                            child: Icon(Icons.broken_image, color: Colors.grey.shade400),
-                          ),
-                        )
-                      : Container(
-                          width: 80,
-                          height: 80,
-                          color: _mealTypeColor(meal.mealType).withOpacity(0.15),
-                          child: Icon(
-                            _mealTypeIcon(meal.mealType),
-                            color: _mealTypeColor(meal.mealType),
-                            size: 32,
-                      ),
-                    ),
+              child: Icon(
+                _mealIcon(meal.mealType),
+                color: AppTheme.primaryColor,
+                size: 32,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -257,7 +302,7 @@ class _HistoryMealCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: _mealTypeColor(type).withOpacity(0.12),
+        color: _mealTypeColor(type).withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -277,15 +322,6 @@ class _HistoryMealCard extends StatelessWidget {
       case 'lunch': return const Color(0xFF059669);
       case 'dinner': return const Color(0xFF7C3AED);
       default: return const Color(0xFFEC4899);
-    }
-  }
-
-  IconData _mealTypeIcon(String type) {
-    switch (type) {
-      case 'breakfast': return Icons.wb_sunny;
-      case 'lunch': return Icons.wb_cloudy;
-      case 'dinner': return Icons.nightlight_round;
-      default: return Icons.restaurant;
     }
   }
 
@@ -313,37 +349,6 @@ class _HistoryMealCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            if (meal.imageUrl.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  meal.imageUrl,
-                  height: 250,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 250,
-                    color: Colors.grey.shade100,
-                    child: const Icon(Icons.broken_image, size: 64),
-                  ),
-                ),
-              )
-            else if (meal.imageBytes != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.memory(
-                  meal.imageBytes!,
-                  height: 250,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 250,
-                    color: Colors.grey.shade100,
-                    child: const Icon(Icons.broken_image, size: 64),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 16),
             Text(
               meal.foodName,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -371,19 +376,7 @@ class _HistoryMealCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            if (meal.vitamins > 0 || meal.minerals > 0 || meal.fiber > 0) ...[
-              const Divider(),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 16,
-                children: [
-                  if (meal.vitamins > 0) _nutrientChip('Vitamins', '${meal.vitamins.toStringAsFixed(0)}g', Colors.purple),
-                  if (meal.minerals > 0) _nutrientChip('Minerals', '${meal.minerals.toStringAsFixed(0)}g', Colors.teal),
-                  if (meal.fiber > 0) _nutrientChip('Fiber', '${meal.fiber.toStringAsFixed(0)}g', Colors.brown),
-                ],
-              ),
-            ],
-            const SizedBox(height: 16),
+            _microNutrientsSection(meal),
           ],
         ),
       ),
@@ -397,5 +390,41 @@ class _HistoryMealCard extends StatelessWidget {
         Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
       ],
     );
+  }
+
+  Widget _microNutrientsSection(Meal meal) {
+    final totalVitamins = meal.vitaminA + meal.vitaminB + meal.vitaminC + meal.vitaminD + meal.vitaminE + meal.vitaminK;
+    final totalMinerals = meal.calcium + meal.iron + meal.magnesium + meal.potassium + meal.sodium;
+    if (totalVitamins <= 0 && totalMinerals <= 0 && meal.fiber <= 0) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      children: [
+        const Divider(),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 16,
+          children: [
+            if (totalVitamins > 0) _nutrientChip('Vitamins', '${totalVitamins.toStringAsFixed(0)}g', Colors.purple),
+            if (totalMinerals > 0) _nutrientChip('Minerals', '${totalMinerals.toStringAsFixed(0)}g', Colors.teal),
+            if (meal.fiber > 0) _nutrientChip('Fiber', '${meal.fiber.toStringAsFixed(0)}g', Colors.brown),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  IconData _mealIcon(String mealType) {
+    switch (mealType) {
+      case 'breakfast':
+        return Icons.wb_sunny;
+      case 'lunch':
+        return Icons.wb_cloudy;
+      case 'dinner':
+        return Icons.nightlight_round;
+      default:
+        return Icons.restaurant;
+    }
   }
 }

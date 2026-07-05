@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -55,7 +56,11 @@ class _PlacesScreenState extends State<PlacesScreen> {
 
   Future<void> _clearSymbols() async {
     for (final symbol in _symbols) {
-      await _mapController?.removeSymbol(symbol);
+      try {
+        await _mapController?.removeSymbol(symbol);
+      } catch (e) {
+        debugPrint('Error removing symbol: $e');
+      }
     }
     _symbols.clear();
   }
@@ -65,32 +70,43 @@ class _PlacesScreenState extends State<PlacesScreen> {
 
     await _clearSymbols();
 
+    if (!mounted) return;
+
     final placeProvider = context.read<PlaceProvider>();
     final places = placeProvider.visitedPlaces;
     final currentPos = placeProvider.currentPosition;
 
     if (currentPos != null) {
-      final symbol = await _mapController!.addSymbol(
-        SymbolOptions(
-          geometry: LatLng(currentPos.latitude, currentPos.longitude),
-          iconImage: 'circle',
-          iconColor: '#EF4444',
-          iconSize: 1.8,
-        ),
-      );
-      _symbols.add(symbol);
+      try {
+        final symbol = await _mapController!.addSymbol(
+          SymbolOptions(
+            geometry: LatLng(currentPos.latitude, currentPos.longitude),
+            iconImage: 'circle',
+            iconColor: '#EF4444',
+            iconSize: 1.8,
+          ),
+        );
+        _symbols.add(symbol);
+      } catch (e) {
+        debugPrint('Error adding current position symbol: $e');
+      }
     }
 
     for (final place in places) {
-      final symbol = await _mapController!.addSymbol(
-        SymbolOptions(
-          geometry: LatLng(place.latitude, place.longitude),
-          iconImage: 'circle',
-          iconColor: '#3B82F6',
-          iconSize: 1.5,
-        ),
-      );
-      _symbols.add(symbol);
+      try {
+        final symbol = await _mapController!.addSymbol(
+          SymbolOptions(
+            geometry: LatLng(place.latitude, place.longitude),
+            iconImage: 'circle',
+            iconColor: '#3B82F6',
+            iconSize: 1.5,
+          ),
+        );
+        if (!mounted) return;
+        _symbols.add(symbol);
+      } catch (e) {
+        debugPrint('Error adding place symbol: $e');
+      }
     }
   }
 
@@ -197,8 +213,8 @@ class _PlacesScreenState extends State<PlacesScreen> {
           onStyleLoadedCallback: _onStyleLoaded,
           styleString: 'https://tiles.openfreemap.org/styles/positron',
           initialCameraPosition: CameraPosition(target: target, zoom: 14),
-          myLocationEnabled: true,
-          myLocationTrackingMode: MyLocationTrackingMode.tracking,
+          myLocationEnabled: !kIsWeb,
+          myLocationTrackingMode: !kIsWeb ? MyLocationTrackingMode.tracking : MyLocationTrackingMode.none,
           compassEnabled: false,
           rotateGesturesEnabled: false,
         ),

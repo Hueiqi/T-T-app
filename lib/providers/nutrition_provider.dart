@@ -1,6 +1,6 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import '../services/ai_service.dart';
 import '../services/firebase_service.dart';
 import '../services/tdee_calculator.dart';
@@ -17,6 +17,7 @@ class NutritionProvider extends ChangeNotifier {
 
   List<Meal> _todayMeals = [];
   List<Meal> _selectedDateMeals = [];
+  final Map<String, List<Meal>> _mealsCache = {};
   FoodItem? _detectedFood;
   bool _isAnalyzing = false;
   String? _error;
@@ -46,11 +47,11 @@ class NutritionProvider extends ChangeNotifier {
   String get activityLevel => _activityLevel;
   bool get tdeeCalculated => _tdeeCalculated;
   double get totalCaloriesToday =>
-      _todayMeals.fold(0, (sum, meal) => sum + meal.calories);
+      _todayMeals.fold(0, (total, meal) => total + meal.calories);
   double get totalProtein =>
-      _todayMeals.fold(0, (sum, meal) => sum + meal.protein);
-  double get totalCarbs => _todayMeals.fold(0, (sum, meal) => sum + meal.carbs);
-  double get totalFat => _todayMeals.fold(0, (sum, meal) => sum + meal.fat);
+      _todayMeals.fold(0, (total, meal) => total + meal.protein);
+  double get totalCarbs => _todayMeals.fold(0, (total, meal) => total + meal.carbs);
+  double get totalFat => _todayMeals.fold(0, (total, meal) => total + meal.fat);
 
   Map<String, double> _weeklyCalories = {};
   Map<String, double> get weeklyCalories => _weeklyCalories;
@@ -77,10 +78,20 @@ class NutritionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Load saved calorie goal from user profile (if any)
+  void initDailyCalorieGoal(AppUser user) {
+    if (user.dailyCalorieTarget != null && user.dailyCalorieTarget! > 0) {
+      _dailyCalorieGoal = user.dailyCalorieTarget!;
+      _tdeeCalculated = true;
+      notifyListeners();
+    }
+  }
+
   /// Calculate TDEE based on user profile and update calorie goals
   Future<void> calculateAndSetTDEE({
     required AppUser user,
     required String activityLevel,
+    Future<void> Function(double goal)? onSave,
   }) async {
     try {
       _activityLevel = activityLevel;
@@ -109,6 +120,10 @@ class NutritionProvider extends ChangeNotifier {
       _macroGoals = macros;
       _tdeeCalculated = true;
       _error = null;
+
+      if (onSave != null) {
+        await onSave(_dailyCalorieGoal);
+      }
 
       notifyListeners();
     } catch (e) {
@@ -148,8 +163,15 @@ class NutritionProvider extends ChangeNotifier {
   }
 
   Future<void> loadMealsForDate(String userId, DateTime date) async {
+    final key = DateFormat('yyyy-MM-dd').format(date);
+    if (_mealsCache.containsKey(key)) {
+      _selectedDateMeals = _mealsCache[key]!;
+      notifyListeners();
+      return;
+    }
     try {
       _selectedDateMeals = await _firebaseService.getMeals(userId, date: date);
+      _mealsCache[key] = _selectedDateMeals;
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') {
         _error = 'You don\'t have permission to view this data. Please sign out and sign back in.';
@@ -209,14 +231,19 @@ class NutritionProvider extends ChangeNotifier {
     required double protein,
     required double carbs,
     required double fat,
-    double vitamins = 0,
-    double minerals = 0,
     double water = 0,
     double fiber = 0,
-    String servingSize = '1 serving',
-    String imageUrl = '',
-    Uint8List? imageBytes,
-    String detectionMethod = 'manual',
+    double vitaminA = 0,
+    double vitaminB = 0,
+    double vitaminC = 0,
+    double vitaminD = 0,
+    double vitaminE = 0,
+    double vitaminK = 0,
+    double calcium = 0,
+    double iron = 0,
+    double magnesium = 0,
+    double potassium = 0,
+    double sodium = 0,
   }) async {
     final meal = Meal(
       id: _uuid.v4(),
@@ -228,19 +255,32 @@ class NutritionProvider extends ChangeNotifier {
       protein: protein,
       carbs: carbs,
       fat: fat,
-      vitamins: vitamins,
-      minerals: minerals,
       water: water,
       fiber: fiber,
-      servingSize: servingSize,
-      imageUrl: imageUrl,
-      imageBytes: imageBytes,
-      detectionMethod: detectionMethod,
+      vitaminA: vitaminA,
+      vitaminB: vitaminB,
+      vitaminC: vitaminC,
+      vitaminD: vitaminD,
+      vitaminE: vitaminE,
+      vitaminK: vitaminK,
+      calcium: calcium,
+      iron: iron,
+      magnesium: magnesium,
+      potassium: potassium,
+      sodium: sodium,
     );
 
     await _firebaseService.saveMeal(meal);
     _todayMeals.insert(0, meal);
     _detectedFood = null;
+    _firebaseService.saveDailyNutritionTotals(
+      userId, DateTime.now(),
+      totalCalories: calories,
+      totalProtein: protein,
+      totalCarbs: carbs,
+      totalFat: fat,
+      calorieGoal: _dailyCalorieGoal,
+    );
     notifyListeners();
     return meal;
   }
@@ -260,11 +300,8 @@ class NutritionProvider extends ChangeNotifier {
     required double protein,
     required double carbs,
     required double fat,
-    double vitamins = 0,
-    double minerals = 0,
     double water = 0,
     double fiber = 0,
-    String servingSize = '1 serving',
   }) async {
     final index = _todayMeals.indexWhere((m) => m.id == mealId);
     if (index == -1) return;
@@ -279,13 +316,8 @@ class NutritionProvider extends ChangeNotifier {
       protein: protein,
       carbs: carbs,
       fat: fat,
-      vitamins: vitamins,
-      minerals: minerals,
       water: water,
       fiber: fiber,
-      servingSize: servingSize,
-      imageUrl: _todayMeals[index].imageUrl,
-      detectionMethod: _todayMeals[index].detectionMethod,
     );
     await _firebaseService.updateMeal(updated);
     _todayMeals[index] = updated;
@@ -310,7 +342,12 @@ class NutritionProvider extends ChangeNotifier {
   }
 
   Future<void> loadWeightHistory(String userId) async {
-    _weightHistory = await _firebaseService.getWeightHistory(userId, limit: 30);
+    try {
+      _weightHistory = await _firebaseService.getWeightHistory(userId, limit: 30);
+    } catch (e, stack) {
+      debugPrint('NutritionProvider.loadWeightHistory error: $e\n$stack');
+      _weightHistory = [];
+    }
     notifyListeners();
   }
 

@@ -53,7 +53,9 @@ class PlaceProvider extends ChangeNotifier {
       _visitedPlaces.clear();
       final places = await _firebaseService.getPlaces(userId);
       _visitedPlaces.addAll(places);
-    } catch (_) {}
+    } catch (e, stack) {
+      debugPrint('PlaceProvider.loadPlaces error: $e\n$stack');
+    }
     _isLoading = false;
     notifyListeners();
   }

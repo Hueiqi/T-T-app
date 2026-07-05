@@ -1,10 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/auth_provider.dart';
 import '../providers/planning_provider.dart';
-import '../providers/health_provider.dart';
 import '../providers/workout_provider.dart';
 import '../providers/nutrition_provider.dart';
 import '../models/planning_model.dart';
@@ -24,18 +22,7 @@ class PlanningScreen extends StatefulWidget {
 }
 
 class _PlanningScreenState extends State<PlanningScreen> {
-  static const List<String> _filterOptions = [
-    'All',
-    'Upper Body',
-    'Lower Body',
-    'Core',
-    'Cardio',
-    'Stretching',
-  ];
-
-  String _selectedFilter = 'All';
   ExerciseDb? _dailyExercise;
-  ExerciseDb? _gifExercise;
   final _random = Random();
   int _totalWorkouts = 0;
   double _totalCaloriesBurned = 0;
@@ -91,10 +78,6 @@ class _PlanningScreenState extends State<PlanningScreen> {
       if (all.isNotEmpty) {
         setState(() {
           _dailyExercise = all[_random.nextInt(all.length)];
-          final withGif = all.where((e) => e.gifUrl != null).toList();
-          _gifExercise = withGif.isNotEmpty
-              ? withGif[_random.nextInt(withGif.length)]
-              : _dailyExercise;
         });
       }
     });
@@ -145,7 +128,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Training',
+                        'Planning',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -202,8 +185,6 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 ),
               ),
             ),
-            // Quick filter chips
-            _buildFilterChips(),
             // Active Plan card (when plan is selected)
             if (planning.activePlan != null)
               _buildActivePlanCard(planning.activePlan!, planning),
@@ -221,8 +202,6 @@ class _PlanningScreenState extends State<PlanningScreen> {
             const SizedBox(height: 8),
             // Exercise Instruction Card
             _buildExerciseInstructionCard(),
-            // Fitness Data & Gifs Card
-            _buildFitnessDataCard(),
             // Workout Progress Card
             _buildWorkoutProgressCard(),
             // Calorie History Card
@@ -234,49 +213,6 @@ class _PlanningScreenState extends State<PlanningScreen> {
       bottomNavigationBar: widget.showBottomNav
           ? buildBottomNavBar(context)
           : null,
-    );
-  }
-
-  // ── Quick Filter Chips ──
-  Widget _buildFilterChips() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(
-        children: _filterOptions.map((filter) {
-          final isSelected = _selectedFilter == filter;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () {
-                setState(() => _selectedFilter = filter);
-                Navigator.pushNamed(
-                  context,
-                  AppRoutes.exerciseLibrary,
-                  arguments: filter == 'All' ? null : filter,
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppTheme.primaryColor
-                      : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  filter,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: isSelected ? Colors.white : Colors.grey.shade700,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
     );
   }
 
@@ -980,7 +916,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: GestureDetector(
-        onTap: () => Navigator.pushNamed(context, '/pamela-workouts'),
+        onTap: () => Navigator.pushNamed(context, '/popular workouts'),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1312,193 +1248,6 @@ class _PlanningScreenState extends State<PlanningScreen> {
           fontWeight: FontWeight.w500,
           color: color,
         ),
-      ),
-    );
-  }
-
-  // ── Fitness Data & Gifs Card ──
-  Widget _buildFitnessDataCard() {
-    final health = context.watch<HealthProvider>();
-    final hr = health.currentHeartRate;
-    final hrCategory = health.heartRateCategory;
-    final ex = _gifExercise;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.successColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.favorite,
-                      color: AppTheme.successColor,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Fitness & Exercise Demo',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              // Health stats row
-              Row(
-                children: [
-                  _buildStatItem(
-                    Icons.favorite,
-                    '$hr',
-                    'bpm',
-                    AppTheme.errorColor,
-                  ),
-                  const SizedBox(width: 16),
-                  _buildStatItem(
-                    Icons.monitor_heart_outlined,
-                    hrCategory,
-                    'zone',
-                    AppTheme.primaryColor,
-                  ),
-                  const SizedBox(width: 16),
-                  _buildStatItem(
-                    Icons.timer_outlined,
-                    health.isMonitoring ? 'Live' : '--',
-                    'status',
-                    AppTheme.successColor,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              const Divider(height: 1),
-              const SizedBox(height: 14),
-              // Exercise preview section
-              if (ex != null) ...[
-                Text(
-                  'Watch: ${ex.name}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: ex.gifUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: ex.gifUrl!,
-                          placeholder: (ctx, url) => Container(
-                            height: 180,
-                            color: Colors.grey.shade100,
-                            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                          ),
-                          errorWidget: (ctx, url, err) => _buildExerciseImageFallback(ex),
-                          fit: BoxFit.contain,
-                          height: 180,
-                          width: double.infinity,
-                        )
-                      : _buildExerciseImageFallback(ex),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildTagChip(ex.equipment, AppTheme.primaryColor),
-                    const SizedBox(width: 6),
-                    _buildTagChip(ex.level, AppTheme.warningColor),
-                    ...ex.primaryMuscles.take(2).map(
-                      (m) => Padding(
-                        padding: const EdgeInsets.only(left: 6),
-                        child: _buildTagChip(m, AppTheme.successColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ] else
-                _buildExerciseImageFallback(null),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildExerciseImageFallback(ExerciseDb? ex) {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: AppTheme.indigo50,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.fitness_center, color: AppTheme.primaryColor.withValues(alpha: 0.4), size: 28),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                ex != null ? ex.name : 'Start a workout to see exercise demos',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppTheme.primaryColor.withValues(alpha: 0.6),
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(IconData icon, String value, String label, Color color) {
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ],
       ),
     );
   }

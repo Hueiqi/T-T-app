@@ -56,7 +56,9 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
   }
 
   void _startTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
       if (_isPaused || _isFinished) return;
       setState(() => _totalElapsed++);
 
@@ -73,6 +75,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
       _timer?.cancel();
       _advanceToNextExercise();
     } else {
+      if (!mounted) return;
       setState(() => _restSecondsLeft--);
     }
   }
@@ -84,6 +87,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
       }
       _startRest();
     } else {
+      if (!mounted) return;
       setState(() => _exerciseSecondsLeft--);
     }
   }
@@ -91,6 +95,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
   void _markCurrentComplete() {
     final name = _routine.exercises[_currentIndex].name;
     if (!_completedNames.contains(name)) {
+      if (!mounted) return;
       setState(() => _completedNames.add(name));
     }
   }
@@ -100,6 +105,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
       _finishWorkout();
       return;
     }
+    if (!mounted) return;
     setState(() {
       _isResting = true;
       _restSecondsLeft = _defaultRestSecs;
@@ -111,6 +117,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
       _finishWorkout();
       return;
     }
+    if (!mounted) return;
     setState(() {
       _currentIndex++;
       _isResting = false;
@@ -142,6 +149,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
 
   void _finishWorkout() {
     _timer?.cancel();
+    if (!mounted) return;
     setState(() => _isFinished = true);
 
     final pending = _routine.exercises
@@ -149,6 +157,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
         .where((n) => !_completedNames.contains(n))
         .toList();
 
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -185,6 +194,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
     );
     if (confirm == true) {
       _timer?.cancel();
+      if (!mounted) return;
       Navigator.pop(context);
     }
   }

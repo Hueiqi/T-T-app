@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +19,7 @@ class _MapPreviewCardState extends State<MapPreviewCard> {
   final List<Symbol> _symbols = [];
   Timer? _markerTimer;
   PlaceProvider? _placeProvider;
+  bool _isUpdating = false;
 
   @override
   void didChangeDependencies() {
@@ -41,7 +43,10 @@ class _MapPreviewCardState extends State<MapPreviewCard> {
   @override
   void dispose() {
     _markerTimer?.cancel();
+    _markerTimer = null;
     _placeProvider?.removeListener(_onPlaceChanged);
+    _mapController?.dispose();
+    _mapController = null;
     super.dispose();
   }
 
@@ -58,37 +63,63 @@ class _MapPreviewCardState extends State<MapPreviewCard> {
     if (!mounted) return;
     if (_mapController == null) return;
 
-    final placeProvider = context.read<PlaceProvider>();
-    final places = placeProvider.visitedPlaces;
-    final currentPos = placeProvider.currentPosition;
+    final provider = _placeProvider;
+    if (provider == null) return;
+    final places = provider.visitedPlaces;
+    final currentPos = provider.currentPosition;
 
-    for (final symbol in _symbols) {
-      await _mapController!.removeSymbol(symbol);
-    }
-    _symbols.clear();
+    setState(() => _isUpdating = true);
 
-    if (currentPos != null) {
-      final symbol = await _mapController!.addSymbol(
-        SymbolOptions(
-          geometry: LatLng(currentPos.latitude, currentPos.longitude),
-          iconImage: 'circle',
-          iconColor: '#EF4444',
-          iconSize: 1.8,
-        ),
-      );
-      _symbols.add(symbol);
-    }
+    try {
+      for (final symbol in _symbols) {
+        try {
+          await _mapController!.removeSymbol(symbol);
+        } catch (e) {
+          debugPrint('Error removing symbol: $e');
+        }
+      }
+      _symbols.clear();
 
-    for (final place in places) {
-      final symbol = await _mapController!.addSymbol(
-        SymbolOptions(
-          geometry: LatLng(place.latitude, place.longitude),
-          iconImage: 'circle',
-          iconColor: '#3B82F6',
-          iconSize: 1.5,
-        ),
-      );
-      _symbols.add(symbol);
+      if (!mounted) return;
+
+      if (currentPos != null) {
+        try {
+          final symbol = await _mapController!.addSymbol(
+            SymbolOptions(
+              geometry: LatLng(currentPos.latitude, currentPos.longitude),
+              iconImage: 'circle',
+              iconColor: '#EF4444',
+              iconSize: 1.8,
+            ),
+          );
+          _symbols.add(symbol);
+        } catch (e) {
+          debugPrint('Error adding current position symbol: $e');
+        }
+      }
+
+      if (!mounted) return;
+
+      for (final place in places) {
+        try {
+          final symbol = await _mapController!.addSymbol(
+            SymbolOptions(
+              geometry: LatLng(place.latitude, place.longitude),
+              iconImage: 'circle',
+              iconColor: '#3B82F6',
+              iconSize: 1.5,
+            ),
+          );
+          if (!mounted) return;
+          _symbols.add(symbol);
+        } catch (e) {
+          debugPrint('Error adding place symbol: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error updating markers: $e');
+    } finally {
+      if (mounted) setState(() => _isUpdating = false);
     }
   }
 
@@ -119,16 +150,18 @@ class _MapPreviewCardState extends State<MapPreviewCard> {
               SizedBox(
                 height: 200,
                 width: double.infinity,
-                child: MapLibreMap(
+                child: _isUpdating
+                    ? const Center(child: CircularProgressIndicator())
+                    : MapLibreMap(
                   onMapCreated: _onMapCreated,
                   onStyleLoadedCallback: _updateMarkers,
                   styleString: 'https://tiles.openfreemap.org/styles/positron',
                   initialCameraPosition: CameraPosition(target: target, zoom: 14),
-                  myLocationEnabled: true,
-                  myLocationTrackingMode: MyLocationTrackingMode.tracking,
+                  myLocationEnabled: !kIsWeb,
+                  myLocationTrackingMode: !kIsWeb ? MyLocationTrackingMode.tracking : MyLocationTrackingMode.none,
                   compassEnabled: false,
-                  logoViewMargins: const Point(0, 0),
-                  attributionButtonMargins: const Point(0, 0),
+                  logoViewMargins: kIsWeb ? null : const Point(0, 0),
+                  attributionButtonMargins: kIsWeb ? null : const Point(0, 0),
                   dragEnabled: false,
                   scrollGesturesEnabled: false,
                   zoomGesturesEnabled: false,

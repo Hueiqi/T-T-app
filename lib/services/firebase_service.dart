@@ -85,7 +85,6 @@ class FirebaseService {
 
       batch.set(workoutRef, {
         ...workout.toMap(),
-        'endTime': FieldValue.serverTimestamp(),
         'avgHeartRate': workout.avgHeartRate,
         'maxHeartRate': workout.maxHeartRate,
         'minHeartRate': workout.minHeartRate,
@@ -141,8 +140,6 @@ class FirebaseService {
     if (_demoMode) return;
     try {
       await _firestore!
-          .collection('users')
-          .doc(meal.userId)
           .collection('meals')
           .doc(meal.id)
           .set(meal.toMap());
@@ -159,9 +156,8 @@ class FirebaseService {
     if (cached != null) return cached;
     try {
       Query query = _firestore!
-          .collection('users')
-          .doc(userId)
           .collection('meals')
+          .where('userId', isEqualTo: userId)
           .orderBy('dateTime', descending: true)
           .limit(50);
       if (date != null) {
@@ -170,14 +166,14 @@ class FirebaseService {
         query = query
             .where(
               'dateTime',
-              isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
+              isGreaterThanOrEqualTo: startOfDay,
             )
-            .where('dateTime', isLessThan: endOfDay.toIso8601String());
+            .where('dateTime', isLessThan: endOfDay);
       }
       final snapshot = await query.get();
       final result = snapshot.docs
           .map(
-            (doc) => Meal.fromMap(Map<String, dynamic>.from(doc.data() as Map)),
+            (doc) => Meal.fromMap(Map<String, dynamic>.from(doc.data() as Map), doc.id),
           )
           .toList();
       _setCache(cacheKey, result);
@@ -199,15 +195,14 @@ class FirebaseService {
     if (cached != null) return cached;
     try {
       final query = _firestore!
-          .collection('users')
-          .doc(userId)
           .collection('meals')
-          .where('dateTime', isGreaterThanOrEqualTo: start.toIso8601String())
-          .where('dateTime', isLessThanOrEqualTo: end.toIso8601String())
+          .where('userId', isEqualTo: userId)
+          .where('dateTime', isGreaterThanOrEqualTo: start)
+          .where('dateTime', isLessThanOrEqualTo: end)
           .orderBy('dateTime', descending: true);
       final snapshot = await query.get();
       final result = snapshot.docs
-          .map((doc) => Meal.fromMap(Map<String, dynamic>.from(doc.data() as Map)))
+          .map((doc) => Meal.fromMap(Map<String, dynamic>.from(doc.data() as Map), doc.id))
           .toList();
       _setCache(cacheKey, result);
       return result;
@@ -315,8 +310,6 @@ class FirebaseService {
     if (_demoMode) return;
     try {
       await _firestore!
-          .collection('users')
-          .doc(userId)
           .collection('meals')
           .doc(mealId)
           .delete();
@@ -329,8 +322,6 @@ class FirebaseService {
     if (_demoMode) return;
     try {
       await _firestore!
-          .collection('users')
-          .doc(meal.userId)
           .collection('meals')
           .doc(meal.id)
           .update(meal.toMap());
@@ -417,6 +408,36 @@ class FirebaseService {
       'carbs': totalCarbs,
       'fat': totalFat,
     };
+  }
+
+  Future<void> saveDailyNutritionTotals(String userId, DateTime date, {
+    required double totalCalories,
+    required double totalProtein,
+    required double totalCarbs,
+    required double totalFat,
+    double? calorieGoal,
+  }) async {
+    if (_demoMode) return;
+    try {
+      final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      await _firestore!
+          .collection('users')
+          .doc(userId)
+          .collection('dailyTotals')
+          .doc(dateKey)
+          .set({
+        'userId': userId,
+        'date': dateKey,
+        'calorieGoal': ?calorieGoal,
+        'totalCalories': FieldValue.increment(totalCalories),
+        'totalProtein': FieldValue.increment(totalProtein),
+        'totalCarbs': FieldValue.increment(totalCarbs),
+        'totalFat': FieldValue.increment(totalFat),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('saveDailyNutritionTotals error: $e');
+    }
   }
 
   // ── Notification Settings ──
@@ -652,6 +673,16 @@ class FirebaseService {
         'date': dateKey,
         'steps': steps,
         'timestamp': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      await _firestore!
+          .collection('users')
+          .doc(userId)
+          .collection('dailyTotals')
+          .doc(dateKey)
+          .set({
+        'date': dateKey,
+        'dailySteps': steps,
+        'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('saveDailySteps error: $e');

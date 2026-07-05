@@ -1,14 +1,174 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ────────────────────────────────────────────────
+    // 1. MEALS – top‑level collection (your query uses this)
+    // ────────────────────────────────────────────────
+    match /meals/{mealId} {
+      function isValidMeal() {
+        let data = request.resource.data;
+        return data.keys().hasAll([
+          'userId', 'foodName', 'calories',
+          'protein', 'carbs', 'fat',
+          'mealType', 'dateTime',
+          // All vitamins and minerals you requested
+          'vitaminA', 'vitaminB', 'vitaminC', 'vitaminD', 'vitaminE',
+          'vitaminK', 'calcium', 'iron', 'magnesium', 'potassium',
+          'sodium', 'fiber', 'water'
+        ])
+        && data.userId == request.auth.uid
+        && data.foodName is string && data.foodName.size() > 0 && data.foodName.size() <= 100
+        && data.calories is number && data.calories >= 0 && data.calories <= 5000
+        && data.protein is number && data.protein >= 0 && data.protein <= 500
+        && data.carbs is number && data.carbs >= 0 && data.carbs <= 1000
+        && data.fat is number && data.fat >= 0 && data.fat <= 500
+        && data.mealType in ['breakfast', 'lunch', 'dinner', 'snack']
+        && data.dateTime is timestamp
+        // Vitamins
+        && data.vitaminA is number && data.vitaminA >= 0
+        && data.vitaminB is number && data.vitaminB >= 0
+        && data.vitaminC is number && data.vitaminC >= 0
+        && data.vitaminD is number && data.vitaminD >= 0
+        && data.vitaminE is number && data.vitaminE >= 0
+        && data.vitaminK is number && data.vitaminK >= 0
+        // Minerals
+        && data.calcium is number && data.calcium >= 0
+        && data.iron is number && data.iron >= 0
+        && data.magnesium is number && data.magnesium >= 0
+        && data.potassium is number && data.potassium >= 0
+        && data.sodium is number && data.sodium >= 0
+        // Other
+        && data.fiber is number && data.fiber >= 0
+        && data.water is number && data.water >= 0;
+      }
+
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && isValidMeal();
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid
+        && isValidMeal();
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // ────────────────────────────────────────────────
+    // 2. USERS – root document + subcollections
+    // ────────────────────────────────────────────────
     match /users/{userId} {
-      allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
-      match /{document=**} {
-        allow read, update, delete: if request.auth != null && request.auth.uid == userId;
-        allow create: if request.auth != null && request.auth.uid == userId;
+      // The user document itself
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // ── Profile ──
+      match /profile/{docId} {
+        function isValidProfile() {
+          let data = request.resource.data;
+          return data.keys().hasAll([
+            'age', 'gender', 'weightKg', 'heightCm', 'activityLevel', 'updatedAt'
+          ])
+          && data.age is number && data.age > 0 && data.age < 120
+          && data.gender in ['male', 'female']
+          && data.weightKg is number && data.weightKg > 0 && data.weightKg < 500
+          && data.heightCm is number && data.heightCm > 0 && data.heightCm < 300
+          && data.activityLevel in ['sedentary', 'light', 'moderate', 'active']
+          && data.updatedAt is timestamp;
+        }
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId && isValidProfile();
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Daily Totals ──
+      match /dailyTotals/{dateId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null
+          && request.auth.uid == userId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Plans ──
+      match /plans/{planId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Workouts ──
+      match /workouts/{workoutId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null
+          && request.auth.uid == userId
+          && request.resource.data.caloriesBurned is number
+          && request.resource.data.caloriesBurned >= 0;
+        allow update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Weight History ──
+      match /weightHistory/{entryId} {
+        allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+        allow create: if request.auth != null
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.weight is number
+          && request.resource.data.weight > 0;
+        allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      }
+
+      // ── Sleep ──
+      match /sleep/{sleepId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Bookmarks ──
+      match /bookmarks/{bookmarkId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Places ──
+      match /places/{placeId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Activities ──
+      match /activities/{activityId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Daily Steps ──
+      match /dailySteps/{dateId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Notification Settings ──
+      match /notificationSettings/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Notification History ──
+      match /notificationHistory/{logId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
 
+    // ────────────────────────────────────────────────
+    // 3. WORKOUTS – global collection (filtered by userId)
+    // ────────────────────────────────────────────────
+    match /workouts/{workoutId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.caloriesBurned is number
+        && request.resource.data.caloriesBurned >= 0;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // ────────────────────────────────────────────────
+    // 4. EXERCISES – public read‑only library
+    // ────────────────────────────────────────────────
+    match /exercises/{exerciseId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ────────────────────────────────────────────────
+    // 5. FALLBACK – deny everything else
+    // ────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }

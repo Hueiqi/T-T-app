@@ -18,6 +18,7 @@ import '../models/workout_model.dart';
 import '../models/weight_entry_model.dart';
 import '../config/theme.dart';
 import '../services/firebase_service.dart';
+import '../services/health_connect_service.dart';
 import '../widgets/quick_tour.dart';
 import '../widgets/news_carousel.dart';
 import '../widgets/map_preview_card.dart';
@@ -303,6 +304,7 @@ class _DashboardTabState extends State<_DashboardTab>
       final userDone = auth.user?.hasSeenQuickTour ?? false;
 
       if (!userDone && !localDone) {
+        if (!mounted) return;
         setState(() => _showTourPrompt = true);
         Future.delayed(const Duration(milliseconds: 600), () {
           _quickTourKey.currentState?.start();
@@ -320,9 +322,15 @@ class _DashboardTabState extends State<_DashboardTab>
       final newsProvider = context.read<NewsProvider>();
       final planningProvider = context.read<PlanningProvider>();
 
+      nutrition.initDailyCalorieGoal(auth.user!);
+
       await nutrition.calculateAndSetTDEE(
         user: auth.user!,
         activityLevel: auth.user!.activityLevel,
+        onSave: (goal) async {
+          final updated = auth.user!.copyWith(dailyCalorieTarget: goal);
+          await auth.updateProfile(updated);
+        },
       );
 
       await health.initializeHealthAccess();
@@ -330,14 +338,14 @@ class _DashboardTabState extends State<_DashboardTab>
       if (!mounted) return;
 
       await Future.wait([
-        sleepProvider.loadSleepData(auth.user!.uid),
-        nutrition.loadTodayMeals(auth.user!.uid),
-        nutrition.loadWeeklyCalories(auth.user!.uid),
-        nutrition.loadWeightHistory(auth.user!.uid),
-        workoutProvider.loadDashboardData(auth.user!.uid),
-        placeProvider.loadPlaces(auth.user!.uid),
-        newsProvider.fetchNews(),
-        planningProvider.loadBookmarks(auth.user!.uid),
+        sleepProvider.loadSleepData(auth.user!.uid).catchError((e, s) => debugPrint('loadSleepData: $e')),
+        nutrition.loadTodayMeals(auth.user!.uid).catchError((e, s) => debugPrint('loadTodayMeals: $e')),
+        nutrition.loadWeeklyCalories(auth.user!.uid).catchError((e, s) => debugPrint('loadWeeklyCalories: $e')),
+        nutrition.loadWeightHistory(auth.user!.uid).catchError((e, s) => debugPrint('loadWeightHistory: $e')),
+        workoutProvider.loadDashboardData(auth.user!.uid).catchError((e, s) => debugPrint('loadDashboardData: $e')),
+        placeProvider.loadPlaces(auth.user!.uid).catchError((e, s) => debugPrint('loadPlaces: $e')),
+        newsProvider.fetchNews().catchError((e, s) => debugPrint('fetchNews: $e')),
+        planningProvider.loadBookmarks(auth.user!.uid).catchError((e, s) => debugPrint('loadBookmarks: $e')),
       ]);
 
       _weightHistory = nutrition.weightHistory;
@@ -345,6 +353,9 @@ class _DashboardTabState extends State<_DashboardTab>
       final recentMeals = await nutrition.loadRecentMeals(auth.user!.uid, days: 30);
       _computeCalorieHistory(recentMeals, workoutProvider.workouts);
       await _loadReportMeals(nutrition, auth.user!.uid);
+
+      if (!mounted) return;
+      await _syncHealthConnectSteps(auth.user!.uid);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -365,6 +376,19 @@ class _DashboardTabState extends State<_DashboardTab>
     final steps = context.read<MotionProvider>().stepsToday;
     if (uid != null) {
       FirebaseService().saveDailySteps(uid, DateTime.now(), steps);
+    }
+  }
+
+  Future<void> _syncHealthConnectSteps(String uid) async {
+    try {
+      final hc = HealthConnectService();
+      if (!await hc.isAvailable) return;
+      final steps = await hc.getStepsToday();
+      if (steps > 0) {
+        await FirebaseService().saveDailySteps(uid, DateTime.now(), steps);
+      }
+    } catch (e) {
+      debugPrint('HealthConnect sync error: $e');
     }
   }
 

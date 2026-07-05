@@ -30,7 +30,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     final seen = <String>{};
     return nutrition.todayMeals
         .where((m) => seen.add(m.foodName))
-        .map((m) => FoodItemDisplay(m.foodName, m.calories, m.servingSize, m.protein, m.carbs, m.fat))
+        .map((m) => FoodItemDisplay(m.foodName, m.calories, '1 serving', m.protein, m.carbs, m.fat))
         .toList();
   }
 
@@ -62,7 +62,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     super.dispose();
   }
 
-  Future<Meal> _addMeal(String name, double calories, double protein, double carbs, double fat, String servingSize) async {
+  Future<Meal> _addMeal(String name, double calories, double protein, double carbs, double fat) async {
     final nutrition = context.read<NutritionProvider>();
     final auth = context.read<AuthProvider>();
     if (auth.user == null) throw Exception('Not authenticated');
@@ -75,13 +75,11 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       protein: protein,
       carbs: carbs,
       fat: fat,
-      servingSize: servingSize,
-      detectionMethod: 'manual',
     );
   }
 
   Future<void> _selectFood(FoodItemDisplay food) async {
-    final meal = await _addMeal(food.name, food.calories, food.protein, food.carbs, food.fat, food.servingSize);
+    final meal = await _addMeal(food.name, food.calories, food.protein, food.carbs, food.fat);
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -92,9 +90,9 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   Future<void> _selectCombo(ComboDisplay combo) async {
     final calsPerItem = combo.calories / combo.items.length;
     if (combo.items.isEmpty) return;
-    final meal = await _addMeal(combo.items.first, calsPerItem, 0, 0, 0, '1 serving');
+    final meal = await _addMeal(combo.items.first, calsPerItem, 0, 0, 0);
     for (int i = 1; i < combo.items.length; i++) {
-      await _addMeal(combo.items[i], calsPerItem, 0, 0, 0, '1 serving');
+      await _addMeal(combo.items[i], calsPerItem, 0, 0, 0);
     }
     if (!mounted) return;
     Navigator.pushReplacement(

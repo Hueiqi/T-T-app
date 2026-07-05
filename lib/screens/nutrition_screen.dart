@@ -22,6 +22,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
   String _selectedMealType = 'snack';
   DateTime _selectedDate = DateTime.now();
   List<Meal> _displayedMeals = [];
+  final ScrollController _calendarScrollController = ScrollController();
 
   @override
   void initState() {
@@ -34,11 +35,37 @@ class _NutritionScreenState extends State<NutritionScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _calendarScrollController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadMealsForDate(String userId, DateTime date) async {
     await context.read<NutritionProvider>().loadMealsForDate(userId, date);
     setState(() {
       _selectedDate = date;
       _displayedMeals = context.read<NutritionProvider>().selectedDateMeals;
+    });
+    _scrollToDate(date);
+  }
+
+  void _scrollToDate(DateTime date) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_calendarScrollController.hasClients) return;
+      final today = DateTime.now();
+      final startDate = DateTime(today.year, today.month, today.day).subtract(const Duration(days: 7));
+      final targetDate = DateTime(date.year, date.month, date.day);
+      final index = targetDate.difference(startDate).inDays;
+      if (index < 0) return;
+      final tileWidth = 60.0;
+      final screenWidth = context.size?.width ?? 400;
+      final targetOffset = (index * tileWidth + tileWidth / 2) - screenWidth / 2;
+      _calendarScrollController.animateTo(
+        targetOffset.clamp(0, _calendarScrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     });
   }
 
@@ -182,7 +209,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
     final caloriesController = TextEditingController(
       text: existingMeal != null ? existingMeal.calories.toStringAsFixed(0) : '',
     );
-    final servingController = TextEditingController(text: existingMeal?.servingSize ?? '');
+    final servingController = TextEditingController(text: '');
     String selectedMealType = existingMeal?.mealType ?? preselectedMealType ?? 'snack';
     bool isEditing = existingMeal != null;
 
@@ -282,9 +309,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                         protein: existingMeal.protein,
                         carbs: existingMeal.carbs,
                         fat: existingMeal.fat,
-                        servingSize: servingController.text.trim().isEmpty
-                            ? '1 serving'
-                            : servingController.text.trim(),
                       );
                     } else {
                       await nutrition.saveMeal(
@@ -295,10 +319,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                         protein: 0,
                         carbs: 0,
                         fat: 0,
-                        servingSize: servingController.text.trim().isEmpty
-                            ? '1 serving'
-                            : servingController.text.trim(),
-                        detectionMethod: 'manual',
                       );
                     }
                     if (ctx.mounted) {
@@ -350,29 +370,45 @@ class _NutritionScreenState extends State<NutritionScreen> {
   Widget build(BuildContext context) {
     final nutrition = context.watch<NutritionProvider>();
 
-    // Use displayed meals (for selected date) or fallback to today's meals
-    final meals = _displayedMeals.isNotEmpty ? _displayedMeals : nutrition.todayMeals;
+    final meals = _displayedMeals;
     final totalCalories = meals.fold<double>(0, (sum, m) => sum + m.calories);
     final totalProtein = meals.fold<double>(0, (sum, m) => sum + m.protein);
     final totalCarbs = meals.fold<double>(0, (sum, m) => sum + m.carbs);
     final totalFat = meals.fold<double>(0, (sum, m) => sum + m.fat);
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showQuickActions,
-        backgroundColor: AppTheme.primaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'history',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MealHistoryScreen()),
+            ),
+            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.8),
+            child: const Icon(Icons.history, color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: 'add',
+            onPressed: _showQuickActions,
+            backgroundColor: AppTheme.primaryColor,
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+        ],
       ),
       bottomNavigationBar: widget.showBottomNav ? buildBottomNavBar(context, currentIndex: 3) : null,
       body: Column(
         children: [
+          _buildCalendarStrip(),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Date Picker Row ──
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── Date Picker Row ──
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                     child: Row(
@@ -397,6 +433,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                               lastDate: DateTime.now(),
                             );
                             if (picked != null) {
+                              if (!context.mounted) return;
                               final auth = context.read<AuthProvider>();
                               if (auth.user != null) {
                                 _loadMealsForDate(auth.user!.uid, picked);
@@ -406,9 +443,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryColor.withOpacity(0.08),
+                              color: AppTheme.primaryColor.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+                              border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -560,6 +597,89 @@ class _NutritionScreenState extends State<NutritionScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarStrip() {
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final selectedDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    final auth = context.read<AuthProvider>();
+    final userId = auth.user?.uid;
+    final startDate = todayDate.subtract(const Duration(days: 7));
+    const totalDays = 21;
+
+    return SizedBox(
+      height: 90,
+      child: ListView.builder(
+        controller: _calendarScrollController,
+        scrollDirection: Axis.horizontal,
+        itemCount: totalDays,
+        itemBuilder: (context, index) {
+          final date = startDate.add(Duration(days: index));
+          final dateDay = DateTime(date.year, date.month, date.day);
+          final isSelected = dateDay == selectedDate;
+          final isToday = dateDay == todayDate;
+          final isFuture = dateDay.isAfter(todayDate);
+          final dayName = DateFormat('E').format(date);
+          final dayNum = date.day.toString();
+
+          return GestureDetector(
+            onTap: isFuture
+                ? null
+                : () {
+                    if (userId != null) _loadMealsForDate(userId, date);
+                  },
+            child: Container(
+              width: 52,
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppTheme.primaryColor
+                    : isFuture
+                        ? Colors.grey.shade100
+                        : AppTheme.primaryColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: isSelected
+                    ? null
+                    : Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.15)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    dayName,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isSelected ? Colors.white : AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dayNum,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.white : AppTheme.textPrimary,
+                    ),
+                  ),
+                  if (isToday)
+                    Container(
+                      width: 4,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 2),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.white : AppTheme.primaryColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -781,22 +901,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            if (meal.imageUrl.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  meal.imageUrl,
-                  height: 200,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 200,
-                    color: Colors.grey.shade100,
-                    child: const Icon(Icons.broken_image, size: 64, color: Colors.grey),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 16),
             Text(
               meal.foodName,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -831,7 +935,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -842,13 +946,15 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 
   Widget _buildNutrientGrid(Meal meal) {
+    final totalVitamins = meal.vitaminA + meal.vitaminB + meal.vitaminC + meal.vitaminD + meal.vitaminE + meal.vitaminK;
+    final totalMinerals = meal.calcium + meal.iron + meal.magnesium + meal.potassium + meal.sodium;
     final nutrients = [
       _NutrientItem(Icons.local_fire_department, 'Calories', '${meal.calories.toStringAsFixed(0)} kcal', const Color(0xFFF59E0B)),
       _NutrientItem(Icons.fitness_center, 'Protein', '${meal.protein.toStringAsFixed(1)}g', const Color(0xFF6366F1)),
       _NutrientItem(Icons.grain, 'Carbs', '${meal.carbs.toStringAsFixed(1)}g', const Color(0xFFF59E0B)),
       _NutrientItem(Icons.water_drop, 'Fat', '${meal.fat.toStringAsFixed(1)}g', const Color(0xFFEC4899)),
-      _NutrientItem(Icons.eco, 'Vitamins', '${meal.vitamins.toStringAsFixed(0)}g', const Color(0xFF8B5CF6)),
-      _NutrientItem(Icons.science, 'Minerals', '${meal.minerals.toStringAsFixed(0)}g', const Color(0xFF14B8A6)),
+      _NutrientItem(Icons.eco, 'Vitamins', '${totalVitamins.toStringAsFixed(0)}g', const Color(0xFF8B5CF6)),
+      _NutrientItem(Icons.science, 'Minerals', '${totalMinerals.toStringAsFixed(0)}g', const Color(0xFF14B8A6)),
       _NutrientItem(Icons.agriculture, 'Fiber', '${meal.fiber.toStringAsFixed(0)}g', const Color(0xFFA16207)),
       _NutrientItem(Icons.water, 'Water', '${meal.water.toStringAsFixed(0)}g', const Color(0xFF3B82F6)),
     ];
@@ -867,9 +973,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
         final n = nutrients[i];
         return Container(
           decoration: BoxDecoration(
-            color: n.color.withOpacity(0.08),
+            color: n.color.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: n.color.withOpacity(0.15)),
+            border: Border.all(color: n.color.withValues(alpha: 0.15)),
           ),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           child: Column(
@@ -892,7 +998,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 n.label,
                 style: TextStyle(
                   fontSize: 9,
-                  color: n.color.withOpacity(0.7),
+                  color: n.color.withValues(alpha: 0.7),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1472,32 +1578,19 @@ class _FoodItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = meal.imageUrl.isNotEmpty;
-
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              width: 44,
-              height: 44,
-              child: hasImage
-                  ? Image.network(
-                      meal.imageUrl,
-                      width: 44,
-                      height: 44,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _fallbackThumbnail(),
-                      loadingBuilder: (_, child, progress) {
-                        if (progress == null) return child;
-                        return _fallbackThumbnail();
-                      },
-                    )
-                  : _fallbackThumbnail(),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: Icon(_mealIcon(meal.mealType), color: AppTheme.primaryColor, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1512,14 +1605,6 @@ class _FoodItemRow extends StatelessWidget {
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  meal.servingSize,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textSecondary.withValues(alpha: 0.7),
-                  ),
                 ),
                 const SizedBox(height: 6),
                 Row(
@@ -1577,39 +1662,24 @@ class _FoodItemRow extends StatelessWidget {
     );
   }
 
-  Widget _fallbackThumbnail() {
-    Color bgColor;
-    IconData icon;
-    switch (meal.mealType) {
+  IconData _mealIcon(String mealType) {
+    switch (mealType) {
       case 'breakfast':
-        bgColor = const Color(0xFFF59E0B).withOpacity(0.15);
-        icon = Icons.wb_sunny;
-        break;
+        return Icons.wb_sunny;
       case 'lunch':
-        bgColor = const Color(0xFF059669).withOpacity(0.15);
-        icon = Icons.wb_cloudy;
-        break;
+        return Icons.wb_cloudy;
       case 'dinner':
-        bgColor = const Color(0xFF7C3AED).withOpacity(0.15);
-        icon = Icons.nightlight_round;
-        break;
+        return Icons.nightlight_round;
       default:
-        bgColor = const Color(0xFFEC4899).withOpacity(0.15);
-        icon = Icons.restaurant;
+        return Icons.restaurant;
     }
-    return Container(
-      width: 44,
-      height: 44,
-      color: bgColor,
-      child: Icon(icon, size: 22, color: bgColor.withOpacity(0.8)),
-    );
   }
 
   Widget _macroChip(String label, double value, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(

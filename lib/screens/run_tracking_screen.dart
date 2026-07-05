@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:location/location.dart';
@@ -62,6 +63,7 @@ class _RunTrackingScreenState extends State<RunTrackingScreen> {
     final permission = await _location.requestPermission();
     if (permission != PermissionStatus.granted) return;
     final loc = await _location.getLocation();
+    if (!mounted) return;
     setState(() {
       _currentLocation = LatLng(loc.latitude!, loc.longitude!);
     });
@@ -150,6 +152,7 @@ class _RunTrackingScreenState extends State<RunTrackingScreen> {
       await workoutProvider.saveWorkout(workout);
     }
 
+    if (!mounted) return;
     setState(() => _isSaving = false);
     _showSummaryDialog();
     await _loadHistory();
@@ -330,8 +333,8 @@ class _RunTrackingScreenState extends State<RunTrackingScreen> {
                     target: _currentLocation!,
                     zoom: 15,
                   ),
-                  myLocationEnabled: true,
-                  myLocationTrackingMode: MyLocationTrackingMode.tracking,
+                  myLocationEnabled: !kIsWeb,
+                  myLocationTrackingMode: !kIsWeb ? MyLocationTrackingMode.tracking : MyLocationTrackingMode.none,
                   compassEnabled: false,
                   rotateGesturesEnabled: false,
                 ),

@@ -238,6 +238,7 @@ class _SleepScreenState extends State<SleepScreen> {
       lastDate: now,
     );
     if (picked != null) {
+      if (!mounted) return;
       sleepProvider.loadSleepDataForDate(auth.user!.uid, picked);
     }
   }

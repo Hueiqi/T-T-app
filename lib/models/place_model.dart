@@ -30,8 +30,8 @@ class Place {
   factory Place.fromMap(Map<String, dynamic> map) => Place(
         id: map['id'] as String,
         userId: map['userId'] as String? ?? '',
-        latitude: (map['latitude'] as num).toDouble(),
-        longitude: (map['longitude'] as num).toDouble(),
+        latitude: (map['latitude'] as num?)?.toDouble() ?? 0,
+        longitude: (map['longitude'] as num?)?.toDouble() ?? 0,
         visitedAt: DateTime.parse(map['visitedAt'] as String),
         address: map['address'] as String?,
         name: map['name'] as String?,

@@ -74,10 +74,12 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
       _detectedFood = null;
     });
     final bytes = await file.readAsBytes();
+    if (!mounted) return;
     setState(() => _imageBytes = bytes);
 
     final nutrition = context.read<NutritionProvider>();
     final detected = await nutrition.analyzeFoodImage(bytes);
+    if (!mounted) return;
 
     setState(() {
       if (detected != null) {
@@ -148,14 +150,8 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
       protein: protein,
       carbs: carbs,
       fat: fat,
-      vitamins: vitamins,
-      minerals: minerals,
       water: water,
       fiber: fiber,
-      imageUrl: imageUrl ?? '',
-      imageBytes: _imageBytes,
-      detectionMethod: _detectedFood != null ? 'ai' : 'manual',
-      servingSize: servingSize,
     );
 
     if (mounted) {

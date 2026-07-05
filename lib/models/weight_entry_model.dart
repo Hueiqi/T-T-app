@@ -25,7 +25,7 @@ class WeightEntry {
         id: map['id'] as String,
         userId: map['userId'] as String,
         date: DateTime.parse(map['date'] as String),
-        weight: (map['weight'] as num).toDouble(),
+        weight: (map['weight'] as num?)?.toDouble() ?? 0,
         notes: map['notes'] as String?,
       );
 }

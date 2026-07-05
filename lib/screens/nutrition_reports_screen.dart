@@ -78,8 +78,8 @@ class _NutritionReportsScreenState extends State<NutritionReportsScreen> {
       _totalCarbs += m.carbs;
       _totalFat += m.fat;
       _totalFiber += m.fiber;
-      _totalVitamins += m.vitamins;
-      _totalMinerals += m.minerals;
+      _totalVitamins += m.vitaminA + m.vitaminB + m.vitaminC + m.vitaminD + m.vitaminE + m.vitaminK;
+      _totalMinerals += m.calcium + m.iron + m.magnesium + m.potassium + m.sodium;
       _totalWater += m.water;
 
       final dayKey = DateFormat('yyyy-MM-dd').format(m.dateTime);

@@ -48,6 +48,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
 
   Future<void> _load() async {
     await ExerciseDatabase.load();
+    if (!mounted) return;
     setState(() {
       _filtered = ExerciseDatabase.all;
       _isLoading = false;

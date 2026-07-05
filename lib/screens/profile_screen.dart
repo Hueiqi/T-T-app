@@ -124,15 +124,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await nutrition.calculateAndSetTDEE(
       user: updatedUser,
       activityLevel: _activityLevel,
+      onSave: (goal) async {
+        final saved = updatedUser.copyWith(dailyCalorieTarget: goal);
+        await auth.updateProfile(saved);
+      },
     );
+    if (!mounted) return;
     setState(() {
       _hasUnsavedChanges = false;
     });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated')),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Profile updated')),
+    );
   }
 
   Future<void> _connectSpotify() async {
@@ -161,6 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (auth.user == null) return;
     final music = context.read<MusicProvider>();
     await music.disconnect();
+    if (!mounted) return;
     final updatedUser = auth.user!.copyWith(spotifyConnected: 'disconnected');
     await auth.updateProfile(updatedUser);
   }

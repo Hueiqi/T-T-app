@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Meal {
   final String id;
@@ -10,14 +10,25 @@ class Meal {
   final double protein;
   final double carbs;
   final double fat;
-  final double vitamins;
-  final double minerals;
-  final double water;
+
+  // Vitamins
+  final double vitaminA;
+  final double vitaminB;
+  final double vitaminC;
+  final double vitaminD;
+  final double vitaminE;
+  final double vitaminK;
+
+  // Minerals
+  final double calcium;
+  final double iron;
+  final double magnesium;
+  final double potassium;
+  final double sodium;
+
+  // Other nutrients
   final double fiber;
-  final String servingSize;
-  final String imageUrl;
-  final Uint8List? imageBytes;
-  final String detectionMethod;
+  final double water;
 
   Meal({
     required this.id,
@@ -29,55 +40,69 @@ class Meal {
     this.protein = 0,
     this.carbs = 0,
     this.fat = 0,
-    this.vitamins = 0,
-    this.minerals = 0,
-    this.water = 0,
+    this.vitaminA = 0,
+    this.vitaminB = 0,
+    this.vitaminC = 0,
+    this.vitaminD = 0,
+    this.vitaminE = 0,
+    this.vitaminK = 0,
+    this.calcium = 0,
+    this.iron = 0,
+    this.magnesium = 0,
+    this.potassium = 0,
+    this.sodium = 0,
     this.fiber = 0,
-    this.servingSize = '1 serving',
-    this.imageUrl = '',
-    this.imageBytes,
-    this.detectionMethod = 'manual',
+    this.water = 0,
   });
 
   Map<String, dynamic> toMap() => {
-        'id': id,
         'userId': userId,
-        'dateTime': dateTime.toIso8601String(),
+        'dateTime': Timestamp.fromDate(dateTime),
         'mealType': mealType,
         'foodName': foodName,
         'calories': calories,
         'protein': protein,
         'carbs': carbs,
         'fat': fat,
-        'vitamins': vitamins,
-        'minerals': minerals,
-        'water': water,
+        'vitaminA': vitaminA,
+        'vitaminB': vitaminB,
+        'vitaminC': vitaminC,
+        'vitaminD': vitaminD,
+        'vitaminE': vitaminE,
+        'vitaminK': vitaminK,
+        'calcium': calcium,
+        'iron': iron,
+        'magnesium': magnesium,
+        'potassium': potassium,
+        'sodium': sodium,
         'fiber': fiber,
-        'servingSize': servingSize,
-        'imageUrl': imageUrl,
-        if (imageBytes != null) 'imageBytes': imageBytes,
-        'detectionMethod': detectionMethod,
+        'water': water,
       };
 
-  factory Meal.fromMap(Map<String, dynamic> map) => Meal(
-        id: map['id'] as String,
-        userId: map['userId'] as String,
-        dateTime: DateTime.parse(map['dateTime'] as String),
+  factory Meal.fromMap(Map<String, dynamic> map, String id) => Meal(
+        id: id,
+        userId: map['userId'] ?? '',
+        dateTime: map['dateTime'] is Timestamp
+            ? (map['dateTime'] as Timestamp).toDate()
+            : DateTime.parse(map['dateTime'] as String),
         mealType: map['mealType'] as String? ?? 'snack',
         foodName: map['foodName'] as String? ?? 'Unknown',
         calories: (map['calories'] as num?)?.toDouble() ?? 0,
         protein: (map['protein'] as num?)?.toDouble() ?? 0,
         carbs: (map['carbs'] as num?)?.toDouble() ?? 0,
         fat: (map['fat'] as num?)?.toDouble() ?? 0,
-        vitamins: (map['vitamins'] as num?)?.toDouble() ?? 0,
-        minerals: (map['minerals'] as num?)?.toDouble() ?? 0,
-        water: (map['water'] as num?)?.toDouble() ?? 0,
+        vitaminA: (map['vitaminA'] as num?)?.toDouble() ?? 0,
+        vitaminB: (map['vitaminB'] as num?)?.toDouble() ?? 0,
+        vitaminC: (map['vitaminC'] as num?)?.toDouble() ?? 0,
+        vitaminD: (map['vitaminD'] as num?)?.toDouble() ?? 0,
+        vitaminE: (map['vitaminE'] as num?)?.toDouble() ?? 0,
+        vitaminK: (map['vitaminK'] as num?)?.toDouble() ?? 0,
+        calcium: (map['calcium'] as num?)?.toDouble() ?? 0,
+        iron: (map['iron'] as num?)?.toDouble() ?? 0,
+        magnesium: (map['magnesium'] as num?)?.toDouble() ?? 0,
+        potassium: (map['potassium'] as num?)?.toDouble() ?? 0,
+        sodium: (map['sodium'] as num?)?.toDouble() ?? 0,
         fiber: (map['fiber'] as num?)?.toDouble() ?? 0,
-        servingSize: map['servingSize'] as String? ?? '1 serving',
-        imageUrl: map['imageUrl'] as String? ?? '',
-        imageBytes: map['imageBytes'] is Uint8List
-            ? map['imageBytes'] as Uint8List
-            : null,
-        detectionMethod: map['detectionMethod'] as String? ?? 'manual',
+        water: (map['water'] as num?)?.toDouble() ?? 0,
       );
 }
