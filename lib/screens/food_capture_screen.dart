@@ -8,12 +8,13 @@ import '../services/firebase_service.dart';
 import '../config/theme.dart';
 import '../models/food_item_model.dart';
 import '../models/meal_model.dart';
-import 'nutrition_success_screen.dart';
 
 enum _CaptureState { capture, result, edit }
 
 class FoodCaptureScreen extends StatefulWidget {
-  const FoodCaptureScreen({super.key});
+  final DateTime? initialDate;   // ✅ date passed from NutritionScreen
+
+  const FoodCaptureScreen({super.key, this.initialDate});
 
   @override
   State<FoodCaptureScreen> createState() => _FoodCaptureScreenState();
@@ -26,6 +27,9 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
   String _selectedMealType = 'lunch';
   FoodItem? _detectedFood;
 
+  // ✅ Store the selected date (from widget.initialDate or now)
+  late DateTime _selectedDate;
+
   final _nameController = TextEditingController();
   final _caloriesController = TextEditingController();
   final _proteinController = TextEditingController();
@@ -36,6 +40,12 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
   final _mineralsController = TextEditingController();
   final _waterController = TextEditingController();
   final _fiberController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = widget.initialDate ?? DateTime.now();
+  }
 
   @override
   void dispose() {
@@ -55,7 +65,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
   Future<void> _takePhoto() async {
     final photo = await ImagePicker().pickImage(
       source: ImageSource.camera,
-      imageQuality: 85,
+      imageQuality: 95,
     );
     if (photo != null) await _processImage(photo);
   }
@@ -152,15 +162,12 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
       fat: fat,
       water: water,
       fiber: fiber,
+      dateTime: _selectedDate,   // ✅ pass the selected date
     );
 
     if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => NutritionSuccessScreen(meal: savedMeal),
-        ),
-      );
+      // ✅ Pop with true to signal NutritionScreen to refresh
+      Navigator.pop(context, true);
     }
   }
 
@@ -1311,7 +1318,6 @@ class _FramePainter extends CustomPainter {
 
     const cornerLen = 24.0;
     const gap = 0.0;
-    final r = size.width / 2;
 
     // Draw rounded rect frame
     final rect = RRect.fromRectAndRadius(

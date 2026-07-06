@@ -16,17 +16,25 @@ import 'services/exercise_db.dart';
 import 'services/ai_service.dart';
 import 'app.dart';
 import 'firebase_options.dart';
+import 'services/ai_service.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  try {
+    await AIService().initialize(model: 'gemini-3.1-flash-lite');
+    debugPrint('✅ Gemini init successful');
+  } catch (e) {
+    debugPrint('❌ Gemini init failed: $e');
+  }
   await ExerciseDatabase.load();
   await AIService().initialize();
 
   final healthProvider = HealthProvider();
   await healthProvider.initializeHealthAccess();
-  AIService().initialize();
+  await AIService().initialize();
   
   runApp(
     MultiProvider(

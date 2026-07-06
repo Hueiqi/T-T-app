@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../config/routes.dart';
 
+
 class WorkoutCompleteSummaryScreen extends StatefulWidget {
   final String routineTitle;
   final int durationSeconds;
@@ -103,17 +104,24 @@ class _WorkoutCompleteSummaryScreenState
 
     return Scaffold(
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _buildHeader(progress, total, allDone)),
-            if (!allDone) SliverToBoxAdapter(child: _buildProgressBar(progress, total)),
-            SliverToBoxAdapter(child: _buildStatsRow()),
-            SliverToBoxAdapter(child: _buildCompletedSection()),
-            if (!allDone) SliverToBoxAdapter(child: _buildPendingSection()),
-            SliverToBoxAdapter(child: _buildMotivationalCard()),
-            SliverToBoxAdapter(child: _buildActionButtons()),
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          ],
+        // ✅ Force the CustomScrollView to fill the entire available space
+        child: SizedBox.expand(
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: _buildHeader(progress, total, allDone)),
+              if (!allDone) SliverToBoxAdapter(child: _buildProgressBar(progress, total)),
+              SliverToBoxAdapter(child: _buildStatsRow()),
+              SliverToBoxAdapter(child: _buildCompletedSection()),
+              if (!allDone) SliverToBoxAdapter(child: _buildPendingSection()),
+              SliverToBoxAdapter(child: _buildMotivationalCard()),
+              SliverToBoxAdapter(child: _buildActionButtons()),
+              // ✅ Add extra bottom padding to prevent overflow
+              SliverPadding(
+                padding: const EdgeInsets.only(bottom: 32),
+                sliver: SliverToBoxAdapter(child: const SizedBox.shrink()),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -8,10 +8,12 @@ import '../config/routes.dart';
 import '../models/meal_model.dart';
 import '../widgets/bottom_nav_shell.dart';
 import 'meal_history_screen.dart';
+import 'food_capture_screen.dart';
 class NutritionScreen extends StatefulWidget {
   final bool showBottomNav;
   final bool showBack;
-  const NutritionScreen({super.key, this.showBottomNav = false, this.showBack = false});
+  final DateTime? initialDate;
+  const NutritionScreen({super.key, this.showBottomNav = false, this.showBack = false, this.initialDate});
 
   @override
   State<NutritionScreen> createState() => _NutritionScreenState();
@@ -20,17 +22,18 @@ class NutritionScreen extends StatefulWidget {
 class _NutritionScreenState extends State<NutritionScreen> {
   double _portionSlider = 1.0;
   String _selectedMealType = 'snack';
-  DateTime _selectedDate = DateTime.now();
+  late DateTime _selectedDate;   
   List<Meal> _displayedMeals = [];
   final ScrollController _calendarScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _selectedDate = widget.initialDate ?? DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthProvider>();
       if (auth.user == null) return;
-      _loadMealsForDate(auth.user!.uid, DateTime.now());
+      _loadMealsForDate(auth.user!.uid, _selectedDate);
       context.read<NutritionProvider>().loadWeeklyCalories(auth.user!.uid);
     });
   }
@@ -324,6 +327,10 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     }
                     if (ctx.mounted) {
                       Navigator.pop(ctx);
+                        final auth = context.read<AuthProvider>();
+                        if (auth.user != null) {
+                          await _loadMealsForDate(auth.user!.uid, _selectedDate);
+                        }
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Meal logged successfully'),
@@ -344,29 +351,32 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 
   void _addQuickFood(String name, double baseCalories,
-      {double protein = 0, double carbs = 0, double fat = 0}) {
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
-    final scale = _portionSlider;
-    final cals = (baseCalories * scale).roundToDouble();
-    context.read<NutritionProvider>().saveMeal(
-      userId: auth.user!.uid,
-      mealType: _selectedMealType,
-      foodName: name,
-      calories: cals,
-      protein: (protein * scale).roundToDouble(),
-      carbs: (carbs * scale).roundToDouble(),
-      fat: (fat * scale).roundToDouble(),
-      dateTime: _selectedDate,  
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Added $name (${cals.toInt()} kcal)'),
-        backgroundColor: AppTheme.successColor,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
+    {double protein = 0, double carbs = 0, double fat = 0}) {
+  final auth = context.read<AuthProvider>();
+  if (auth.user == null) return;
+  final scale = _portionSlider;
+  final cals = (baseCalories * scale).roundToDouble();
+  context.read<NutritionProvider>().saveMeal(
+    userId: auth.user!.uid,
+    mealType: _selectedMealType,
+    foodName: name,
+    calories: cals,
+    protein: (protein * scale).roundToDouble(),
+    carbs: (carbs * scale).roundToDouble(),
+    fat: (fat * scale).roundToDouble(),
+    dateTime: _selectedDate,
+  ).then((_) {
+    // 🔄 Reload meals for the selected date
+    _loadMealsForDate(auth.user!.uid, _selectedDate);
+  });
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text('Added $name (${cals.toInt()} kcal)'),
+      backgroundColor: AppTheme.successColor,
+      duration: const Duration(seconds: 2),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -491,7 +501,20 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   _DashboardHeader(
                     totalCalories: totalCalories,
                     dailyGoal: nutrition.dailyCalorieGoal,
-                    onCameraTap: () => Navigator.pushNamed(context, AppRoutes.foodCapture),
+                    onCameraTap: () async {
+                     final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FoodCaptureScreen(initialDate: _selectedDate),
+                      ),
+                    );
+                    if (result == true) {
+                      final auth = context.read<AuthProvider>();
+                      if (auth.user != null) {
+                        await _loadMealsForDate(auth.user!.uid, _selectedDate);
+                      }
+                    }
+                  }
                   ),
                   _buildCaloriesRemaining(totalCalories, nutrition.dailyCalorieGoal),
                   const SizedBox(height: 12),
