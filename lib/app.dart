@@ -98,7 +98,7 @@ class FitSyncApp extends StatelessWidget {
         AppRoutes.movement: (_) => const MovementScreen(),
         AppRoutes.places: (_) => const PlacesScreen(),
         AppRoutes.activity: (_) => const ActivityScreen(),
-        AppRoutes.pamelaWorkouts: (_) => const PamelaWorkoutsScreen(),
+        AppRoutes.pamelaWorkouts: (_) => PopularWorkoutsScreen(),
         AppRoutes.routineDetail: (ctx) {
           final id = ModalRoute.of(ctx)?.settings.arguments as String? ?? '';
           return RoutineDetailScreen(routineId: id);

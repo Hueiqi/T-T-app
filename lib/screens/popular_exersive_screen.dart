@@ -4,14 +4,14 @@ import '../data/activity/activity_model.dart';
 import '../config/theme.dart';
 import 'follow_routine_screen.dart';
 
-class PamelaWorkoutsScreen extends StatefulWidget {
-  const PamelaWorkoutsScreen({super.key});
+class PopularWorkoutsScreen extends StatefulWidget {
+  const PopularWorkoutsScreen({super.key});
 
   @override
-  State<PamelaWorkoutsScreen> createState() => _PamelaWorkoutsScreenState();
+  State<PopularWorkoutsScreen> createState() => _PopularWorkoutsScreenState();
 }
 
-class _PamelaWorkoutsScreenState extends State<PamelaWorkoutsScreen> {
+class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<ActivityRoutine> _filtered = allRoutines;
   final Set<String> _completedIds = {'abs_10min', 'beginner_abs_10min'};

@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/auth_provider.dart';
 import '../providers/planning_provider.dart';
+import '../providers/health_provider.dart';
 import '../providers/workout_provider.dart';
 import '../providers/nutrition_provider.dart';
 import '../models/planning_model.dart';
@@ -22,7 +24,11 @@ class PlanningScreen extends StatefulWidget {
 }
 
 class _PlanningScreenState extends State<PlanningScreen> {
+
+
+  String _selectedFilter = 'All';
   ExerciseDb? _dailyExercise;
+  ExerciseDb? _gifExercise;
   final _random = Random();
   int _totalWorkouts = 0;
   double _totalCaloriesBurned = 0;
@@ -78,6 +84,10 @@ class _PlanningScreenState extends State<PlanningScreen> {
       if (all.isNotEmpty) {
         setState(() {
           _dailyExercise = all[_random.nextInt(all.length)];
+          final withGif = all.where((e) => e.gifUrl != null).toList();
+          _gifExercise = withGif.isNotEmpty
+              ? withGif[_random.nextInt(withGif.length)]
+              : _dailyExercise;
         });
       }
     });
@@ -128,7 +138,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                        'Planning',
+                      'Training',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -185,6 +195,8 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 ),
               ),
             ),
+            // Quick filter chips
+            _buildFilterChips(),
             // Active Plan card (when plan is selected)
             if (planning.activePlan != null)
               _buildActivePlanCard(planning.activePlan!, planning),
@@ -193,7 +205,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
               _buildErrorBanner(planning, auth),
             _buildAiPlanningButton(planning, auth),
             const SizedBox(height: 8),
-            _buildPamelaPromoCard(),
+            _buildPopularPromoCard(),
             // Bookmarked workouts
             if (planning.bookmarkedWorkouts.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -202,6 +214,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
             const SizedBox(height: 8),
             // Exercise Instruction Card
             _buildExerciseInstructionCard(),
+
             // Workout Progress Card
             _buildWorkoutProgressCard(),
             // Calorie History Card
@@ -213,6 +226,50 @@ class _PlanningScreenState extends State<PlanningScreen> {
       bottomNavigationBar: widget.showBottomNav
           ? buildBottomNavBar(context)
           : null,
+    );
+  }
+
+  // ── Quick Filter Chips ──
+  Widget _buildFilterChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: ['All', 'Abs', 'Full Body', 'Cardio', 'Strength']
+            .map((filter) {
+          final isSelected = _selectedFilter == filter;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () {
+                setState(() => _selectedFilter = filter);
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.exerciseLibrary,
+                  arguments: filter == 'All' ? null : filter,
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppTheme.primaryColor
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  filter,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: isSelected ? Colors.white : Colors.grey.shade700,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -912,11 +969,11 @@ class _PlanningScreenState extends State<PlanningScreen> {
     );
   }
 
-  Widget _buildPamelaPromoCard() {
+  Widget _buildPopularPromoCard() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: GestureDetector(
-        onTap: () => Navigator.pushNamed(context, '/popular workouts'),
+        onTap: () => Navigator.pushNamed(context, AppRoutes.pamelaWorkouts),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1248,6 +1305,70 @@ class _PlanningScreenState extends State<PlanningScreen> {
           fontWeight: FontWeight.w500,
           color: color,
         ),
+      ),
+    );
+  }
+
+
+  Widget _buildExerciseImageFallback(ExerciseDb? ex) {
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(
+        color: AppTheme.indigo50,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.fitness_center, color: AppTheme.primaryColor.withValues(alpha: 0.4), size: 28),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                ex != null ? ex.name : 'Start a workout to see exercise demos',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.primaryColor.withValues(alpha: 0.6),
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(IconData icon, String value, String label, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

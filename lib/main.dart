@@ -26,7 +26,8 @@ void main() async {
 
   final healthProvider = HealthProvider();
   await healthProvider.initializeHealthAccess();
-
+  AIService().initialize();
+  
   runApp(
     MultiProvider(
       providers: [

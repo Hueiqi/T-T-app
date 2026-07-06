@@ -1,130 +1,180 @@
 package com.fyp.fitness_app
 
-import android.app.Activity
-import android.content.Intent
-import android.net.Uri
-import android.util.Log
+import android.content.Context
+import androidx.annotation.NonNull
 import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.embedding.engine.plugins.activity.ActivityAware
-import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 
-class HealthConnectPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
-
+class HealthConnectPlugin: FlutterPlugin, MethodCallHandler {
     private lateinit var channel: MethodChannel
-    private lateinit var applicationContext: android.content.Context
-    private var activity: Activity? = null
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private lateinit var context: Context
     private var healthConnectClient: HealthConnectClient? = null
+    private val coroutineScope = CoroutineScope(Dispatchers.Main)
 
-    override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        channel = MethodChannel(binding.binaryMessenger, "health_connect")
+    override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
+        // IMPORTANT: Ensure this string matches the channel name in your Flutter Dart code.
+        channel = MethodChannel(flutterPluginBinding.binaryMessenger, "health_connect_plugin")
         channel.setMethodCallHandler(this)
-        applicationContext = binding.applicationContext
+        context = flutterPluginBinding.applicationContext
     }
 
-    override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        channel.setMethodCallHandler(null)
-    }
+    override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
+        if (healthConnectClient == null) {
+            try {
+                healthConnectClient = HealthConnectClient.getOrCreate(context)
+            } catch (e: Exception) {
+                // Handle cases where Health Connect is not installed
+            }
+        }
 
-    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-        activity = binding.activity
-    }
-
-    override fun onDetachedFromActivity() {
-        activity = null
-    }
-
-    override fun onReattachedToActivity(binding: ActivityPluginBinding) {
-        activity = binding.activity
-    }
-
-    override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
-            "getStepsToday" -> getStepsToday(result)
-            "getHealthConnectAvailability" -> getAvailability(result)
-            "requestPermissions" -> requestPermissions(result)
+            "checkAvailability" -> checkAvailability(result)
+            "getSteps" -> coroutineScope.launch { getSteps(result) }
+            "getHeartRate" -> coroutineScope.launch { getHeartRate(result) }
+            "getSleep" -> coroutineScope.launch { getSleep(result) }
+            "getCalories" -> coroutineScope.launch { getCalories(result) }
             else -> result.notImplemented()
         }
     }
 
-    private fun getStepsToday(result: Result) {
-        scope.launch {
-            try {
-                val client = getClient()
-                if (client == null) {
-                    result.success(0)
-                    return@launch
-                }
-                val response = client.readRecords(
-                    ReadRecordsRequest(
-                        recordType = StepsRecord::class,
-                        timeRangeFilter = TimeRangeFilter.today()
-                    )
-                )
-                val totalSteps = response.records.sumOf { it.count }
-                result.success(totalSteps.toInt())
-            } catch (e: Exception) {
-                Log.e("HealthConnect", "getStepsToday error", e)
-                result.error("HEALTH_CONNECT_ERROR", e.message, 0)
-            }
+    // ==========================================
+    // 1. FIXED SDK STATUS CHECKS
+    // ==========================================
+    private fun checkAvailability(result: Result) {
+        val status = HealthConnectClient.getSdkStatus(context)
+        when (status) {
+            HealthConnectClient.SDK_AVAILABLE -> result.success(true)
+            HealthConnectClient.SDK_UNAVAILABLE -> result.success(false)
+            HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> result.success(false)
+            else -> result.success(false)
         }
     }
 
-    private fun getAvailability(result: Result) {
+    // ==========================================
+    // 2. FIXED TIME RANGE & READ RECORDS REQUEST (STEPS)
+    // ==========================================
+    private suspend fun getSteps(result: Result) {
         try {
-            val client = getClient()
-            val available = client?.availability?.healthConnectAvailable ?: false
-            result.success(available)
-        } catch (e: Exception) {
-            Log.e("HealthConnect", "getAvailability error", e)
-            result.success(false)
-        }
-    }
+            val client = healthConnectClient ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
+            val todayStart = ZonedDateTime.now().truncatedTo(ChronoUnit.DAYS).toInstant()
+            val now = Instant.now()
 
-    private fun requestPermissions(result: Result) {
-        val activity = activity
-        if (activity == null) {
-            result.error("NO_ACTIVITY", "No activity available to start permission request", null)
-            return
-        }
-        try {
-            val permissions = setOf(
-                HealthPermission.getReadPermission(StepsRecord::class)
+            val request = ReadRecordsRequest(
+                recordType = StepsRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(todayStart, now)
             )
-            val intent = Intent(
-                HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS
-            ).apply {
-                data = Uri.parse("package:com.fyp.fitness_app")
+
+            val response = client.readRecords(request)
+            var totalSteps = 0L
+            for (record in response.records) {
+                totalSteps += record.count
             }
-            activity.startActivity(intent)
-            result.success(true)
+            result.success(totalSteps)
         } catch (e: Exception) {
-            result.error("PERMISSION_ERROR", e.message, null)
+            result.error("ERROR", e.localizedMessage, null)
         }
     }
 
-    private fun getClient(): HealthConnectClient? {
-        if (healthConnectClient == null) {
-            try {
-                healthConnectClient = HealthConnectClient.getOrCreate(applicationContext)
-            } catch (e: Exception) {
-                Log.e("HealthConnect", "Failed to create client", e)
-                return null
+    // ==========================================
+    // 3. FIXED LAMBDA SCOPE & HEART RATE SAMPLES
+    // ==========================================
+    private suspend fun getHeartRate(result: Result) {
+        try {
+            val client = healthConnectClient ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
+            val todayStart = ZonedDateTime.now().truncatedTo(ChronoUnit.DAYS).toInstant()
+            val now = Instant.now()
+
+            val request = ReadRecordsRequest(
+                recordType = HeartRateRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(todayStart, now)
+            )
+
+            val response = client.readRecords(request)
+            
+            // Fixed the implicit "it" errors by explicitly naming variables
+            val heartRateData = response.records.flatMap { record ->
+                record.samples.map { sample ->
+                    mapOf(
+                        "time" to sample.time.toString(),
+                        "beatsPerMinute" to sample.beatsPerMinute
+                    )
+                }
             }
+            result.success(heartRateData)
+        } catch (e: Exception) {
+            result.error("ERROR", e.localizedMessage, null)
         }
-        return healthConnectClient
+    }
+
+    // ==========================================
+    // 4. FIXED SLEEP SESSION RECORDS
+    // ==========================================
+    private suspend fun getSleep(result: Result) {
+        try {
+            val client = healthConnectClient ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
+            val todayStart = ZonedDateTime.now().truncatedTo(ChronoUnit.DAYS).toInstant()
+            val now = Instant.now()
+
+            val request = ReadRecordsRequest(
+                recordType = SleepSessionRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(todayStart, now)
+            )
+
+            val response = client.readRecords(request)
+            val sleepData = response.records.map { record ->
+                mapOf(
+                    "startTime" to record.startTime.toString(),
+                    "endTime" to record.endTime.toString()
+                )
+            }
+            result.success(sleepData)
+        } catch (e: Exception) {
+            result.error("ERROR", e.localizedMessage, null)
+        }
+    }
+
+    // ==========================================
+    // 5. FIXED ACTIVE CALORIES RECORDS
+    // ==========================================
+    private suspend fun getCalories(result: Result) {
+        try {
+            val client = healthConnectClient ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
+            val todayStart = ZonedDateTime.now().truncatedTo(ChronoUnit.DAYS).toInstant()
+            val now = Instant.now()
+
+            val request = ReadRecordsRequest(
+                recordType = ActiveCaloriesBurnedRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(todayStart, now)
+            )
+
+            val response = client.readRecords(request)
+            var totalCalories = 0.0
+            for (record in response.records) {
+                totalCalories += record.energy.inKilocalories
+            }
+            result.success(totalCalories)
+        } catch (e: Exception) {
+            result.error("ERROR", e.localizedMessage, null)
+        }
+    }
+
+    override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
+        channel.setMethodCallHandler(null)
     }
 }

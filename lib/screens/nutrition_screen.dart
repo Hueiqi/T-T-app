@@ -319,6 +319,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                         protein: 0,
                         carbs: 0,
                         fat: 0,
+                        dateTime: _selectedDate,
                       );
                     }
                     if (ctx.mounted) {
@@ -356,6 +357,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
       protein: (protein * scale).roundToDouble(),
       carbs: (carbs * scale).roundToDouble(),
       fat: (fat * scale).roundToDouble(),
+      dateTime: _selectedDate,  
     );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -404,7 +406,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
           _buildCalendarStrip(),
           Expanded(
             child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
