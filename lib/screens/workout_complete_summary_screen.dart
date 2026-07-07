@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../config/routes.dart';
 
-
 class WorkoutCompleteSummaryScreen extends StatefulWidget {
   final String routineTitle;
   final int durationSeconds;
@@ -104,20 +103,26 @@ class _WorkoutCompleteSummaryScreenState
 
     return Scaffold(
       body: SafeArea(
-        // ✅ Force the CustomScrollView to fill the entire available space
         child: SizedBox.expand(
           child: CustomScrollView(
+            physics: const ClampingScrollPhysics(), // ✅ allows scrolling
             slivers: [
-              SliverToBoxAdapter(child: _buildHeader(progress, total, allDone)),
+              SliverPadding(
+                padding: const EdgeInsets.only(top: 12),
+                sliver: SliverToBoxAdapter(
+                  child: _buildHeader(progress, total, allDone),
+                  ),
+              ),
+              if (!allDone) SliverToBoxAdapter(child: const SizedBox(height: 8)),
               if (!allDone) SliverToBoxAdapter(child: _buildProgressBar(progress, total)),
               SliverToBoxAdapter(child: _buildStatsRow()),
               SliverToBoxAdapter(child: _buildCompletedSection()),
               if (!allDone) SliverToBoxAdapter(child: _buildPendingSection()),
               SliverToBoxAdapter(child: _buildMotivationalCard()),
               SliverToBoxAdapter(child: _buildActionButtons()),
-              // ✅ Add extra bottom padding to prevent overflow
+              // ✅ extra bottom padding to prevent clipping
               SliverPadding(
-                padding: const EdgeInsets.only(bottom: 32),
+                padding: const EdgeInsets.only(bottom: 80),
                 sliver: SliverToBoxAdapter(child: const SizedBox.shrink()),
               ),
             ],
@@ -158,12 +163,12 @@ class _WorkoutCompleteSummaryScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                      children: [
-                        Icon(
-                          allDone ? Icons.celebration : Icons.fitness_center,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                        children: [
+                          Icon(
+                            allDone ? Icons.celebration : Icons.fitness_center,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -386,42 +391,40 @@ class _WorkoutCompleteSummaryScreenState
             if (_completedExpanded && _completed.isNotEmpty)
               Container(
                 constraints: const BoxConstraints(maxHeight: 200),
-                child: Scrollbar(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _completed.length,
-                    itemBuilder: (ctx, i) => Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        16,
-                        i == 0 ? 0 : 2,
-                        16,
-                        i == _completed.length - 1 ? 12 : 2,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              color: AppTheme.successColor.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.check,
-                              color: AppTheme.successColor,
-                              size: 14,
-                            ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _completed.length,
+                  itemBuilder: (ctx, i) => Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      i == 0 ? 0 : 2,
+                      16,
+                      i == _completed.length - 1 ? 12 : 2,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: AppTheme.successColor.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _completed[i],
-                              style: const TextStyle(fontSize: 14),
-                            ),
+                          child: const Icon(
+                            Icons.check,
+                            color: AppTheme.successColor,
+                            size: 14,
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _completed[i],
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -277,6 +277,7 @@ class _DashboardTabState extends State<_DashboardTab>
   String _reportPeriod = 'This Week';
   List<WeightEntry> _weightHistory = [];
   List<Meal> _reportMeals = [];
+
   @override
   void initState() {
     super.initState();
@@ -801,21 +802,17 @@ class _DashboardTabState extends State<_DashboardTab>
     );
   }
 
+  // ─── REPORTS CARD (separate, same as image) ──────────────────
   Widget _buildReportsCard() {
     final nutrition = context.read<NutritionProvider>();
     final workout = context.read<WorkoutProvider>();
     final meals = _reportMeals;
 
-    final totalCalories =
-        meals.fold<double>(0, (s, m) => s + m.calories);
-    final totalProtein =
-        meals.fold<double>(0, (s, m) => s + m.protein);
-    final totalCarbs =
-        meals.fold<double>(0, (s, m) => s + m.carbs);
-    final totalFat =
-        meals.fold<double>(0, (s, m) => s + m.fat);
-    final totalFiber =
-        meals.fold<double>(0, (s, m) => s + m.fiber);
+    final totalCalories = meals.fold<double>(0, (s, m) => s + m.calories);
+    final totalProtein = meals.fold<double>(0, (s, m) => s + m.protein);
+    final totalCarbs = meals.fold<double>(0, (s, m) => s + m.carbs);
+    final totalFat = meals.fold<double>(0, (s, m) => s + m.fat);
+    final totalFiber = meals.fold<double>(0, (s, m) => s + m.fiber);
 
     final now = DateTime.now();
     DateTime startDate;
@@ -833,11 +830,9 @@ class _DashboardTabState extends State<_DashboardTab>
         startDate = now.subtract(const Duration(days: 7));
     }
     final workoutsInRange = workout.workouts
-        .where((w) =>
-            w.endTime != null && w.endTime!.isAfter(startDate))
+        .where((w) => w.endTime != null && w.endTime!.isAfter(startDate))
         .toList();
-    final totalBurned = workoutsInRange.fold<double>(
-        0, (s, w) => s + w.caloriesBurned);
+    final totalBurned = workoutsInRange.fold<double>(0, (s, w) => s + w.caloriesBurned);
 
     return Card(
       child: Padding(
@@ -848,9 +843,10 @@ class _DashboardTabState extends State<_DashboardTab>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Reports',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text(
+                  'Reports',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
                 DropdownButton<String>(
                   value: _reportPeriod,
                   items: ['This Week', 'This Month', 'All Time']
@@ -870,33 +866,18 @@ class _DashboardTabState extends State<_DashboardTab>
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _reportStat('Calories',
-                    '${totalCalories.toInt()} kcal', Colors.orange),
-                _reportStat('Burned',
-                    '${totalBurned.toInt()} kcal', AppTheme.primaryColor),
-              ],
-            ),
-            const SizedBox(height: 8),
+            // ── Using Wrap to prevent overflow ──
             Wrap(
               spacing: 8,
-              runSpacing: 4,
+              runSpacing: 8,
               children: [
-                _reportChip('Protein',
-                    '${totalProtein.toStringAsFixed(0)}g',
-                    AppTheme.accentColor),
-                _reportChip('Carbs',
-                    '${totalCarbs.toStringAsFixed(0)}g',
-                    AppTheme.successColor),
-                _reportChip('Fat',
-                    '${totalFat.toStringAsFixed(0)}g',
-                    AppTheme.secondaryColor),
+                _reportChip('Calories', '${totalCalories.toInt()} kcal', Colors.orange),
+                _reportChip('Protein', '${totalProtein.toStringAsFixed(0)}g', AppTheme.accentColor),
+                _reportChip('Carbs', '${totalCarbs.toStringAsFixed(0)}g', AppTheme.successColor),
+                _reportChip('Fat', '${totalFat.toStringAsFixed(0)}g', AppTheme.secondaryColor),
                 if (totalFiber > 0)
-                  _reportChip('Fiber',
-                      '${totalFiber.toStringAsFixed(0)}g',
-                      Colors.brown),
+                  _reportChip('Fiber', '${totalFiber.toStringAsFixed(0)}g', Colors.brown),
+                _reportChip('Burned', '${totalBurned.toInt()} kcal', AppTheme.primaryColor),
               ],
             ),
           ],
@@ -905,31 +886,89 @@ class _DashboardTabState extends State<_DashboardTab>
     );
   }
 
-  Widget _statItem(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(value,
-            style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 16, color: color)),
-        Text(label,
-            style:
-                const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-      ],
+  // ─── 30-DAY HISTORY CARD (separate) ──────────────────────────
+  Widget _buildHistorySummary() {
+    if (_calorieHistory.isEmpty) return const SizedBox.shrink();
+
+    final totalEaten = _calorieHistory.fold<double>(0, (sum, d) => sum + (d['eaten'] as double));
+    final totalBurned = _calorieHistory.fold<double>(0, (sum, d) => sum + (d['burned'] as double));
+    final dailyAvg = _calorieHistory.isEmpty ? 0 : totalEaten / _calorieHistory.length;
+    final netBalance = totalEaten - totalBurned;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.history, color: AppTheme.primaryColor, size: 24),
+                ),
+                const SizedBox(width: 14),
+                const Text(
+                  '30-Day History',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _statBox(
+                    'Total Eaten',
+                    '${totalEaten.toStringAsFixed(0)} kcal',
+                    AppTheme.accentColor,
+                    Icons.restaurant,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _statBox(
+                    'Total Burned',
+                    '${totalBurned.toStringAsFixed(0)} kcal',
+                    AppTheme.warningColor,
+                    Icons.local_fire_department,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _statBox(
+                    'Daily Avg',
+                    '${dailyAvg.toStringAsFixed(0)} kcal',
+                    AppTheme.primaryColor,
+                    Icons.bar_chart,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _statBox(
+                    'Net Balance',
+                    '${netBalance.toStringAsFixed(0)} kcal',
+                    netBalance > 0 ? AppTheme.warningColor : AppTheme.successColor,
+                    netBalance > 0 ? Icons.arrow_upward : Icons.arrow_downward,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _reportStat(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(value,
-            style: TextStyle(
-                fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-        Text(label,
-            style:
-                const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-      ],
-    );
-  }
+  // ─── Helper widgets for Reports & History ────────────────────
 
   Widget _reportChip(String label, String value, Color color) {
     return Container(
@@ -954,6 +993,58 @@ class _DashboardTabState extends State<_DashboardTab>
     );
   }
 
+  Widget _statBox(String label, String value, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(value,
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 16, color: color)),
+        Text(label,
+            style:
+                const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+      ],
+    );
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
@@ -961,8 +1052,6 @@ class _DashboardTabState extends State<_DashboardTab>
       _saveTodaySteps();
     }
   }
-
-
 
   // ── Build ──
 
@@ -1132,10 +1221,6 @@ class _DashboardTabState extends State<_DashboardTab>
                   _buildPlanningSection(selectedPlan),
                   const SizedBox(height: 16),
 
-                  // ── History Summary ──
-                  _buildHistorySummary(),
-                  const SizedBox(height: 16),
-
                   // ── 7-Day Calorie Chart ──
                   if (!_isDashboardLoading)
                     _buildSevenDayChart(_getSevenDayCalorieData(nutrition, workout)),
@@ -1146,9 +1231,13 @@ class _DashboardTabState extends State<_DashboardTab>
                     _buildWeightProgressCard(),
                   const SizedBox(height: 16),
 
-                  // ── Reports ──
+                  // ── Reports (separate) ──
                   if (!_isDashboardLoading)
                     _buildReportsCard(),
+                  const SizedBox(height: 16),
+
+                  // ── 30-Day History (separate) ──
+                  _buildHistorySummary(),
                   const SizedBox(height: 16),
 
                   // ── News Carousel ──
@@ -1399,120 +1488,6 @@ class _DashboardTabState extends State<_DashboardTab>
       ],
     );
   }
-
-  Widget _buildHistorySummary() {
-    if (_calorieHistory.isEmpty) return const SizedBox.shrink();
-
-    final totalEaten = _calorieHistory.fold<double>(0, (sum, d) => sum + (d['eaten'] as double));
-    final totalBurned = _calorieHistory.fold<double>(0, (sum, d) => sum + (d['burned'] as double));
-    final dailyAvg = totalEaten / 30;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.history, color: AppTheme.primaryColor, size: 24),
-                ),
-                const SizedBox(width: 14),
-                const Text(
-                  '30-Day History',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _statBox(
-                    'Total Eaten',
-                    '${totalEaten.toStringAsFixed(0)} kcal',
-                    AppTheme.accentColor,
-                    Icons.restaurant,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _statBox(
-                    'Total Burned',
-                    '${totalBurned.toStringAsFixed(0)} kcal',
-                    AppTheme.warningColor,
-                    Icons.local_fire_department,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _statBox(
-                    'Daily Avg Eaten',
-                    '${dailyAvg.toStringAsFixed(0)} kcal',
-                    AppTheme.accentColor,
-                    Icons.bar_chart,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _statBox(
-                    'Net Balance',
-                    '${(totalEaten - totalBurned).toStringAsFixed(0)} kcal',
-                    totalEaten > totalBurned ? AppTheme.warningColor : AppTheme.successColor,
-                    totalEaten > totalBurned ? Icons.arrow_upward : Icons.arrow_downward,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statBox(String label, String value, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ─── Card Widgets ──────────────────────────────────────────────
@@ -1597,6 +1572,8 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
+// ─── Calories Card ─────────────────────────────────────────────
+// ─── Calories Card ─────────────────────────────────────────────
 class _CaloriesCard extends StatelessWidget {
   final double eatenCalories;
   final double burnedCalories;
@@ -1617,83 +1594,106 @@ class _CaloriesCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppTheme.warningColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.local_fire_department,
-                color: AppTheme.warningColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Calories',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 8),
             Row(
               children: [
-                _calorieDot(AppTheme.accentColor),
-                const SizedBox(width: 4),
-                Text(
-                  'Eaten ${eatenCalories.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.textSecondary,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warningColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.local_fire_department,
+                    color: AppTheme.warningColor,
+                    size: 20,
                   ),
                 ),
                 const SizedBox(width: 12),
-                _calorieDot(AppTheme.warningColor),
-                const SizedBox(width: 4),
-                Text(
-                  'Burned ${burnedCalories.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.textSecondary,
+                const Flexible(
+                  child: Text(
+                    'Today\'s Calories',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Row(
+            const SizedBox(height: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Net ${net.toStringAsFixed(0)}',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: inDeficit
-                        ? AppTheme.successColor
-                        : AppTheme.warningColor,
-                  ),
+                const Text(
+                  'Net Balance',
+                  style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
                 ),
-                const SizedBox(width: 6),
-                Icon(
-                  inDeficit ? Icons.arrow_downward : Icons.arrow_upward,
-                  size: 16,
-                  color: inDeficit
-                      ? AppTheme.successColor
-                      : AppTheme.warningColor,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  inDeficit ? 'deficit' : 'surplus',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: inDeficit
-                        ? AppTheme.successColor
-                        : AppTheme.warningColor,
-                    fontWeight: FontWeight.w500,
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    children: [
+                      Text(
+                        '${net.toStringAsFixed(0)} kcal',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: inDeficit ? AppTheme.successColor : AppTheme.warningColor,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        inDeficit ? Icons.arrow_downward : Icons.arrow_upward,
+                        size: 18,
+                        color: inDeficit ? AppTheme.successColor : AppTheme.warningColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        inDeficit ? 'deficit' : 'surplus',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: inDeficit ? AppTheme.successColor : AppTheme.warningColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
+            if (eatenCalories > 0 || burnedCalories > 0) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _calorieDot(AppTheme.accentColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Eaten ${eatenCalories.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _calorieDot(AppTheme.warningColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Burned ${burnedCalories.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -1708,6 +1708,9 @@ class _CaloriesCard extends StatelessWidget {
     );
   }
 }
+
+
+// ─── HR Sparkline ─────────────────────────────────────────────
 
 class _HrSparkline extends StatelessWidget {
   final List<int> data;
@@ -1789,8 +1792,6 @@ class _SparklinePainter extends CustomPainter {
   bool shouldRepaint(covariant _SparklinePainter old) =>
       data != old.data || color != old.color;
 }
-
-
 
 // ── Run Tracker Card ──
 class _RunTrackerCard extends StatelessWidget {

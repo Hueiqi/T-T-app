@@ -35,44 +35,50 @@ class _ActivityScreenState extends State<ActivityScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: _buildDrawer(),
-      body: Column(
-        children: [
-          CustomHeader(
-            title: 'Activity',
-            showBack: true,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.add),
-                tooltip: 'Add activity',
-                onPressed: () =>
-                    Navigator.pushNamed(context, AppRoutes.workoutDetail),
-              ),
-            ],
-          ),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(30),
+      body: SafeArea(
+        child: Column(
+          children: [
+            CustomHeader(
+              title: 'Activity',
+              showBack: true,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  tooltip: 'Add activity',
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.workoutDetail),
+                ),
+              ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Row(
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    _buildTabButton('History', 0),
+                    _buildTabButton('Love Plan', 1),
+                    _buildTabButton('Achievements', 2),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _selectedTab,
                 children: [
-                  _buildTabButton('History', 0),
-                  _buildTabButton('Love Plan', 1),
-                  _buildTabButton('Achievements', 2),
+                  const _HistoryTab(),
+                  const _LovePlanTab(),
+                  const _AchievementsTab(),
                 ],
               ),
             ),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: _selectedTab,
-              children: [_HistoryTab(), _LovePlanTab(), _AchievementsTab()],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -166,151 +172,191 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 }
 
+// ─── History Tab with auto‑refresh ─────────────────────────────
 class _HistoryTab extends StatefulWidget {
+  const _HistoryTab();
+
   @override
   State<_HistoryTab> createState() => _HistoryTabState();
 }
 
-class _HistoryTabState extends State<_HistoryTab> {
+class _HistoryTabState extends State<_HistoryTab>
+    with AutomaticKeepAliveClientMixin {
   final FirebaseService _firebaseService = FirebaseService();
-  List<Map<String, dynamic>> _activities = [];
-  bool _loading = true;
+  int _refreshCounter = 0; // used to force refresh
 
   @override
-  void initState() {
-    super.initState();
-    _loadActivities();
+  bool get wantKeepAlive => false; // always rebuild when visible
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Increment counter to trigger refresh when tab becomes visible
+    setState(() {
+      _refreshCounter++;
+    });
   }
 
-  void _loadActivities() async {
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
-    final activities = await _firebaseService.getActivities(auth.user!.uid);
-    if (mounted) {
-      setState(() {
-        _activities = activities;
-        _loading = false;
-      });
-    }
+  Future<List<Map<String, dynamic>>> _fetchActivities() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.user == null) return [];
+    return await _firebaseService.getActivities(auth.user!.uid);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    super.build(context); // required for AutomaticKeepAliveClientMixin
 
-    if (_activities.isEmpty) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 32),
-            Icon(
-              Icons.history,
-              size: 80,
-              color: AppTheme.textSecondary.withValues(alpha: 0.4),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Planning History',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Your planning and activities are recorded here.\n'
-              'Tap the + button to manually add any activities\n'
-              'completed outside of the application.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 15,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 48),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () =>
-                    Navigator.pushNamed(context, AppRoutes.planning),
-                icon: const Icon(Icons.search),
-                label: const Text('Find a training plan'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() => _refreshCounter++);
+      },
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _fetchActivities(),
+        key: ValueKey(_refreshCounter),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 12),
+                  Text('Error loading history: ${snapshot.error}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => setState(() => _refreshCounter++),
+                    child: const Text('Retry'),
                   ),
+                ],
+              ),
+            );
+          }
+
+          final activities = snapshot.data ?? [];
+
+          if (activities.isEmpty) {
+            return _buildEmptyState(context);
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: activities.length,
+            itemBuilder: (context, index) {
+              final a = activities[index];
+              final title = a['title'] as String? ?? 'Workout';
+              final duration = a['durationSeconds'] as int? ?? 0;
+              final completedAt = a['completedAt'] as String? ?? '';
+              final dateStr = completedAt.isNotEmpty
+                  ? completedAt.substring(0, 10)
+                  : '';
+
+              final mins = duration ~/ 60;
+              final secs = duration % 60;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.fitness_center,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                  title: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    '$mins:${secs.toString().padLeft(2, '0')}${dateStr.isNotEmpty ? ' · $dateStr' : ''}',
+                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                  ),
+                  trailing: Text(
+                    '$mins min',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.workoutDetail),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const SizedBox(height: 32),
+          Icon(
+            Icons.history,
+            size: 80,
+            color: AppTheme.textSecondary.withValues(alpha: 0.4),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Planning History',
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Your planning and activities are recorded here.\n'
+            'Tap the + button to manually add any activities\n'
+            'completed outside of the application.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 15,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 48),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, AppRoutes.planning),
+              icon: const Icon(Icons.search),
+              label: const Text('Find a training plan'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _activities.length,
-      itemBuilder: (context, index) {
-        final a = _activities[index];
-        final title = a['title'] as String? ?? 'Workout';
-        final duration = a['durationSeconds'] as int? ?? 0;
-        final completedAt = a['completedAt'] as String? ?? '';
-        final dateStr = completedAt.isNotEmpty
-            ? completedAt.substring(0, 10)
-            : '';
-
-        final mins = duration ~/ 60;
-        final secs = duration % 60;
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
           ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            leading: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.fitness_center,
-                color: AppTheme.primaryColor,
-              ),
-            ),
-            title: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(
-              '$mins:${secs.toString().padLeft(2, '0')}${dateStr.isNotEmpty ? ' · $dateStr' : ''}',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-            ),
-            trailing: Text(
-              '$mins min',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppTheme.primaryColor,
-              ),
-            ),
-            onTap: () => Navigator.pushNamed(context, AppRoutes.workoutDetail),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
 
+// ─── Love Plan Tab ─────────────────────────────────────────────
 class _LovePlanTab extends StatelessWidget {
   const _LovePlanTab();
 
@@ -476,6 +522,7 @@ class _LovePlanTab extends StatelessWidget {
   }
 }
 
+// ─── Achievements Tab ──────────────────────────────────────────
 class _AchievementsTab extends StatelessWidget {
   const _AchievementsTab();
 
@@ -553,6 +600,7 @@ class _AchievementsTab extends StatelessWidget {
   }
 }
 
+// ─── Badge Widget ──────────────────────────────────────────────
 class _Badge extends StatelessWidget {
   final IconData icon;
   final String label;

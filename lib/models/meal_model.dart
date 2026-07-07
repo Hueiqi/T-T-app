@@ -10,6 +10,7 @@ class Meal {
   final double protein;
   final double carbs;
   final double fat;
+  final String? imageUrl; // ← ADD THIS
 
   // Vitamins
   final double vitaminA;
@@ -40,6 +41,7 @@ class Meal {
     this.protein = 0,
     this.carbs = 0,
     this.fat = 0,
+    this.imageUrl, // ← ADD THIS
     this.vitaminA = 0,
     this.vitaminB = 0,
     this.vitaminC = 0,
@@ -64,6 +66,7 @@ class Meal {
         'protein': protein,
         'carbs': carbs,
         'fat': fat,
+        'imageUrl': imageUrl, // ← ADD THIS
         'vitaminA': vitaminA,
         'vitaminB': vitaminB,
         'vitaminC': vitaminC,
@@ -91,6 +94,7 @@ class Meal {
         protein: (map['protein'] as num?)?.toDouble() ?? 0,
         carbs: (map['carbs'] as num?)?.toDouble() ?? 0,
         fat: (map['fat'] as num?)?.toDouble() ?? 0,
+        imageUrl: map['imageUrl'] as String?, // ← ADD THIS
         vitaminA: (map['vitaminA'] as num?)?.toDouble() ?? 0,
         vitaminB: (map['vitaminB'] as num?)?.toDouble() ?? 0,
         vitaminC: (map['vitaminC'] as num?)?.toDouble() ?? 0,

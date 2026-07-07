@@ -172,7 +172,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.search, color: Colors.grey.shade500, size: 20),
+                      Icon(Icons.search, color: const Color.fromARGB(255, 207, 200, 200), size: 20),
                       const SizedBox(width: 10),
                       Text(
                         'Search exercises...',
@@ -185,10 +185,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                           color: Colors.grey.shade300,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(
-                          '800+',
-                          style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
-                        ),
+                      
                       ),
                     ],
                   ),

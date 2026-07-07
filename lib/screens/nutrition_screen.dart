@@ -411,12 +411,14 @@ class _NutritionScreenState extends State<NutritionScreen> {
         ],
       ),
       bottomNavigationBar: widget.showBottomNav ? buildBottomNavBar(context, currentIndex: 3) : null,
-      body: Column(
-        children: [
-          _buildCalendarStrip(),
-          Expanded(
-            child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildCalendarStrip(),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(), 
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -529,8 +531,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   const SizedBox(height: 12),
                   _buildMacroBreakdown(totalProtein, totalCarbs, totalFat, nutrition),
                   const SizedBox(height: 12),
-                  _buildWeeklyAverage(nutrition),
-                  const SizedBox(height: 12),
                   _MealGroup(
                     mealType: 'breakfast',
                     meals: meals,
@@ -581,6 +581,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -808,95 +809,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildWeeklyAverage(NutritionProvider nutrition) {
-    final avg = nutrition.weeklyAverage;
-    final entries = nutrition.weeklyCalories.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-
-    if (entries.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final maxVal = entries.fold<double>(0, (m, e) => e.value > m ? e.value : m);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.trending_up, size: 18, color: AppTheme.primaryColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Weekly Average',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${avg.toStringAsFixed(0)} kcal/day',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.primaryColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 40,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: entries.map((e) {
-                  final dayLabel = e.key.split('-').last;
-                  final height = maxVal > 0 ? (e.value / maxVal) * 32 : 0.0;
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Container(
-                            height: height.clamp(4, 40).toDouble(),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryColor.withValues(alpha: 0.6),
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(4),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            dayLabel,
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: AppTheme.textSecondary.withValues(alpha: 0.6),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

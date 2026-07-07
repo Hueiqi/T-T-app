@@ -48,6 +48,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     final place = context.watch<PlaceProvider>();
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: SingleChildScrollView(
@@ -56,23 +57,44 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CustomHeader(
-                title: 'Body Statistics',
-                showBack: true,
-                actions: [
-                  if (auth.user == null)
+              // ─── APP BAR (FIXED COLOR) ────────────────────────
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
                     IconButton(
-                      icon: const Icon(Icons.login),
-                      tooltip: 'Login',
-                      onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
                     ),
-                  IconButton(
-                    icon: const Icon(Icons.person_outline),
-                    onPressed: () => Navigator.pushNamed(context, '/profile'),
-                    tooltip: 'Profile',
-                  ),
-                ],
+                    const Expanded(
+                      child: Text(
+                        'Body Statistics',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (auth.user == null)
+                      IconButton(
+                        icon: const Icon(Icons.login, color: Colors.white),
+                        onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.person_outline, color: Colors.white),
+                      onPressed: () => Navigator.pushNamed(context, '/profile'),
+                      tooltip: 'Profile',
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: 16),
+
               if (user != null && user.height > 0)
                 _buildMetricCard(
                   title: 'Body Mass Index (BMI)',
@@ -82,6 +104,8 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                   color: _getBmiColor(user.bmi),
                 ),
               const SizedBox(height: 16),
+
+              // ─── TABS ─────────────────────────────────────────
               Container(
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
@@ -89,19 +113,24 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(4),
-                  child: Row(
-                    children: [
-                      _buildTabButton('Overview', 0),
-                      _buildTabButton('Workout', 1),
-                      _buildTabButton('Nutrition', 2),
-                      _buildTabButton('Sleep', 3),
-                      _buildTabButton('Movement', 4),
-                      _buildTabButton('Places', 5),
-                    ],
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildTabButton('Overview', 0),
+                        _buildTabButton('Workout', 1),
+                        _buildTabButton('Nutrition', 2),
+                        _buildTabButton('Sleep', 3),
+                        _buildTabButton('Movement', 4),
+                        _buildTabButton('Places', 5),
+                      ],
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 20),
+
+              // ─── TABS CONTENT ──────────────────────────────
               if (_selectedTab == 0)
                 _buildOverviewTab(user, workout, nutrition, sleep),
               if (_selectedTab == 1) _buildWorkoutTab(workout, user),
@@ -118,22 +147,22 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
 
   Widget _buildTabButton(String title, int index) {
     final isSelected = _selectedTab == index;
-    return Expanded(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: GestureDetector(
         onTap: () => setState(() => _selectedTab = index),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: isSelected ? AppTheme.primaryColor : Colors.transparent,
             borderRadius: BorderRadius.circular(30),
           ),
-          child: Center(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: isSelected ? Colors.white : AppTheme.textSecondary,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
+          child: Text(
+            title,
+            style: TextStyle(
+              color: isSelected ? Colors.white : AppTheme.textSecondary,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 13,
             ),
           ),
         ),
@@ -205,6 +234,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     return AppTheme.errorColor;
   }
 
+  // ─── OVERVIEW TAB (FIXED ROW LAYOUT) ─────────────────────────
   Widget _buildOverviewTab(
     AppUser? user,
     WorkoutProvider workout,
@@ -213,9 +243,12 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
   ) {
     return Column(
       children: [
-        Row(
+        // ─── Row 1: Avg Heart Rate + Today Calories ──────────
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
           children: [
-            Expanded(
+            Flexible(
               child: _StatCard(
                 icon: Icons.favorite,
                 label: 'Avg Heart Rate',
@@ -227,8 +260,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                 color: AppTheme.accentColor,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
+            Flexible(
               child: _StatCard(
                 icon: Icons.local_fire_department,
                 label: 'Today Calories',
@@ -239,9 +271,13 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        Row(
+
+        // ─── Row 2: Last Sleep + Workouts ─────────────────────
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
           children: [
-            Expanded(
+            Flexible(
               child: _StatCard(
                 icon: Icons.bedtime,
                 label: 'Last Sleep',
@@ -249,8 +285,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                 color: AppTheme.secondaryColor,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
+            Flexible(
               child: _StatCard(
                 icon: Icons.fitness_center,
                 label: 'Workouts',
@@ -261,6 +296,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           ],
         ),
         const SizedBox(height: 16),
+
         if (workout.workouts.length >= 2)
           Card(
             child: Padding(
@@ -282,6 +318,8 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
             ),
           ),
         const SizedBox(height: 16),
+
+        // ─── Body Stats Summary ──────────────────────────────
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -881,17 +919,22 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _StatCard(
-                  icon: Icons.directions_walk,
-                  label: 'Steps',
-                  value: '${motion.stepsToday}',
-                  color: Colors.green,
+                Expanded(
+                  child: _StatCard(
+                    icon: Icons.directions_walk,
+                    label: 'Steps',
+                    value: '${motion.stepsToday}',
+                    color: Colors.green,
+                  ),
                 ),
-                _StatCard(
-                  icon: Icons.speed,
-                  label: 'Intensity',
-                  value: '${(motion.motionIntensity * 100).toInt()}%',
-                  color: Colors.orange,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(
+                    icon: Icons.speed,
+                    label: 'Intensity',
+                    value: '${(motion.motionIntensity * 100).toInt()}%',
+                    color: Colors.orange,
+                  ),
                 ),
               ],
             ),
@@ -1000,23 +1043,42 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
   }
 }
 
+// ─── STAT CARD (with overflow protection) ──────────────────────
 class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
   final Color color;
   const _StatCard({required this.icon, required this.label, required this.value, required this.color});
+
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(icon, color: color),
             const SizedBox(height: 4),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(label, style: const TextStyle(fontSize: 10)),
+            Flexible(
+              child: Text(
+                value,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            ),
+            Flexible(
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            ),
           ],
         ),
       ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+
 import 'providers/auth_provider.dart';
 import 'providers/workout_provider.dart';
 import 'providers/nutrition_provider.dart';
@@ -12,15 +14,18 @@ import 'providers/place_provider.dart';
 import 'providers/news_provider.dart';
 import 'providers/health_provider.dart';
 import 'providers/notification_provider.dart';
+
 import 'services/exercise_db.dart';
 import 'services/ai_service.dart';
 import 'app.dart';
 import 'firebase_options.dart';
-import 'services/ai_service.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Ensure system UI overlays (status bar + nav bar) are visible
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   try {
@@ -29,13 +34,12 @@ void main() async {
   } catch (e) {
     debugPrint('❌ Gemini init failed: $e');
   }
+
   await ExerciseDatabase.load();
-  await AIService().initialize();
 
   final healthProvider = HealthProvider();
   await healthProvider.initializeHealthAccess();
-  await AIService().initialize();
-  
+
   runApp(
     MultiProvider(
       providers: [
