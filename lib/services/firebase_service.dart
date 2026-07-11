@@ -11,6 +11,8 @@ import '../models/weight_entry_model.dart';
 import '../models/place_model.dart';
 import '../models/planning_model.dart';
 import '../models/user_model.dart';
+import 'package:intl/intl.dart';
+
 
 bool _firestoreAvailable() {
   try {
@@ -150,7 +152,7 @@ class FirebaseService {
 
   Future<List<Meal>> getMeals(String userId, {DateTime? date}) async {
     if (_demoMode) return [];
-    final dateKey = date?.toIso8601String() ?? 'all';
+    final dateKey = date != null ? DateFormat('yyyy-MM-dd').format(date) : 'all';
     final cacheKey = 'meals_${userId}_$dateKey';
     final cached = _getCached(cacheKey) as List<Meal>?;
     if (cached != null) return cached;
@@ -160,16 +162,13 @@ class FirebaseService {
           .where('userId', isEqualTo: userId)
           .orderBy('dateTime', descending: true)
           .limit(50);
-      if (date != null) {
-        final startOfDay = DateTime(date.year, date.month, date.day);
-        final endOfDay = startOfDay.add(const Duration(hours: 24));
-        query = query
-            .where(
-              'dateTime',
-              isGreaterThanOrEqualTo: startOfDay,
-            )
-            .where('dateTime', isLessThan: endOfDay);
-      }
+          if (date != null) {
+            final startOfDay = DateTime.utc(date.year, date.month, date.day);
+            final endOfDay = startOfDay.add(const Duration(days: 1));
+           query = query
+              .where('dateTime', isGreaterThanOrEqualTo: startOfDay)
+              .where('dateTime', isLessThan: endOfDay);
+          }
       final snapshot = await query.get();
       final result = snapshot.docs
           .map(

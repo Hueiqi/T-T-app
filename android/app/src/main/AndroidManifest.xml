@@ -19,7 +19,14 @@
     <!-- Location permissions (for Places feature) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- For camera -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- For reading external storage (Android 12 and below) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <!-- For Android 13+ (API 33) you need READ_MEDIA_IMAGES instead -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <!-- Activity recognition (for pedometer / motion) -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 

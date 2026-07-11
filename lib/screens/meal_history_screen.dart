@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/nutrition_provider.dart';
 import '../models/meal_model.dart';
 import '../config/theme.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class MealHistoryScreen extends StatefulWidget {
   const MealHistoryScreen({super.key});
@@ -212,6 +213,8 @@ class _MealHistoryScreenState extends State<MealHistoryScreen> {
   }
 }
 
+
+
 class _HistoryMealCard extends StatelessWidget {
   final Meal meal;
 
@@ -240,11 +243,35 @@ class _HistoryMealCard extends StatelessWidget {
                   bottomLeft: Radius.circular(16),
                 ),
               ),
-              child: Icon(
-                _mealIcon(meal.mealType),
-                color: AppTheme.primaryColor,
-                size: 32,
-              ),
+              // ─── REPLACE THE ICON WITH THIS ───
+              child: meal.imageUrl != null && meal.imageUrl!.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        bottomLeft: Radius.circular(16),
+                      ),
+                      child: CachedNetworkImage(
+                        imageUrl: meal.imageUrl!,
+                        fit: BoxFit.cover,
+                        width: 80,
+                        height: 80,
+                        placeholder: (context, url) => Icon(
+                          _mealIcon(meal.mealType),
+                          color: AppTheme.primaryColor,
+                          size: 32,
+                        ),
+                        errorWidget: (context, url, error) => Icon(
+                          _mealIcon(meal.mealType),
+                          color: AppTheme.primaryColor,
+                          size: 32,
+                        ),
+                      ),
+                    )
+                  : Icon(
+                      _mealIcon(meal.mealType),
+                      color: AppTheme.primaryColor,
+                      size: 32,
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -298,6 +325,7 @@ class _HistoryMealCard extends StatelessWidget {
     );
   }
 
+  // ─── All the helper methods remain unchanged ───
   Widget _typeChip(String type) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

@@ -232,6 +232,7 @@ class NutritionProvider extends ChangeNotifier {
     required double carbs,
     required double fat,
     DateTime? dateTime,
+    String? imageUrl,
     double water = 0,
     double fiber = 0,
     double vitaminA = 0,
@@ -249,7 +250,8 @@ class NutritionProvider extends ChangeNotifier {
     final meal = Meal(
       id: _uuid.v4(),
       userId: userId,
-      dateTime: dateTime ?? DateTime.now(),
+      dateTime: (dateTime ?? DateTime.now()).toUtc(),
+      imageUrl: imageUrl,
       mealType: mealType,
       foodName: foodName,
       calories: calories,
