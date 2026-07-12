@@ -475,7 +475,8 @@ class _SleepScreenState extends State<SleepScreen> {
     final sleep = context.watch<SleepProvider>();
 
     return Scaffold(
-      body: sleep.isLoading
+      body: SafeArea(
+        child: sleep.isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
@@ -485,12 +486,12 @@ class _SleepScreenState extends State<SleepScreen> {
                   actions: [
                     if (context.watch<AuthProvider>().user == null)
                       IconButton(
-                        icon: const Icon(Icons.login),
+                        icon: const Icon(Icons.login, color: Colors.white),
                         tooltip: 'Login',
                         onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
                       ),
                     IconButton(
-                      icon: const Icon(Icons.edit),
+                      icon: const Icon(Icons.edit, color: Colors.white),
                       onPressed: _showManualSleepDialog,
                       tooltip: 'Log sleep manually',
                     ),
@@ -531,6 +532,7 @@ class _SleepScreenState extends State<SleepScreen> {
                 ),
               ],
             ),
+      ),
     );
   }
 

@@ -1,4 +1,5 @@
 // lib/screens/popular_workouts_screen.dart
+import 'package:fitness_app/config/routes.dart';
 import 'package:fitness_app/data/activity/activity_repository.dart' as ActivityRepository;
 import 'package:flutter/material.dart';
 import '../data/activity/activity_repository.dart';
@@ -26,21 +27,6 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _applyFilter() {
-    final query = _searchController.text.toLowerCase().trim();
-    setState(() {
-      if (query.isEmpty) {
-        _filtered = ActivityRepository.allRoutines;
-      } else {
-        _filtered = ActivityRepository.allRoutines.where((r) {
-          return r.title.toLowerCase().contains(query) ||
-              r.difficulty.toLowerCase().contains(query) ||
-              r.focus.toLowerCase().contains(query);
-        }).toList();
-      }
-    });
   }
 
   int _parseMinutes(String duration) {
@@ -85,7 +71,8 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -182,7 +169,7 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
                         estimatedCalories: _estimateCalories(routine),
                         onTap: () => Navigator.pushNamed(
                           context,
-                          '/routine-detail',
+                          AppRoutes.routineDetail,
                           arguments: routine.id,
                         ),
                         onQuickStart: () {
@@ -205,6 +192,7 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
                   ),
           ),
         ],
+        ),
       ),
     );
   }

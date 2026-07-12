@@ -29,7 +29,8 @@ class _MovementScreenState extends State<MovementScreen> {
     final motion = context.watch<MotionProvider>();
     return Scaffold(
       appBar: null,
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           const CustomHeader(title: 'Movement Tracker', showBack: true),
           Expanded(
@@ -87,6 +88,7 @@ class _MovementScreenState extends State<MovementScreen> {
       ),
     ),
     ],
+  ),
   ),
 );
   }

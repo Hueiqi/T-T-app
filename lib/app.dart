@@ -58,7 +58,7 @@ class FitSyncApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'FitSync AI',
+      title: 'T&T AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
@@ -97,9 +97,7 @@ class FitSyncApp extends StatelessWidget {
         AppRoutes.popularWorkouts: (_) => PopularWorkoutsScreen(),
         AppRoutes.movement: (_) => const MovementScreen(),
         AppRoutes.places: (_) => const PlacesScreen(),
-        AppRoutes.routineHistory: (_) => const routineHistoryScreen(),
-        AppRoutes.routine: (_) => const routineHistoryScreen(),
-        AppRoutes.popularWorkouts: (_) => PopularWorkoutsScreen(),
+        AppRoutes.routineHistory: (_) => const RoutineHistoryScreen(),
         AppRoutes.routineDetail: (ctx) {
           final id = ModalRoute.of(ctx)?.settings.arguments as String? ?? '';
           return RoutineDetailScreen(routineId: id);
@@ -110,6 +108,8 @@ class FitSyncApp extends StatelessWidget {
         },
         AppRoutes.aiChat: (_) => const AiChatScreen(),
         AppRoutes.exerciseLibrary: (_) => const ExerciseLibraryScreen(),
+        AppRoutes.activity: (_) => const RoutineHistoryScreen(),
+        AppRoutes.workoutDetail: (_) => const RoutineHistoryScreen(),
       },
     );
   }

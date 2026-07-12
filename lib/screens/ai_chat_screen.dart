@@ -160,14 +160,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           CustomHeader(
             title: 'AI Assistant',
             showBack: true,
             actions: [
               IconButton(
-                icon: const Icon(Icons.delete_outline),
+                icon: const Icon(Icons.delete_outline, color: Colors.white),
                 onPressed: () {
                   setState(() {
                     _messages.clear();
@@ -255,6 +256,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

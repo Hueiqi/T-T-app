@@ -11,8 +11,9 @@ class AppTheme {
   static const Color indigo500 = Color(0xFF6366F1);
   static const Color indigo600 = Color(0xFF4F46E5);
 
-  static const Color primaryColor = indigo500;
-  static const Color secondaryColor = indigo400;
+  static const Color primaryColor =indigo400;
+  static const Color appBarColor = Color(0xFF9192F5); 
+  static const Color secondaryColor = indigo600;
   static const Color accentColor = indigo300;
   static const Color backgroundColor = indigo50;
   static const Color darkBackground = Color(0xFF1E1B4B);
@@ -27,7 +28,7 @@ class AppTheme {
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
-    primaryColor: primaryColor,
+    primaryColor:Color(0xFF9192F5),
     scaffoldBackgroundColor: indigo50,
     colorScheme: ColorScheme.light(
       primary: primaryColor,
@@ -39,7 +40,7 @@ class AppTheme {
       ThemeData.light().textTheme,
     ),
     appBarTheme: AppBarTheme(
-      backgroundColor: primaryColor,
+      backgroundColor: const Color.fromARGB(255, 145, 146, 245),
       foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: true,

@@ -162,10 +162,12 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
     if (auth.user != null) {
       final userId = auth.user!.uid;
       final data = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'title': _routine.title,
         'durationSeconds': _totalElapsed,
         'completedAt': DateTime.now().toIso8601String(),
         'difficulty': _routine.difficulty,
+        'completedExercises': List.from(_completedNames),
       };
       FirebaseService().saveActivity(userId, data);
     }
@@ -237,9 +239,9 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        toolbarHeight: 56,
+        backgroundColor: Colors.transparent, // 👈 no color
+        elevation: 0,   
+        
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white),
           onPressed: _confirmEnd,

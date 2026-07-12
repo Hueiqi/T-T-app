@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import '../config/api_keys.dart'; // <-- Make sure this points to your real key file
 import '../config/constants.dart';
 import '../models/food_item_model.dart';
 

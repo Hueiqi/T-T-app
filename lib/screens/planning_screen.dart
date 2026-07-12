@@ -1,10 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/auth_provider.dart';
 import '../providers/planning_provider.dart';
-import '../providers/health_provider.dart';
 import '../providers/workout_provider.dart';
 import '../providers/nutrition_provider.dart';
 import '../models/planning_model.dart';
@@ -28,7 +26,6 @@ class _PlanningScreenState extends State<PlanningScreen> {
 
   String _selectedFilter = 'All';
   ExerciseDb? _dailyExercise;
-  ExerciseDb? _gifExercise;
   final _random = Random();
   int _totalWorkouts = 0;
   double _totalCaloriesBurned = 0;
@@ -84,10 +81,6 @@ class _PlanningScreenState extends State<PlanningScreen> {
       if (all.isNotEmpty) {
         setState(() {
           _dailyExercise = all[_random.nextInt(all.length)];
-          final withGif = all.where((e) => e.gifUrl != null).toList();
-          _gifExercise = withGif.isNotEmpty
-              ? withGif[_random.nextInt(withGif.length)]
-              : _dailyExercise;
         });
       }
     });
@@ -126,7 +119,8 @@ class _PlanningScreenState extends State<PlanningScreen> {
   Widget _buildMainScreen(PlanningProvider planning, AuthProvider auth) {
     return Scaffold(
       appBar: null,
-      body: SingleChildScrollView(
+      body: SafeArea(
+        child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,7 +146,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                     child: IconButton(
                       icon: const Icon(Icons.history, color: AppTheme.primaryColor),
                       tooltip: 'Activity History',
-                      onPressed: () => Navigator.pushNamed(context, AppRoutes.activity),
+                      onPressed: () => Navigator.pushNamed(context, AppRoutes.routineHistory),
                     ),
                   ),
                 ],
@@ -218,6 +212,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
             _buildCalorieHistoryCard(),
             const SizedBox(height: 32),
           ],
+        ),
         ),
       ),
       bottomNavigationBar: widget.showBottomNav
@@ -511,14 +506,23 @@ class _PlanningScreenState extends State<PlanningScreen> {
                   padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.asset(
+                          _getImageForRoutine(title),
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(Icons.fitness_center, color: color, size: 22),
+                          ),
                         ),
-                        child: Icon(Icons.fitness_center, color: color, size: 22),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1288,6 +1292,17 @@ class _PlanningScreenState extends State<PlanningScreen> {
     );
   }
 
+  String _getImageForRoutine(String title) {
+    final lower = title.toLowerCase();
+    if (lower.contains('full body')) return 'lib/assets/Planning/FullBodyWorkout.png';
+    if (lower.contains('20 min')) return 'lib/assets/Planning/20minFullBody.png';
+    if (lower.contains('abs')) return 'lib/assets/Planning/abs.png';
+    if (lower.contains('core')) return 'lib/assets/Planning/coreStability.jpg';
+    if (lower.contains('outdoor')) return 'lib/assets/Planning/outdoor-workout.webp';
+    if (lower.contains('ai')) return 'lib/assets/Planning/ai-planning.png';
+    return 'lib/assets/Planning/planningRoutinesIcon.png';
+  }
+
   Widget _buildTagChip(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1307,68 +1322,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
   }
 
 
-  Widget _buildExerciseImageFallback(ExerciseDb? ex) {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: AppTheme.indigo50,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.fitness_center, color: AppTheme.primaryColor.withValues(alpha: 0.4), size: 28),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                ex != null ? ex.name : 'Start a workout to see exercise demos',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppTheme.primaryColor.withValues(alpha: 0.6),
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildStatItem(IconData icon, String value, String label, Color color) {
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _PlanCard extends StatelessWidget {
@@ -1407,6 +1361,31 @@ class _PlanCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                _getImageForPlan(plan.title),
+                width: 56,
+                height: 56,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : AppTheme.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.fitness_center,
+                    color: isSelected ? Colors.white : AppTheme.primaryColor,
+                    size: 28,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1487,6 +1466,17 @@ class _PlanCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _getImageForPlan(String title) {
+    final lower = title.toLowerCase();
+    if (lower.contains('full body')) return 'lib/assets/Planning/FullBodyWorkout.png';
+    if (lower.contains('20 min')) return 'lib/assets/Planning/20minFullBody.png';
+    if (lower.contains('abs')) return 'lib/assets/Planning/abs.png';
+    if (lower.contains('core')) return 'lib/assets/Planning/coreStability.jpg';
+    if (lower.contains('outdoor')) return 'lib/assets/Planning/outdoor-workout.webp';
+    if (lower.contains('ai')) return 'lib/assets/Planning/ai-planning.png';
+    return 'lib/assets/Planning/planningRoutinesIcon.png';
   }
 
   Widget _buildChip(String label, Color bgColor, Color textColor) {

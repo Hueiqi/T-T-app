@@ -45,11 +45,14 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 
   Future<void> _loadMealsForDate(String userId, DateTime date) async {
-    await context.read<NutritionProvider>().loadMealsForDate(userId, date);
-    setState(() {
-      _selectedDate = date;
-      _displayedMeals = context.read<NutritionProvider>().selectedDateMeals;
-    });
+ // Clear the cache for this date
+   final key = DateFormat('yyyy-MM-dd').format(date);
+   context.read<NutritionProvider>().clearCacheForDate(key); // add this method
+   await context.read<NutritionProvider>().loadMealsForDate(userId, date);
+  setState(() {
+        _selectedDate = date;
+       _displayedMeals = context.read<NutritionProvider>().selectedDateMeals;
+  });
     _scrollToDate(date);
   }
 
@@ -93,8 +96,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 ),
                 const SizedBox(height: 16),
                   _QuickActionTile(
-                    icon: Icons.wb_sunny,
-                    color: const Color(0xFFF59E0B),
+                    imagePath: 'lib/assets/diet/breakfast.png',
                     label: 'Add Breakfast',
                     onTap: () {
                       Navigator.pop(ctx);
@@ -102,8 +104,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     },
                   ),
                   _QuickActionTile(
-                    icon: Icons.wb_cloudy,
-                    color: const Color(0xFF059669),
+                    imagePath: 'lib/assets/diet/lunch.png',
                     label: 'Add Lunch',
                     onTap: () {
                       Navigator.pop(ctx);
@@ -111,8 +112,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     },
                   ),
                   _QuickActionTile(
-                    icon: Icons.nightlight_round,
-                    color: const Color(0xFF7C3AED),
+                    imagePath: 'lib/assets/diet/dinner.png',
                     label: 'Add Dinner',
                     onTap: () {
                       Navigator.pop(ctx);
@@ -120,8 +120,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     },
                   ),
                   _QuickActionTile(
-                    icon: Icons.restaurant,
-                    color: const Color(0xFFEC4899),
+                    imagePath: 'lib/assets/diet/snack.png',
                     label: 'Add Snack',
                     onTap: () {
                       Navigator.pop(ctx);
@@ -129,8 +128,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     },
                   ),
                 _QuickActionTile(
-                  icon: Icons.camera_alt,
-                  color: AppTheme.primaryColor,
+                  imagePath: 'lib/assets/diet/camera.png',
                   label: 'Scan Food',
                   onTap: () {
                     Navigator.pop(ctx);
@@ -162,6 +160,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
           ? nutrition.todayWeight!.weight.toStringAsFixed(1)
           : '',
     );
+
+    
 
     showDialog(
       context: context,
@@ -534,7 +534,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   _MealGroup(
                     mealType: 'breakfast',
                     meals: meals,
-                    icon: Icons.wb_sunny,
                     color: const Color(0xFFF59E0B),
                     onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'breakfast'),
                     onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
@@ -545,7 +544,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   _MealGroup(
                     mealType: 'lunch',
                     meals: meals,
-                    icon: Icons.wb_cloudy,
                     color: const Color(0xFF059669),
                     onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'lunch'),
                     onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
@@ -556,7 +554,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   _MealGroup(
                     mealType: 'dinner',
                     meals: meals,
-                    icon: Icons.nightlight_round,
                     color: const Color(0xFF7C3AED),
                     onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'dinner'),
                     onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
@@ -567,7 +564,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   _MealGroup(
                     mealType: 'snack',
                     meals: meals,
-                    icon: Icons.restaurant,
                     color: const Color(0xFFEC4899),
                     onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'snack'),
                     onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
@@ -1017,7 +1013,12 @@ class _DashboardHeader extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: IconButton(
-                    icon: const Text('📷', style: TextStyle(fontSize: 22)),
+                    icon: Image.asset(
+                      'lib/assets/diet/camera.png',
+                      width: 28,
+                      height: 28,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.camera_alt, size: 28),
+                    ),
                     onPressed: onCameraTap,
                     tooltip: 'Scan Food',
                   ),
@@ -1172,23 +1173,23 @@ class _QuickAddCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final quickFoods = [
-      _QuickFood('Apple', 95, Icons.apple, Colors.red.shade300,
+      _QuickFood('Apple', 95, Colors.red.shade300,
           protein: 0.5, carbs: 25, fat: 0.3),
-      _QuickFood('Chicken', 165, Icons.restaurant, Colors.brown,
+      _QuickFood('Chicken', 165, Colors.brown,
           protein: 31, carbs: 0, fat: 3.6),
-      _QuickFood('Rice', 130, Icons.grain, Colors.blueGrey,
+      _QuickFood('Rice', 130, Colors.blueGrey,
           protein: 2.7, carbs: 28, fat: 0.3),
-      _QuickFood('Eggs', 155, Icons.circle, Colors.orange.shade300,
+      _QuickFood('Eggs', 155, Colors.orange.shade300,
           protein: 13, carbs: 1.1, fat: 11),
-      _QuickFood('Banana', 105, Icons.eco, Color(0xFFFCD34D),
+      _QuickFood('Banana', 105, Color(0xFFFCD34D),
           protein: 1.3, carbs: 27, fat: 0.4),
     ];
 
     final mealTypes = [
-      ('breakfast', Icons.wb_sunny, const Color(0xFFF59E0B)),
-      ('lunch', Icons.wb_cloudy, const Color(0xFF059669)),
-      ('dinner', Icons.nightlight_round, const Color(0xFF7C3AED)),
-      ('snack', Icons.restaurant, const Color(0xFFEC4899)),
+      ('breakfast', 'lib/assets/diet/breakfast.png', const Color(0xFFF59E0B)),
+      ('lunch', 'lib/assets/diet/lunch.png', const Color(0xFF059669)),
+      ('dinner', 'lib/assets/diet/dinner.png', const Color(0xFF7C3AED)),
+      ('snack', 'lib/assets/diet/snack.png', const Color(0xFFEC4899)),
     ];
 
     return Card(
@@ -1290,7 +1291,7 @@ class _QuickAddCard extends StatelessWidget {
                   label: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(m.$2, size: 14),
+                      Image.asset(m.$2, width: 14, height: 14, errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, size: 14)),
                       const SizedBox(width: 4),
                       Text(m.$1[0].toUpperCase() + m.$1.substring(1)),
                     ],
@@ -1335,7 +1336,13 @@ class _QuickAddCard extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.restaurant, color: f.color, size: 18),
+                          Image.asset(
+                            'lib/assets/diet/quickAdd.png',
+                            width: 18,
+                            height: 18,
+                            color: f.color,
+                            errorBuilder: (_, __, ___) => Icon(Icons.restaurant, color: f.color, size: 18),
+                          ),
                           const SizedBox(height: 2),
                           Text(
                             f.name,
@@ -1372,9 +1379,8 @@ class _QuickFood {
   final double protein;
   final double carbs;
   final double fat;
-  final IconData icon;
   final Color color;
-  const _QuickFood(this.name, this.baseCalories, this.icon, this.color,
+  const _QuickFood(this.name, this.baseCalories, this.color,
       {this.protein = 0, this.carbs = 0, this.fat = 0});
 }
 
@@ -1389,7 +1395,6 @@ class _NutrientItem {
 class _MealGroup extends StatelessWidget {
   final String mealType;
   final List<Meal> meals;
-  final IconData icon;
   final Color color;
   final VoidCallback onAddFood;
   final void Function(Meal) onEdit;
@@ -1399,7 +1404,6 @@ class _MealGroup extends StatelessWidget {
   const _MealGroup({
     required this.mealType,
     required this.meals,
-    required this.icon,
     required this.color,
     required this.onAddFood,
     required this.onEdit,
@@ -1429,7 +1433,13 @@ class _MealGroup extends StatelessWidget {
                     color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, color: color, size: 20),
+                  child: Image.asset(
+                    'lib/assets/diet/$mealType.png',
+                    width: 20,
+                    height: 20,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Icon(Icons.fastfood, color: color, size: 20),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -1527,7 +1537,13 @@ class _FoodItemRow extends StatelessWidget {
               color: AppTheme.primaryColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(_mealIcon(meal.mealType), color: AppTheme.primaryColor, size: 22),
+            child: Image.asset(
+              'lib/assets/diet/${meal.mealType}.png',
+              width: 22,
+              height: 22,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Icon(_mealIcon(meal.mealType), color: AppTheme.primaryColor, size: 22),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1632,14 +1648,16 @@ class _FoodItemRow extends StatelessWidget {
 }
 
 class _QuickActionTile extends StatelessWidget {
-  final IconData icon;
-  final Color color;
+  final String? imagePath;
+  final IconData? icon;
+  final Color? color;
   final String label;
   final VoidCallback onTap;
 
   const _QuickActionTile({
-    required this.icon,
-    required this.color,
+    this.imagePath,
+    this.icon,
+    this.color,
     required this.label,
     required this.onTap,
   });
@@ -1651,10 +1669,24 @@ class _QuickActionTile extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: (color ?? AppTheme.primaryColor).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(icon, color: color, size: 20),
+        child: imagePath != null
+            ? Padding(
+                padding: const EdgeInsets.all(8),
+                child: Image.asset(
+                  imagePath!,
+                  width: 24,
+                  height: 24,
+                  errorBuilder: (_, __, ___) => Icon(
+                    icon ?? Icons.fastfood,
+                    color: color ?? AppTheme.primaryColor,
+                    size: 20,
+                  ),
+                ),
+              )
+            : Icon(icon, color: color ?? AppTheme.primaryColor, size: 20),
       ),
       title: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
       trailing: const Icon(Icons.chevron_right, size: 20),

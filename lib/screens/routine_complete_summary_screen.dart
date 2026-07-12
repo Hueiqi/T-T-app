@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../config/routes.dart';
+import '../providers/auth_provider.dart';
+import '../providers/user_progress_provider.dart';
+import '../services/firebase_service.dart';
 
 class RoutineCompleteSummaryScreen extends StatefulWidget {
   final String routineTitle;
@@ -28,14 +32,43 @@ class _RoutineCompleteSummaryScreenState
   late List<String> _pending;
   late List<String> _completed;
   bool _completedExpanded = true;
+  bool _isSaved = false;  // ✅ moved here
 
   @override
   void initState() {
     super.initState();
     _pending = List.from(widget.pendingExercises);
     _completed = List.from(widget.completedExercises);
+    // Save the routine when the screen appears
+    WidgetsBinding.instance.addPostFrameCallback((_) => _saveRoutine());
   }
 
+  Future<void> _saveRoutine() async {
+    if (_isSaved) return;
+    _isSaved = true;
+
+    final auth = context.read<AuthProvider>();
+    final userId = auth.user?.uid;
+    if (userId == null) return;
+
+    final firebase = FirebaseService();
+    // Build the activity map
+    final activity = {
+      'id': DateTime.now().millisecondsSinceEpoch.toString(), // simple unique ID
+      'title': widget.routineTitle,
+      'durationSeconds': widget.durationSeconds,
+      'completedAt': DateTime.now().toIso8601String(),
+    };
+
+      // Call with two positional arguments
+    await firebase.saveActivity(userId, activity);
+
+    final progress = context.read<UserProgressProvider>();
+    await progress.incrementWorkouts();
+    await progress.addWorkoutMinutes((widget.durationSeconds / 60).ceil());
+  }
+
+  // ─── formatting helpers ──────────────────────────────────────
   String _formatTime(int totalSeconds) {
     final mins = totalSeconds ~/ 60;
     final secs = totalSeconds % 60;
@@ -95,6 +128,7 @@ class _RoutineCompleteSummaryScreenState
     });
   }
 
+  // ─── BUILD ────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final total = _completed.length + _pending.length;
@@ -105,22 +139,21 @@ class _RoutineCompleteSummaryScreenState
       body: SafeArea(
         child: SizedBox.expand(
           child: CustomScrollView(
-            physics: const ClampingScrollPhysics(), // ✅ allows scrolling
+            physics: const ClampingScrollPhysics(),
             slivers: [
               SliverPadding(
                 padding: const EdgeInsets.only(top: 12),
                 sliver: SliverToBoxAdapter(
                   child: _buildHeader(progress, total, allDone),
-                  ),
+                ),
               ),
-              if (!allDone) SliverToBoxAdapter(child: const SizedBox(height: 8)),
-              if (!allDone) SliverToBoxAdapter(child: _buildProgressBar(progress, total)),
+              if (!allDone) const SliverToBoxAdapter(child: SizedBox(height: 8)),
+              if (!allDone)
               SliverToBoxAdapter(child: _buildStatsRow()),
               SliverToBoxAdapter(child: _buildCompletedSection()),
               if (!allDone) SliverToBoxAdapter(child: _buildPendingSection()),
               SliverToBoxAdapter(child: _buildMotivationalCard()),
               SliverToBoxAdapter(child: _buildActionButtons()),
-              // ✅ extra bottom padding to prevent clipping
               SliverPadding(
                 padding: const EdgeInsets.only(bottom: 80),
                 sliver: SliverToBoxAdapter(child: const SizedBox.shrink()),
@@ -132,192 +165,67 @@ class _RoutineCompleteSummaryScreenState
     );
   }
 
+  // ─── UI sub‑widgets ──────────────────────────────────────────
+    // ─── Header: ONLY percentage ring + title ──────────────────
   Widget _buildHeader(double progress, int total, bool allDone) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: allDone
-                    ? [const Color(0xFF059669), const Color(0xFF10B981)]
-                    : [AppTheme.primaryColor, AppTheme.primaryColor.withValues(alpha: 0.7)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: (allDone ? const Color(0xFF059669) : AppTheme.primaryColor).withValues(alpha: 0.3),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Row(
+    return Column(
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: progress),
+          duration: const Duration(milliseconds: 1000),
+          builder: (ctx, value, _) => SizedBox(
+            width: 160,
+            height: 160,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            allDone ? Icons.celebration : Icons.fitness_center,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              allDone ? 'Workout Complete!' : 'Workout Finished',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        widget.routineTitle,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontSize: 15,
-                        ),
-                      ),
-                      if (!allDone)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.orangeAccent.withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.info_outline, size: 12, color: Colors.white),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Remaining exercises',
-                                  style: TextStyle(color: Colors.white, fontSize: 11),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
+                CircularProgressIndicator(
+                  value: value,
+                  strokeWidth: 10,
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    allDone ? AppTheme.successColor : AppTheme.primaryColor,
                   ),
                 ),
-                const SizedBox(width: 16),
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: progress),
-                  duration: const Duration(milliseconds: 1000),
-                  builder: (ctx, value, _) => SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        SizedBox(
-                          width: 72,
-                          height: 72,
-                          child: CircularProgressIndicator(
-                            value: value,
-                            strokeWidth: 5,
-                            backgroundColor: Colors.white.withValues(alpha: 0.2),
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        ),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${(value * 100).round()}%',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '$_completed/$total',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7),
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${(value * 100).round()}%',
+                      style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.bold,
+                        color: allDone ? AppTheme.successColor : AppTheme.primaryColor,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Text(
+                      allDone ? 'Complete!' : 'In Progress',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: allDone ? AppTheme.successColor : AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          widget.routineTitle,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 
-  Widget _buildProgressBar(double progress, int total) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Card(
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.pie_chart_outline, size: 18, color: AppTheme.primaryColor),
-                  const SizedBox(width: 8),
-                  Text(
-                    '$_completed / $total exercises',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${(progress * 100).round()}%',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.primaryColor,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 8,
-                  backgroundColor: Colors.grey.shade200,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    progress >= 1 ? AppTheme.successColor : AppTheme.primaryColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildStatsRow() {
     return Padding(
@@ -374,10 +282,7 @@ class _RoutineCompleteSummaryScreenState
                     const SizedBox(width: 10),
                     Text(
                       'Completed (${_completed.length})',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                     ),
                     const Spacer(),
                     Icon(
@@ -411,11 +316,7 @@ class _RoutineCompleteSummaryScreenState
                             color: AppTheme.successColor.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.check,
-                            color: AppTheme.successColor,
-                            size: 14,
-                          ),
+                          child: const Icon(Icons.check, color: AppTheme.successColor, size: 14),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -463,21 +364,14 @@ class _RoutineCompleteSummaryScreenState
                   const SizedBox(width: 10),
                   Text(
                     'Remaining (${_pending.length})',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.amber,
-                    ),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.amber),
                   ),
                 ],
               ),
               const SizedBox(height: 4),
               Text(
                 'Complete these exercises for a full workout:',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.amber.shade700,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.amber.shade700),
               ),
               const SizedBox(height: 10),
               ...List.generate(_pending.length, (i) {
@@ -492,16 +386,9 @@ class _RoutineCompleteSummaryScreenState
                         decoration: BoxDecoration(
                           color: Colors.amber.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.amber.withValues(alpha: 0.5),
-                            width: 2,
-                          ),
+                          border: Border.all(color: Colors.amber.withValues(alpha: 0.5), width: 2),
                         ),
-                        child: const Icon(
-                          Icons.remove,
-                          color: Colors.amber,
-                          size: 14,
-                        ),
+                        child: const Icon(Icons.remove, color: Colors.amber, size: 14),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -546,9 +433,7 @@ class _RoutineCompleteSummaryScreenState
         decoration: BoxDecoration(
           color: AppTheme.primaryColor.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: AppTheme.primaryColor.withValues(alpha: 0.12),
-          ),
+          border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.12)),
         ),
         child: Row(
           children: [
@@ -605,9 +490,7 @@ class _RoutineCompleteSummaryScreenState
                     foregroundColor: AppTheme.warningColor,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: BorderSide(color: AppTheme.warningColor.withValues(alpha: 0.3)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
@@ -616,18 +499,15 @@ class _RoutineCompleteSummaryScreenState
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.pushNamedAndRemoveUntil(
+              onPressed: () => Navigator.pushReplacementNamed(
                 context,
-                AppRoutes.activity,
-                (route) => false,
+                AppRoutes.popularWorkouts, // make sure this route exists
               ),
               icon: const Icon(Icons.play_arrow, size: 20),
               label: const Text('Next Workout'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
@@ -637,37 +517,17 @@ class _RoutineCompleteSummaryScreenState
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                  onPressed: () => Navigator.pushReplacementNamed(
                     context,
-                    AppRoutes.home,
-                    (route) => false,
+                    AppRoutes.routineHistory, // ✅ correct route for history
                   ),
-                  icon: const Icon(Icons.history, size: 18),
+                  icon: const Icon(Icons.history, size: 20),
                   label: const Text('View History'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: IconButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Share coming soon')),
-                    );
-                  },
-                  icon: const Icon(Icons.share),
-                  color: AppTheme.primaryColor,
-                  tooltip: 'Share',
                 ),
               ),
             ],
@@ -678,6 +538,7 @@ class _RoutineCompleteSummaryScreenState
   }
 }
 
+// ─── Helper widget ─────────────────────────────────────────────
 class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -706,18 +567,11 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
           ),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 10,
-              color: color.withValues(alpha: 0.7),
-            ),
+            style: TextStyle(fontSize: 10, color: color.withValues(alpha: 0.7)),
           ),
         ],
       ),

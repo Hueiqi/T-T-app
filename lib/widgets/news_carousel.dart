@@ -146,7 +146,7 @@ class _NewsCard extends StatelessWidget {
                         },
                       )
                     : Container(
-                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
                         child: const Icon(Icons.health_and_safety, size: 40),
                       ),
               ),

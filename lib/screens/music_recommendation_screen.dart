@@ -77,7 +77,8 @@ class _MusicRecommendationScreenState extends State<MusicRecommendationScreen> {
     );
 
     return Scaffold(
-      body: SingleChildScrollView(
+      body: SafeArea(
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,6 +297,7 @@ class _MusicRecommendationScreenState extends State<MusicRecommendationScreen> {
                 ),
               ),
           ],
+        ),
         ),
       ),
     );

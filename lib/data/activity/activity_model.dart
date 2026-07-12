@@ -18,12 +18,13 @@ class Exercise {
   int get durationInSeconds {
     if (durationSeconds != null) return durationSeconds!;
     final r = reps.trim().toLowerCase();
-    if (r.endsWith('s')) {
-      final s = int.tryParse(r.replaceAll('s', ''));
-      if (s != null) return s;
-    } else if (r.contains('min')) {
-      final m = int.tryParse(r.replaceAll(RegExp(r'[^0-9]'), ''));
-      if (m != null) return m * 60;
+    final numberStr = RegExp(r'(\d+)').firstMatch(r)?.group(1);
+    if (numberStr != null) {
+      final n = int.tryParse(numberStr);
+      if (n != null) {
+        if (r.contains('min')) return n * 60;
+        return n;
+      }
     }
     return 30;
   }

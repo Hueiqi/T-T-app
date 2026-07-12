@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
 import '../providers/nutrition_provider.dart';
 import '../providers/auth_provider.dart';
-import '../services/firebase_service.dart';
 import '../config/theme.dart';
 import '../models/food_item_model.dart';
-import '../models/meal_model.dart';
+
+final _uuid = Uuid();
 
 enum _CaptureState { capture, result, edit }
 
 class FoodCaptureScreen extends StatefulWidget {
-  final DateTime? initialDate;   // ✅ date passed from NutritionScreen
+  final DateTime? initialDate;
 
   const FoodCaptureScreen({super.key, this.initialDate});
 
@@ -23,12 +25,10 @@ class FoodCaptureScreen extends StatefulWidget {
 class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
   _CaptureState _state = _CaptureState.capture;
   Uint8List? _imageBytes;
-  XFile? _imageFile;
   String _selectedMealType = 'lunch';
   FoodItem? _detectedFood;
-
-  // ✅ Store the selected date (from widget.initialDate or now)
   late DateTime _selectedDate;
+  bool _isUploading = false;
 
   final _nameController = TextEditingController();
   final _caloriesController = TextEditingController();
@@ -62,6 +62,80 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     super.dispose();
   }
 
+  // ─── Image Upload ──────────────────────────────────────────────
+  Future<String?> _uploadImage(String userId) async {
+    if (_imageBytes == null) return null;
+    try {
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('meals/$userId/${_uuid.v4()}.jpg');
+      await ref.putData(_imageBytes!);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      _showError('Failed to upload image: $e');
+      return null;
+    }
+  }
+
+  // ─── Save Meal ─────────────────────────────────────────────────
+  Future<void> _saveMeal() async {
+    final nutrition = context.read<NutritionProvider>();
+    final auth = context.read<AuthProvider>();
+    if (auth.user == null) {
+      _showError('User not authenticated');
+      return;
+    }
+
+    final name = _nameController.text.trim();
+    final calories = double.tryParse(_caloriesController.text.trim()) ?? 0;
+    final protein = double.tryParse(_proteinController.text.trim()) ?? 0;
+    final carbs = double.tryParse(_carbsController.text.trim()) ?? 0;
+    final fat = double.tryParse(_fatController.text.trim()) ?? 0;
+    if (name.isEmpty || calories <= 0) {
+      _showError('Please enter food name and valid calories.');
+      return;
+    }
+
+    // Show loading overlay
+    setState(() => _isUploading = true);
+
+    String? imageUrl;
+    if (_imageBytes != null) {
+      imageUrl = await _uploadImage(auth.user!.uid);
+      if (imageUrl == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image upload failed, but meal will be saved.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+
+    final water = double.tryParse(_waterController.text.trim()) ?? 0;
+    final fiber = double.tryParse(_fiberController.text.trim()) ?? 0;
+
+    await nutrition.saveMeal(
+      userId: auth.user!.uid,
+      mealType: _selectedMealType,
+      foodName: name,
+      calories: calories,
+      protein: protein,
+      carbs: carbs,
+      fat: fat,
+      water: water,
+      fiber: fiber,
+      dateTime: _selectedDate,
+      imageUrl: imageUrl,
+    );
+
+    if (mounted) {
+      setState(() => _isUploading = false);
+      Navigator.pop(context, true);
+    }
+  }
+
+  // ─── Camera / Gallery ──────────────────────────────────────────
   Future<void> _takePhoto() async {
     final photo = await ImagePicker().pickImage(
       source: ImageSource.camera,
@@ -80,7 +154,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
 
   Future<void> _processImage(XFile file) async {
     setState(() {
-      _imageFile = file;
       _detectedFood = null;
     });
     final bytes = await file.readAsBytes();
@@ -109,66 +182,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
         _state = _CaptureState.edit;
       }
     });
-  }
-
-  Future<void> _saveMeal() async {
-    final nutrition = context.read<NutritionProvider>();
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) {
-      _showError('User not authenticated');
-      return;
-    }
-
-    final name = _nameController.text.trim();
-    final calories = double.tryParse(_caloriesController.text.trim()) ?? 0;
-    final protein = double.tryParse(_proteinController.text.trim()) ?? 0;
-    final carbs = double.tryParse(_carbsController.text.trim()) ?? 0;
-    final fat = double.tryParse(_fatController.text.trim()) ?? 0;
-    final servingSize = _servingController.text.trim().isEmpty
-        ? '1 serving'
-        : _servingController.text.trim();
-
-    if (name.isEmpty || calories <= 0) {
-      _showError('Please enter food name and valid calories.');
-      return;
-    }
-
-    final vitamins = double.tryParse(_vitaminsController.text.trim()) ?? 0;
-    final minerals = double.tryParse(_mineralsController.text.trim()) ?? 0;
-    final water = double.tryParse(_waterController.text.trim()) ?? 0;
-    final fiber = double.tryParse(_fiberController.text.trim()) ?? 0;
-
-    String? imageUrl;
-    if (_imageBytes != null && _imageFile != null) {
-      try {
-        final firebase = FirebaseService();
-        imageUrl = await firebase.uploadImageBytes(
-          _imageBytes!,
-          auth.user!.uid,
-          _imageFile!.name,
-        );
-      } catch (_) {
-        imageUrl = '';
-      }
-    }
-
-    final savedMeal = await nutrition.saveMeal(
-      userId: auth.user!.uid,
-      mealType: _selectedMealType,
-      foodName: name,
-      calories: calories,
-      protein: protein,
-      carbs: carbs,
-      fat: fat,
-      water: water,
-      fiber: fiber,
-      dateTime: _selectedDate,   // ✅ pass the selected date
-    );
-
-    if (mounted) {
-      // ✅ Pop with true to signal NutritionScreen to refresh
-      Navigator.pop(context, true);
-    }
   }
 
   void _showError(String msg) {
@@ -436,7 +449,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
               onPressed: () {
                 setState(() {
                   _imageBytes = null;
-                  _imageFile = null;
                   _detectedFood = null;
                   _state = _CaptureState.capture;
                 });
@@ -446,113 +458,168 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
             ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
-            children: [
-              if (isAnalyzing)
-                _buildAnalyzingView()
-              else if (error != null)
-                _buildErrorView(error)
-              else
-                ...[
-                  if (_state == _CaptureState.capture) _buildCaptureView(),
-                  if (_state == _CaptureState.result) _buildResultView(),
-                  if (_state == _CaptureState.edit) _buildEditView(),
-                ],
-            ],
-          ),
-        ),
-      ),
+      body: _isUploading
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Column(
+                  children: [
+                    if (isAnalyzing)
+                      _buildAnalyzingView()
+                    else if (error != null)
+                      _buildErrorView(error)
+                    else ...[
+                      if (_state == _CaptureState.capture)
+                        _buildCaptureView(),
+                      if (_state == _CaptureState.result)
+                        _buildResultView(),
+                      if (_state == _CaptureState.edit)
+                        _buildEditView(),
+                    ],
+                  ],
+                ),
+              ),
+            ),
     );
   }
 
-  // ── Capture View ──
+  // ─── Beautiful Capture View ────────────────────────────────────
   Widget _buildCaptureView() {
     return Column(
       children: [
         const SizedBox(height: 12),
-        Container(
-          height: 320,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppTheme.primaryColor.withValues(alpha: 0.08),
-                AppTheme.indigo100.withValues(alpha: 0.05),
-              ],
-            ),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Frame overlay
-              CustomPaint(
-                size: const Size(280, 280),
-                painter: _FramePainter(color: AppTheme.primaryColor),
-              ),
-              // Content
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
+        Stack(
+          children: [
+            // Decorative blurred circle
+            Positioned(
+              top: -30,
+              right: -30,
+              child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
                       color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
+                      blurRadius: 60,
+                      spreadRadius: 20,
                     ),
-                    child: Icon(
-                      Icons.camera_alt_rounded,
-                      size: 40,
-                      color: AppTheme.primaryColor.withValues(alpha: 0.8),
+                  ],
+                ),
+              ),
+            ),
+            // Main card
+            Container(
+              height: 340,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.95),
+                    Colors.grey.shade50.withValues(alpha: 0.9),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(32),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Glowing frame
+                  CustomPaint(
+                    size: const Size(260, 260),
+                    painter: _FramePainter(
+                      color: AppTheme.primaryColor,
+                      glowColor: AppTheme.primaryColor.withValues(alpha: 0.15),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Take a photo of your meal',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Position your plate in the frame',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppTheme.textSecondary.withValues(alpha: 0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  Row(
+                  // Content
+                  Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildActionChip(
-                        icon: Icons.camera_alt_rounded,
-                        label: 'Camera',
-                        onTap: _takePhoto,
-                        filled: true,
+                      // Animated camera icon
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 1.0, end: 1.05),
+                        duration: const Duration(milliseconds: 1500),
+                        curve: Curves.easeInOut,
+                        builder: (context, scale, _) => Transform.scale(
+                          scale: scale,
+                          child: Container(
+                            width: 88,
+                            height: 88,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppTheme.primaryColor.withValues(alpha: 0.12),
+                                  AppTheme.primaryColor.withValues(alpha: 0.04),
+                                ],
+                              ),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.camera_alt_rounded,
+                              size: 44,
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 16),
-                      _buildActionChip(
-                        icon: Icons.photo_library_rounded,
-                        label: 'Gallery',
-                        onTap: _pickFromGallery,
-                        filled: false,
+                      const SizedBox(height: 20),
+                      Text(
+                        'Take a photo of your meal',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Position your plate in the frame',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppTheme.textSecondary.withValues(alpha: 0.7),
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildActionChip(
+                            icon: Icons.camera_alt_rounded,
+                            label: 'Camera',
+                            onTap: _takePhoto,
+                            filled: true,
+                          ),
+                          const SizedBox(width: 14),
+                          _buildActionChip(
+                            icon: Icons.photo_library_rounded,
+                            label: 'Gallery',
+                            onTap: _pickFromGallery,
+                            filled: false,
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 28),
         _buildAlternativeOptions(),
       ],
     );
@@ -565,26 +632,40 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     required bool filled,
   }) {
     return Material(
-      color: filled
-          ? AppTheme.primaryColor
-          : AppTheme.primaryColor.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(14),
+      elevation: filled ? 4 : 0,
+      shadowColor: filled ? AppTheme.primaryColor.withValues(alpha: 0.3) : Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          decoration: BoxDecoration(
+            color: filled
+                ? AppTheme.primaryColor
+                : AppTheme.primaryColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: filled
+                ? null
+                : Border.all(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                    width: 1.5,
+                  ),
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon,
-                  size: 20,
-                  color: filled ? Colors.white : AppTheme.primaryColor),
-              const SizedBox(width: 8),
+              Icon(
+                icon,
+                size: 22,
+                color: filled ? Colors.white : AppTheme.primaryColor,
+              ),
+              const SizedBox(width: 10),
               Text(
                 label,
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
+                  fontSize: 15,
                   color: filled ? Colors.white : AppTheme.primaryColor,
                 ),
               ),
@@ -600,43 +681,42 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
       children: [
         Row(
           children: [
-            Expanded(
-              child: Divider(
-                color: Colors.grey.shade300,
-                thickness: 1,
-              ),
+            const Expanded(
+              child: Divider(thickness: 1, color: Color(0xFFE8ECF4)),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 'or',
                 style: TextStyle(
-                  color: AppTheme.textSecondary.withValues(alpha: 0.5),
+                  color: AppTheme.textSecondary.withValues(alpha: 0.4),
                   fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-            Expanded(
-              child: Divider(
-                color: Colors.grey.shade300,
-                thickness: 1,
-              ),
+            const Expanded(
+              child: Divider(thickness: 1, color: Color(0xFFE8ECF4)),
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: () =>
                 Navigator.pushNamed(context, '/food-search', arguments: 'lunch'),
-            icon: const Icon(Icons.search),
-            label: const Text('Search food database'),
+            icon: const Icon(Icons.search_rounded, size: 22),
+            label: const Text(
+              'Search food database',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            ),
             style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
               ),
+              side: BorderSide(color: Colors.grey.shade300),
             ),
           ),
         ),
@@ -644,7 +724,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     );
   }
 
-  // ── Result View ──
+  // ── Result View ─────────────────────────────────────────────────
   Widget _buildResultView() {
     final food = _detectedFood;
     if (food == null) return const SizedBox.shrink();
@@ -653,7 +733,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 4),
-        // Image preview
         if (_imageBytes != null)
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
@@ -669,8 +748,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
                   top: 12,
                   right: 12,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(20),
@@ -689,7 +767,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
             ),
           ),
         const SizedBox(height: 20),
-        // Food info card
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
@@ -715,10 +792,16 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
                       color: AppTheme.primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(
-                      _mealTypeIcon(_selectedMealType),
-                      color: AppTheme.primaryColor,
-                      size: 24,
+                    child: Image.asset(
+                      'lib/assets/diet/${_selectedMealType}.png',
+                      width: 24,
+                      height: 24,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Icon(
+                        _mealTypeIcon(_selectedMealType),
+                        color: AppTheme.primaryColor,
+                        size: 24,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -747,8 +830,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
                     ),
                   ),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: AppTheme.successColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -779,7 +861,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              // Calories
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -809,7 +890,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              // Macro bars
               _buildMacroBar(
                 label: 'Protein',
                 value: food.totalProtein,
@@ -837,7 +917,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        // Action buttons
         Row(
           children: [
             Expanded(
@@ -927,7 +1006,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     );
   }
 
-  // ── Edit View ──
+  // ── Edit View ──────────────────────────────────────────────────
   Widget _buildEditView() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -997,8 +1076,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
           runSpacing: 4,
           children: ['breakfast', 'lunch', 'dinner', 'snack']
               .map((type) => ChoiceChip(
-                    label:
-                        Text(type[0].toUpperCase() + type.substring(1)),
+                    label: Text(type[0].toUpperCase() + type.substring(1)),
                     selected: _selectedMealType == type,
                     selectedColor: AppTheme.primaryColor.withValues(alpha: 0.15),
                     onSelected: (_) =>
@@ -1128,7 +1206,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     );
   }
 
-  // ── Analyzing View ──
+  // ── Analyzing View ────────────────────────────────────────────
   Widget _buildAnalyzingView() {
     return Container(
       height: 400,
@@ -1176,7 +1254,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     );
   }
 
-  // ── Error View ──
+  // ── Error View ──────────────────────────────────────────────────
   Widget _buildErrorView(String error) {
     return Column(
       children: [
@@ -1265,7 +1343,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
             onPressed: () {
               setState(() {
                 _imageBytes = null;
-                _imageFile = null;
                 _state = _CaptureState.capture;
               });
               context.read<NutritionProvider>().clearError();
@@ -1298,81 +1375,75 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
   }
 }
 
-// ── Frame Painter ──
+// ─── Frame Painter (Enhanced) ───────────────────────────────────
 class _FramePainter extends CustomPainter {
   final Color color;
+  final Color glowColor;
 
-  _FramePainter({required this.color});
+  _FramePainter({required this.color, this.glowColor = Colors.transparent});
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Glow
+    if (glowColor != Colors.transparent) {
+      final glowPaint = Paint()
+        ..color = glowColor
+        ..style = PaintingStyle.fill
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, size.width, size.height),
+          const Radius.circular(20),
+        ),
+        glowPaint,
+      );
+    }
+
+    // Main frame
     final paint = Paint()
-      ..color = color.withValues(alpha: 0.3)
+      ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+      ..strokeWidth = 2.5;
 
     final cornerPaint = Paint()
-      ..color = color.withValues(alpha: 0.6)
+      ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
+      ..strokeWidth = 4;
 
-    const cornerLen = 24.0;
+    const cornerLen = 28.0;
     const gap = 0.0;
 
-    // Draw rounded rect frame
+    // Rounded rect frame
     final rect = RRect.fromRectAndRadius(
       Rect.fromLTWH(gap, gap, size.width - gap * 2, size.height - gap * 2),
-      const Radius.circular(16),
+      const Radius.circular(20),
     );
     canvas.drawRRect(rect, paint);
 
-    // Corner accents - top-left
-    canvas.drawLine(
-      Offset(gap, gap + cornerLen),
+    // Corner accents
+    final corners = [
       Offset(gap, gap),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      Offset(gap, gap),
-      Offset(gap + cornerLen, gap),
-      cornerPaint,
-    );
-
-    // Top-right
-    canvas.drawLine(
-      Offset(size.width - gap - cornerLen, gap),
       Offset(size.width - gap, gap),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      Offset(size.width - gap, gap),
-      Offset(size.width - gap, gap + cornerLen),
-      cornerPaint,
-    );
-
-    // Bottom-left
-    canvas.drawLine(
-      Offset(gap, size.height - gap - cornerLen),
       Offset(gap, size.height - gap),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      Offset(gap, size.height - gap),
-      Offset(gap + cornerLen, size.height - gap),
-      cornerPaint,
-    );
+      Offset(size.width - gap, size.height - gap),
+    ];
 
-    // Bottom-right
-    canvas.drawLine(
-      Offset(size.width - gap - cornerLen, size.height - gap),
-      Offset(size.width - gap, size.height - gap),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      Offset(size.width - gap, size.height - gap),
-      Offset(size.width - gap, size.height - gap - cornerLen),
-      cornerPaint,
-    );
+    for (final corner in corners) {
+      final isTop = corner.dy == gap;
+      final isLeft = corner.dx == gap;
+      final isRight = corner.dx == size.width - gap;
+      final isBottom = corner.dy == size.height - gap;
+
+      // Horizontal line
+      final hStart = isLeft ? corner.dx : corner.dx - cornerLen;
+      final hEnd = isLeft ? corner.dx + cornerLen : corner.dx;
+      canvas.drawLine(Offset(hStart, corner.dy), Offset(hEnd, corner.dy), cornerPaint);
+
+      // Vertical line
+      final vStart = isTop ? corner.dy : corner.dy - cornerLen;
+      final vEnd = isTop ? corner.dy + cornerLen : corner.dy;
+      canvas.drawLine(Offset(corner.dx, vStart), Offset(corner.dx, vEnd), cornerPaint);
+    }
   }
 
   @override

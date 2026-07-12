@@ -75,10 +75,9 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(routine.title),
-        backgroundColor: AppTheme.textSecondary.withValues(alpha: 0.05),
-        foregroundColor: Colors.white,
       ),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           // ─── Main content (scrollable) ──────────────────────
           Expanded(
@@ -249,7 +248,7 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
                       Switch(
                         value: _restTimerEnabled,
                         onChanged: (v) => setState(() => _restTimerEnabled = v),
-                        activeColor: AppTheme.primaryColor,
+                        activeThumbColor: AppTheme.primaryColor,
                       ),
                     ],
                   ),
@@ -534,6 +533,7 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

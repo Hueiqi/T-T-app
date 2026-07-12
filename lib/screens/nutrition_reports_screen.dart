@@ -146,7 +146,8 @@ class _NutritionReportsScreenState extends State<NutritionReportsScreen> {
           ),
         ],
       ),
-      body: _isLoading
+      body: SafeArea(
+        child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadData,
@@ -171,6 +172,7 @@ class _NutritionReportsScreenState extends State<NutritionReportsScreen> {
                 ),
               ),
             ),
+      ),
     );
   }
 
@@ -635,18 +637,12 @@ class _NutritionReportsScreenState extends State<NutritionReportsScreen> {
 // ── Helper data class ──
 class _DayData {
   final DateTime date;
-  double calories;
-  double protein;
-  double carbs;
-  double fat;
+  double calories = 0;
+  double protein = 0;
+  double carbs = 0;
+  double fat = 0;
 
-  _DayData({
-    required this.date,
-    this.calories = 0,
-    this.protein = 0,
-    this.carbs = 0,
-    this.fat = 0,
-  });
+  _DayData({required this.date});
 }
 
 // ── Macro Card ──

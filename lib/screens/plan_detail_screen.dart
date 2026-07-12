@@ -141,7 +141,8 @@ class _PlanDetailScreenState extends State<PlanDetailScreen> {
           ),
         ],
       ),
-      body: CustomScrollView(
+      body: SafeArea(
+        child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(child: _buildProgressHeader(plan)),
           SliverToBoxAdapter(child: _buildDescriptionCard(plan)),
@@ -155,6 +156,7 @@ class _PlanDetailScreenState extends State<PlanDetailScreen> {
           SliverToBoxAdapter(child: _buildMealPlanPreview(plan)),
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.pushNamedAndRemoveUntil(
@@ -169,7 +171,7 @@ class _PlanDetailScreenState extends State<PlanDetailScreen> {
   }
 
   Widget _buildProgressHeader(FitnessPlan plan) {
-    final progress = _currentWeek / plan.estimatedGoalWeeks;
+    final progress = plan.estimatedGoalWeeks > 0 ? _currentWeek / plan.estimatedGoalWeeks : 0.0;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       padding: const EdgeInsets.all(16),
@@ -325,8 +327,7 @@ class _PlanDetailScreenState extends State<PlanDetailScreen> {
   Widget _buildStatsRow(FitnessPlan plan, NutritionProvider nutrition) {
     final calCurrent = nutrition.totalCaloriesToday;
     final calGoal = plan.dailyCalories.toDouble();
-    final calRatio = (calGoal > 0 ? (calCurrent / calGoal).clamp(0, 1) : 0.0) as double;
-
+    final double calRatio = calGoal > 0 ? (calCurrent / calGoal).clamp(0, 1) : 0.0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Row(
@@ -436,82 +437,95 @@ class _PlanDetailScreenState extends State<PlanDetailScreen> {
     );
   }
 
-  Widget _buildMacroSection(FitnessPlan plan, NutritionProvider nutrition) {
-    final currentProtein = nutrition.totalProtein;
-    final currentCarbs = nutrition.totalCarbs;
-    final currentFat = nutrition.totalFat;
-    final goalProtein = plan.proteinG;
-    final goalCarbs = plan.carbsG;
-    final goalFat = plan.fatG;
-    final totalG = goalProtein + goalCarbs + goalFat;
+Widget _buildMacroSection(FitnessPlan plan, NutritionProvider nutrition) {
+  final currentProtein = nutrition.totalProtein;
+  final currentCarbs = nutrition.totalCarbs;
+  final currentFat = nutrition.totalFat;
+  final goalProtein = plan.proteinG;
+  final goalCarbs = plan.carbsG;
+  final goalFat = plan.fatG;
+  final totalG = goalProtein + goalCarbs + goalFat;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.pie_chart_outline, size: 18, color: AppTheme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Daily Macros',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white
-                      : AppTheme.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (totalG > 0)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: SizedBox(
-                height: 12,
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: (goalProtein / totalG * 1000).round(),
-                      child: Container(color: Colors.blue.shade400),
-                    ),
-                    Expanded(
-                      flex: (goalCarbs / totalG * 1000).round(),
-                      child: Container(color: Colors.orange.shade400),
-                    ),
-                    Expanded(
-                      flex: (goalFat / totalG * 1000).round(),
-                      child: Container(color: Colors.pink.shade400),
-                    ),
-                  ],
-                ),
+  return Container(
+    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Theme.of(context).cardColor,
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.04),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.pie_chart_outline, size: 18, color: AppTheme.primaryColor),
+            const SizedBox(width: 8),
+            Text(
+              'Daily Macros',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white
+                    : AppTheme.textPrimary,
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ── Conditional: macro bar OR fallback text ──
+        if (totalG > 0) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              height: 12,
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: (goalProtein / totalG * 1000).round(),
+                    child: Container(color: Colors.blue.shade400),
+                  ),
+                  Expanded(
+                    flex: (goalCarbs / totalG * 1000).round(),
+                    child: Container(color: Colors.orange.shade400),
+                  ),
+                  Expanded(
+                    flex: (goalFat / totalG * 1000).round(),
+                    child: Container(color: Colors.pink.shade400),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
           _macroRow('Protein', currentProtein, goalProtein, Colors.blue.shade400),
           const SizedBox(height: 10),
           _macroRow('Carbs', currentCarbs, goalCarbs, Colors.orange.shade400),
           const SizedBox(height: 10),
           _macroRow('Fat', currentFat, goalFat, Colors.pink.shade400),
+        ] else ...[
+          Text(
+            'No macro goals set for this plan.',
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white70
+                  : AppTheme.textSecondary,
+            ),
+          ),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 
   Widget _macroRow(String label, double current, double goal, Color color) {
     final ratio = (goal > 0 ? (current / goal).clamp(0, 1) : 0.0) as double;

@@ -132,6 +132,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     setState(() {
       _hasUnsavedChanges = false;
+      _isEditing = false; // exit edit mode after saving
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Profile updated')),
@@ -288,22 +289,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       appBar: null,
-      body: RefreshIndicator(
-        onRefresh: _loadDashboard,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              _buildProfileHeader(user),
-              const SizedBox(height: 16),
-              _buildQuickActions(),
-              const SizedBox(height: 20),
-              if (_isEditing) _buildEditForm(),
-              if (!_isEditing) _buildViewSections(user, sleep, nutrition, workout),
-              if (!_isEditing) _buildSignOutButton(auth),
-              const SizedBox(height: 32),
-            ],
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _loadDashboard,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _buildProfileHeader(user),
+                const SizedBox(height: 16),
+                _buildQuickActions(),
+                const SizedBox(height: 20),
+                if (_isEditing) _buildEditForm(),
+                if (!_isEditing) _buildViewSections(user, sleep, nutrition, workout),
+                if (!_isEditing) _buildSignOutButton(auth),
+                const SizedBox(height: 32),
+              ],
+            ),
           ),
         ),
       ),
@@ -330,19 +333,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Positioned(
               bottom: -4,
               right: -4,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AppTheme.primaryColor,
-                  child: Icon(
-                    _isEditing ? Icons.check : Icons.edit,
-                    size: 16,
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isEditing = !_isEditing;
+                    if (!_isEditing && _hasUnsavedChanges) {
+                      // if exiting edit without saving, discard changes? better to prompt.
+                      _showDiscardDialog();
+                    }
+                  });
+                },
+                child: Container(
+                  decoration: BoxDecoration(
                     color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: CircleAvatar(
+                    radius: 16,
+                    backgroundColor: AppTheme.primaryColor,
+                    child: Icon(
+                      _isEditing ? Icons.close : Icons.edit,
+                      size: 16,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -351,10 +365,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 12),
         GestureDetector(
-          onTap: () => setState(() {
-            _isEditing = !_isEditing;
-            if (_isEditing && _hasUnsavedChanges) _saveProfile();
-          }),
+          onTap: () {
+            if (!_isEditing) {
+              setState(() => _isEditing = true);
+            }
+          },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -366,7 +381,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(width: 8),
               Icon(
-                _isEditing ? Icons.check_circle : Icons.edit,
+                _isEditing ? Icons.edit_off : Icons.edit,
                 size: 20,
                 color: AppTheme.primaryColor,
               ),
@@ -430,7 +445,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _sectionHeader(Icons.person, 'Personal Info'),
+            _sectionHeader(Icons.edit, 'Edit Profile'),
             const SizedBox(height: 16),
             TextField(
               controller: _nameController,
@@ -440,19 +455,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: TextField(
-                  controller: _ageController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Age', prefixIcon: Icon(Icons.cake)),
-                  onChanged: (_) => _hasUnsavedChanges = true,
-                )),
+                Expanded(
+                  child: TextField(
+                    controller: _ageController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Age', prefixIcon: Icon(Icons.cake)),
+                    onChanged: (_) => _hasUnsavedChanges = true,
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: TextField(
-                  controller: _weightController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Weight (kg)', prefixIcon: Icon(Icons.monitor_weight)),
-                  onChanged: (_) => _hasUnsavedChanges = true,
-                )),
+                Expanded(
+                  child: TextField(
+                    controller: _weightController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Weight (kg)', prefixIcon: Icon(Icons.monitor_weight)),
+                    onChanged: (_) => _hasUnsavedChanges = true,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -464,7 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              initialValue: _workoutGoal,
+              value: _workoutGoal,
               decoration: const InputDecoration(labelText: 'Workout Goal', prefixIcon: Icon(Icons.flag_outlined)),
               items: _workoutGoals.map((g) => DropdownMenuItem(value: g['value'], child: Text(g['label']!))).toList(),
               onChanged: (v) {
@@ -476,10 +495,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _activityLevel,
+              value: _activityLevel,
               decoration: const InputDecoration(labelText: 'Activity Level', prefixIcon: Icon(Icons.directions_run)),
               items: _activityLevels.map((a) => DropdownMenuItem(value: a['value'], child: Text(a['label']!))).toList(),
-              onChanged: (v) { if (v != null) { setState(() => _activityLevel = v); _hasUnsavedChanges = true; } },
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _activityLevel = v);
+                  _hasUnsavedChanges = true;
+                }
+              },
             ),
             const SizedBox(height: 12),
             TextField(
@@ -489,17 +513,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onChanged: (_) => _hasUnsavedChanges = true,
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _saveProfile,
-                icon: const Icon(Icons.save),
-                label: const Text('Save Profile'),
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      if (_hasUnsavedChanges) {
+                        _showDiscardDialog();
+                      } else {
+                        setState(() => _isEditing = false);
+                      }
+                    },
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton.icon(
+                    onPressed: _hasUnsavedChanges ? _saveProfile : null,
+                    icon: const Icon(Icons.save),
+                    label: const Text('Save Profile'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDiscardDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard Changes?'),
+        content: const Text('You have unsaved changes. Discard them?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _isEditing = false;
+                _hasUnsavedChanges = false;
+                // reload original values
+                final user = context.read<AuthProvider>().user;
+                if (user != null) {
+                  _nameController.text = user.displayName ?? '';
+                  _weightController.text = user.weight.toString();
+                  _heightController.text = user.height.toString();
+                  _ageController.text = user.age.toString();
+                  _goalWeightController.text = user.targetWeightKg?.toString() ?? '';
+                  _workoutGoal = user.fitnessGoal ?? 'general_fitness';
+                  _activityLevel = context.read<NutritionProvider>().activityLevel;
+                }
+              });
+            },
+            style: TextButton.styleFrom(foregroundColor: AppTheme.errorColor),
+            child: const Text('Discard'),
+          ),
+        ],
       ),
     );
   }
@@ -508,7 +589,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Recent Activity ──
         _sectionHeader(Icons.timeline, 'Recent Activity'),
         const SizedBox(height: 8),
         _buildSleepCard(sleep),
@@ -519,33 +599,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         const SizedBox(height: 20),
 
-        // ── Health Metrics ──
         _sectionHeader(Icons.monitor_heart, 'Health Metrics'),
         const SizedBox(height: 8),
         _buildHealthMetrics(user),
 
         const SizedBox(height: 20),
 
-        // ── Progress Summary ──
         _sectionHeader(Icons.auto_graph, 'Progress Summary'),
         const SizedBox(height: 8),
         _buildProgressSummary(workout),
 
         const SizedBox(height: 20),
 
-        // ── Reports ──
         _sectionHeader(Icons.assessment, 'Reports'),
         const SizedBox(height: 8),
         _buildReportsTile(),
 
         const SizedBox(height: 20),
 
-        // ── Connections & Settings ──
         _sectionHeader(Icons.link, 'Connections & Settings'),
         const SizedBox(height: 8),
         _buildConnectionsSettings(user, workout),
-
-        const SizedBox(height: 20),
       ],
     );
   }
@@ -1137,9 +1211,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ═══════════════════════════════════════════
-// ── Static Widgets ──
-// ═══════════════════════════════════════════
+// ─── Static Widgets ────────────────────────────────────────────
 
 class _QuickActionItem {
   final IconData icon;
@@ -1306,7 +1378,7 @@ class _ActionChipButton extends StatelessWidget {
   }
 }
 
-// ── BLE Scanner Sheet (unchanged) ──
+// ── BLE Scanner Sheet (unchanged) ──────────────────────────────
 
 class _BleDeviceScannerSheet extends StatefulWidget {
   final void Function(String deviceId) onDeviceSelected;

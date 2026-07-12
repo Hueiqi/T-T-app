@@ -50,7 +50,8 @@ class _DebugSplashScreenState extends State<DebugSplashScreen> {
     return MaterialApp(
       home: Scaffold(
         backgroundColor: Colors.white,
-        body: Center(
+        body: SafeArea(
+          child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -88,6 +89,7 @@ class _DebugSplashScreenState extends State<DebugSplashScreen> {
               ],
             ],
           ),
+        ),
         ),
       ),
     );

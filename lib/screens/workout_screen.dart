@@ -24,7 +24,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     final spotifyConnected = auth.user?.spotifyConnected == 'connected';
     return Scaffold(
       appBar: null,
-      body: Consumer<WorkoutProvider>(
+      body: SafeArea(
+        child: Consumer<WorkoutProvider>(
         builder: (context, workout, _) {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -65,6 +66,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           );
         },
       ),
+      ),
       bottomNavigationBar: widget.showBottomNav ? buildBottomNavBar(context) : null,
     );
   }
@@ -89,9 +91,9 @@ class _WarningBanner extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -171,7 +173,7 @@ class _HeartRateMonitor extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: (zoneColors[zone] ?? AppTheme.primaryColor)
-                      .withOpacity(0.2),
+                      .withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -511,7 +513,7 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTheme.successColor.withOpacity(0.2),
+                    color: AppTheme.successColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Row(
@@ -563,7 +565,7 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
             // Current track / no music
             if (widget.workout.currentTrackName.isNotEmpty)
               Card(
-                color: AppTheme.primaryColor.withOpacity(0.08),
+                color: AppTheme.primaryColor.withValues(alpha: 0.08),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(
@@ -572,7 +574,7 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1DB954).withOpacity(0.15),
+                          color: const Color(0xFF1DB954).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
@@ -620,7 +622,7 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
               )
             else
               Card(
-                color: AppTheme.textSecondary.withOpacity(0.05),
+                color: AppTheme.textSecondary.withValues(alpha: 0.05),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(
@@ -629,7 +631,7 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: AppTheme.textSecondary.withOpacity(0.1),
+                          color: AppTheme.textSecondary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
@@ -806,7 +808,7 @@ class _SongPickerSheetState extends State<_SongPickerSheet> {
                                 height: 40,
                                 color: const Color(
                                   0xFF1DB954,
-                                ).withOpacity(0.15),
+                                ).withValues(alpha: 0.15),
                                 child: const Icon(
                                   Icons.music_note,
                                   color: Color(0xFF1DB954),
@@ -962,7 +964,7 @@ class _HeartRateChart extends StatelessWidget {
                     drawVerticalLine: false,
                     horizontalInterval: 20,
                     getDrawingHorizontalLine: (value) => FlLine(
-                      color: Colors.grey.withOpacity(0.2),
+                      color: Colors.grey.withValues(alpha: 0.2),
                       strokeWidth: 1,
                     ),
                   ),
@@ -1009,7 +1011,7 @@ class _HeartRateChart extends StatelessWidget {
                       dotData: const FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
                       ),
                     ),
                   ],

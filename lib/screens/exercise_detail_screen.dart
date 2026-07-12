@@ -15,7 +15,8 @@ class ExerciseDetailScreen extends StatelessWidget {
         title: Text(exercise.name, style: const TextStyle(fontSize: 16)),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
+      body: SafeArea(
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,6 +114,7 @@ class ExerciseDetailScreen extends StatelessWidget {
               }),
             ],
           ],
+        ),
         ),
       ),
     );

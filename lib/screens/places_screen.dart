@@ -136,7 +136,8 @@ class _PlacesScreenState extends State<PlacesScreen> {
 
     return Scaffold(
       appBar: null,
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           const CustomHeader(title: 'Places Visited', showBack: true),
           if (!placeProvider.hasPermission)
@@ -201,6 +202,7 @@ class _PlacesScreenState extends State<PlacesScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

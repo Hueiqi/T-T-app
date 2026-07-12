@@ -213,7 +213,8 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
           ),
         ],
       ),
-      body: _isLoading
+      body: SafeArea(
+        child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
@@ -487,6 +488,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                 ),
               ],
             ),
+      ),
     );
   }
 

@@ -202,6 +202,7 @@ class FitnessPlan {
         tagline: json['tagline'] as String? ?? '',
         difficulty: json['difficulty'] as String? ?? 'intermediate',
         description: json['description'] as String? ?? '',
+        
         dailyCalories: (json['daily_calories'] as num?)?.toInt() ?? 2000,
         proteinG: (json['protein_g'] as num?)?.toDouble() ?? 100,
         carbsG: (json['carbs_g'] as num?)?.toDouble() ?? 200,

@@ -18,7 +18,8 @@ class NutritionSuccessScreen extends StatelessWidget {
     final progress = (todayCalories / goal).clamp(0.0, 1.0);
 
     return Scaffold(
-      body: SingleChildScrollView(
+      body: SafeArea(
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
@@ -60,15 +61,21 @@ class NutritionSuccessScreen extends StatelessWidget {
                             color: AppTheme.primaryColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(
-                            meal.mealType == 'breakfast'
-                                ? Icons.wb_sunny
-                                : meal.mealType == 'lunch'
-                                    ? Icons.wb_cloudy
-                                    : meal.mealType == 'dinner'
-                                        ? Icons.nightlight_round
-                                        : Icons.restaurant,
-                            color: AppTheme.primaryColor,
+                          child: Image.asset(
+                            'lib/assets/diet/${meal.mealType}.png',
+                            width: 24,
+                            height: 24,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Icon(
+                              meal.mealType == 'breakfast'
+                                  ? Icons.wb_sunny
+                                  : meal.mealType == 'lunch'
+                                      ? Icons.wb_cloudy
+                                      : meal.mealType == 'dinner'
+                                          ? Icons.nightlight_round
+                                          : Icons.restaurant,
+                              color: AppTheme.primaryColor,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -258,6 +265,7 @@ class NutritionSuccessScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
           ],
+        ),
         ),
       ),
     );

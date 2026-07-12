@@ -8,14 +8,14 @@ import '../providers/user_progress_provider.dart';
 import '../services/firebase_service.dart';
 import '../widgets/custom_header.dart';
 
-class routineHistoryScreen extends StatefulWidget {
-  const routineHistoryScreen({super.key});
+class RoutineHistoryScreen extends StatefulWidget {
+  const RoutineHistoryScreen({super.key});
 
   @override
-  State<routineHistoryScreen> createState() => _routineHistoryScreenState();
+  State<RoutineHistoryScreen> createState() => _RoutineHistoryScreenState();
 }
 
-class _routineHistoryScreenState extends State<routineHistoryScreen> {
+class _RoutineHistoryScreenState extends State<RoutineHistoryScreen> {
   int _selectedTab = 0;
 
   @override
@@ -49,7 +49,7 @@ class _routineHistoryScreenState extends State<routineHistoryScreen> {
               },
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(Icons.add, color: Colors.white),
                   tooltip: 'Add activity',
                   onPressed: () {
                     // Navigate to Popular Workouts screen
@@ -248,7 +248,7 @@ class _HistoryTabState extends State<_HistoryTab>
               final title = a['title'] as String? ?? 'Workout';
               final duration = a['durationSeconds'] as int? ?? 0;
               final completedAt = a['completedAt'] as String? ?? '';
-              final dateStr = completedAt.isNotEmpty ? completedAt.substring(0, 10) : '';
+              final dateStr = completedAt.length >= 10 ? completedAt.substring(0, 10) : completedAt;
               final mins = duration ~/ 60;
               final secs = duration % 60;
 
@@ -586,6 +586,7 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 90,
+      height: 110,
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       decoration: BoxDecoration(
         color: unlocked ? Colors.amber.shade50 : Colors.grey.shade100,
@@ -594,6 +595,7 @@ class _Badge extends StatelessWidget {
         boxShadow: unlocked ? [BoxShadow(color: AppTheme.warningColor.withAlpha(30), blurRadius: 8)] : [],
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           assetPath != null
               ? Image.asset(
@@ -613,6 +615,8 @@ class _Badge extends StatelessWidget {
               color: unlocked ? AppTheme.textPrimary : Colors.grey.shade500,
             ),
             textAlign: TextAlign.center,
+            maxLines: 2,   
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

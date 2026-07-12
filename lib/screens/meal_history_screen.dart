@@ -68,7 +68,8 @@ class _MealHistoryScreenState extends State<MealHistoryScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           _buildCalendarStrip(),
           Expanded(
@@ -79,6 +80,7 @@ class _MealHistoryScreenState extends State<MealHistoryScreen> {
                     : _buildGroupedList(),
           ),
         ],
+        ),
       ),
     );
   }
@@ -255,22 +257,37 @@ class _HistoryMealCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         width: 80,
                         height: 80,
-                        placeholder: (context, url) => Icon(
-                          _mealIcon(meal.mealType),
-                          color: AppTheme.primaryColor,
-                          size: 32,
+                        placeholder: (context, url) => Image.asset(
+                          'lib/assets/diet/${meal.mealType}.png',
+                          width: 32,
+                          height: 32,
+                          errorBuilder: (_, __, ___) => Icon(
+                            _mealIcon(meal.mealType),
+                            color: AppTheme.primaryColor,
+                            size: 32,
+                          ),
                         ),
-                        errorWidget: (context, url, error) => Icon(
-                          _mealIcon(meal.mealType),
-                          color: AppTheme.primaryColor,
-                          size: 32,
+                        errorWidget: (context, url, error) => Image.asset(
+                          'lib/assets/diet/${meal.mealType}.png',
+                          width: 32,
+                          height: 32,
+                          errorBuilder: (_, __, ___) => Icon(
+                            _mealIcon(meal.mealType),
+                            color: AppTheme.primaryColor,
+                            size: 32,
+                          ),
                         ),
                       ),
                     )
-                  : Icon(
-                      _mealIcon(meal.mealType),
-                      color: AppTheme.primaryColor,
-                      size: 32,
+                  : Image.asset(
+                      'lib/assets/diet/${meal.mealType}.png',
+                      width: 32,
+                      height: 32,
+                      errorBuilder: (_, __, ___) => Icon(
+                        _mealIcon(meal.mealType),
+                        color: AppTheme.primaryColor,
+                        size: 32,
+                      ),
                     ),
             ),
             const SizedBox(width: 12),

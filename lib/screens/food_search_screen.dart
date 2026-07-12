@@ -108,11 +108,9 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Add ${widget.mealType[0].toUpperCase()}${widget.mealType.substring(1)}'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppTheme.textPrimary,
-        elevation: 0,
       ),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           Container(
             color: Colors.white,
@@ -212,6 +210,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                   ),
           ),
         ],
+        ),
       ),
     );
   }

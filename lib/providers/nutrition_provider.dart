@@ -182,6 +182,12 @@ class NutritionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 🔥 Clear the cache for a specific date – forces fresh fetch next time.
+  void clearCacheForDate(String dateKey) {
+    _mealsCache.remove(dateKey);
+    notifyListeners();
+  }
+
   Future<List<Meal>> loadRecentMeals(String userId, {int days = 30}) async {
     final allMeals = await _firebaseService.getMeals(userId);
     final cutoff = DateTime.now().subtract(Duration(days: days));

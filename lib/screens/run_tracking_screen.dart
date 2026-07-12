@@ -281,7 +281,8 @@ class _RunTrackingScreenState extends State<RunTrackingScreen> {
             ),
         ],
       ),
-      body: Stack(
+      body: SafeArea(
+        child: Stack(
         children: [
           _isTracking ? _buildTrackingUI(hr) : _buildHistoryUI(),
           if (_isSaving)
@@ -299,6 +300,7 @@ class _RunTrackingScreenState extends State<RunTrackingScreen> {
               ),
             ),
         ],
+        ),
       ),
     );
   }

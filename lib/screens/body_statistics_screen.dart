@@ -11,7 +11,6 @@ import '../providers/place_provider.dart';
 import '../config/theme.dart';
 import '../models/user_model.dart';
 import '../models/workout_model.dart';
-import '../widgets/custom_header.dart';
 
 class BodyStatisticsScreen extends StatefulWidget {
   const BodyStatisticsScreen({super.key});
@@ -49,7 +48,8 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      body: RefreshIndicator(
+      body: SafeArea(
+        child: RefreshIndicator(
         onRefresh: _loadData,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -61,7 +61,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor,
+                  color: AppTheme.appBarColor,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
@@ -141,6 +141,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

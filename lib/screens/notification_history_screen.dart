@@ -76,7 +76,8 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
           ),
         ],
       ),
-      body: Consumer<NotificationProvider>(
+      body: SafeArea(
+        child: Consumer<NotificationProvider>(
         builder: (context, provider, _) {
           if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
@@ -235,6 +236,7 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
             ),
           );
         },
+      ),
       ),
     );
   }

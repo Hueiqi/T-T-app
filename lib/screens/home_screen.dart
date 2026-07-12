@@ -154,7 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: SafeArea(child: _screens[_currentIndex]),
       bottomNavigationBar: Stack(
         key: _bottomNavKey,
         children: [
@@ -804,7 +804,6 @@ class _DashboardTabState extends State<_DashboardTab>
 
   // ─── REPORTS CARD (separate, same as image) ──────────────────
   Widget _buildReportsCard() {
-    final nutrition = context.read<NutritionProvider>();
     final workout = context.read<WorkoutProvider>();
     final meals = _reportMeals;
 
@@ -1499,8 +1498,6 @@ class _StatusCard extends StatelessWidget {
   final String unit;
   final Color color;
   final Widget? child;
-  final VoidCallback? onTap;
-
   const _StatusCard({
     required this.icon,
     required this.label,
@@ -1508,7 +1505,6 @@ class _StatusCard extends StatelessWidget {
     required this.unit,
     required this.color,
     this.child,
-    this.onTap,
   });
 
   @override
@@ -1516,10 +1512,7 @@ class _StatusCard extends StatelessWidget {
     return Semantics(
       label: '$label: $value $unit',
       child: Card(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
+        child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1567,8 +1560,7 @@ class _StatusCard extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }
 

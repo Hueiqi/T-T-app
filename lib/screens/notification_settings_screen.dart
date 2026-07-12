@@ -122,7 +122,8 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           CustomHeader(title: 'Notification Settings', showBack: true),
           Expanded(
@@ -217,6 +218,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
       ),
         ),
       ],
+      ),
       ),
     );
   }
