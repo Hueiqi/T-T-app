@@ -4,6 +4,7 @@ class Exercise {
   final int sets;
   final int? durationSeconds;
   final String? notes;
+  final List<String> images;
 
   const Exercise({
     required this.name,
@@ -11,6 +12,7 @@ class Exercise {
     this.sets = 1,
     this.durationSeconds,
     this.notes,
+    this.images = const [],
   });
 
   int get durationInSeconds {
@@ -35,7 +37,6 @@ class ActivityRoutine {
   final String focus;
   final String equipment;
   final int colorValue;
-  final String icon;
   final List<Exercise> exercises;
   final String? description;
 
@@ -47,7 +48,6 @@ class ActivityRoutine {
     required this.focus,
     required this.equipment,
     required this.colorValue,
-    required this.icon,
     required this.exercises,
     this.description,
   });

@@ -56,14 +56,14 @@ dependencies:
   timezone: ^0.9.4
   workmanager: ^0.9.0
 
-    
+
 dev_dependencies:
   flutter_launcher_icons: ^0.14.0
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon/app_icon.png"   # your 1024×1024 image
+  image_path: "lib/assets/icon/app_icon.png"   # your 1024×1024 image
 
 flutter:
   uses-material-design: true
@@ -73,3 +73,4 @@ flutter:
     - assets/animations/
     - assets/models/
     - assets/exercises.json
+    - lib/assets/achievement/

@@ -1,6 +1,7 @@
+// lib/screens/popular_workouts_screen.dart
+import 'package:fitness_app/data/activity/activity_repository.dart' as ActivityRepository;
 import 'package:flutter/material.dart';
 import '../data/activity/activity_repository.dart';
-import '../data/activity/activity_model.dart';
 import '../config/theme.dart';
 import 'follow_routine_screen.dart';
 
@@ -13,7 +14,7 @@ class PopularWorkoutsScreen extends StatefulWidget {
 
 class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<ActivityRoutine> _filtered = allRoutines;
+  List<ActivityRoutine> _filtered = ActivityRepository.allRoutines; // ✅ class
   final Set<String> _completedIds = {'abs_10min', 'beginner_abs_10min'};
   final Map<String, int> _completionCount = {
     'abs_10min': 3,
@@ -31,9 +32,9 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
     final query = _searchController.text.toLowerCase().trim();
     setState(() {
       if (query.isEmpty) {
-        _filtered = allRoutines;
+        _filtered = ActivityRepository.allRoutines;
       } else {
-        _filtered = allRoutines.where((r) {
+        _filtered = ActivityRepository.allRoutines.where((r) {
           return r.title.toLowerCase().contains(query) ||
               r.difficulty.toLowerCase().contains(query) ||
               r.focus.toLowerCase().contains(query);
@@ -106,7 +107,7 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Popular 10-Min Routines',
+                        'Popular Routines',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -125,7 +126,6 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          // Section header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -138,7 +138,6 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          // Grid
           Expanded(
             child: _filtered.isEmpty
                 ? Center(
@@ -248,21 +247,29 @@ class _RoutineGridCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top section: icon + badge
+            // Top section: color indicator + badge (icon removed)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Replace icon with a small colored circle
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
                       color: Color(routine.colorValue).withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
-                    child: Text(
-                      routine.icon,
-                      style: const TextStyle(fontSize: 22),
+                    child: Center(
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Color(routine.colorValue),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                     ),
                   ),
                   const Spacer(),

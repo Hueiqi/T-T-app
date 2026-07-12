@@ -1,13 +1,16 @@
 import 'dart:async';
-import 'package:fitness_app/providers/auth_provider.dart';
-import 'package:fitness_app/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
+
+// ✅ Only this import – it re‑exports the model and provides the repository.
 import '../data/activity/activity_repository.dart';
+
 import '../services/exercise_db.dart';
 import '../models/exercise_model.dart';
-import 'workout_complete_summary_screen.dart';
+import '../providers/auth_provider.dart';
+import '../services/firebase_service.dart';
+import 'routine_complete_summary_screen.dart';
 
 class FollowRoutineScreen extends StatefulWidget {
   final String routineId;
@@ -35,8 +38,8 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
   @override
   void initState() {
     super.initState();
-    final r = findRoutineById(widget.routineId);
-    _routine = r ?? allRoutines.first;
+    final r = ActivityRepository.findRoutineById(widget.routineId);
+    _routine = r ?? ActivityRepository. allRoutines.first;
     _exerciseSecondsLeft = _routine.exercises.first.durationInSeconds;
     _loadExerciseDb();
     _startTimer();
@@ -155,21 +158,17 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
     if (!mounted) return;
     setState(() => _isFinished = true);
 
-    
-  // ─── SAVE TO FIREBASE ──────────────────────────────────────────
-  final auth = Provider.of<AuthProvider>(context, listen: false);
-  if (auth.user != null) {
-    final userId = auth.user!.uid;
-    final data = {
-      'title': _routine.title,
-      'durationSeconds': _totalElapsed,
-      'completedAt': DateTime.now().toIso8601String(),
-      'difficulty': _routine.difficulty,
-    };
-    FirebaseService().saveActivity(userId, data);
-  }
-    
-
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.user != null) {
+      final userId = auth.user!.uid;
+      final data = {
+        'title': _routine.title,
+        'durationSeconds': _totalElapsed,
+        'completedAt': DateTime.now().toIso8601String(),
+        'difficulty': _routine.difficulty,
+      };
+      FirebaseService().saveActivity(userId, data);
+    }
 
     final pending = _routine.exercises
         .map((e) => e.name)
@@ -180,7 +179,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => WorkoutCompleteSummaryScreen(
+        builder: (_) => RoutineCompleteSummaryScreen(
           routineTitle: _routine.title,
           durationSeconds: _totalElapsed,
           completedExercises: List.from(_completedNames),
@@ -240,7 +239,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        toolbarHeight: 72, // ✅ taller app bar for more space
+        toolbarHeight: 56,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white),
           onPressed: _confirmEnd,
@@ -257,198 +256,192 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
       ),
       body: SafeArea(
         child: Padding(
-           padding: const EdgeInsets.only(top: 8), // ✅ adds breathing room below status bar
-        child: Column(
-          children: [
-            // ── Progress bar ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '$done of $total',
-                        style: const TextStyle(color: Colors.white60, fontSize: 14),
-                      ),
-                      Text(
-                        _isResting ? 'Rest' : 'Exercise ${_currentIndex + 1}',
-                        style: TextStyle(
-                          color: _isResting ? Colors.orangeAccent : Colors.lightGreenAccent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: progress.clamp(0, 1),
-                      backgroundColor: Colors.grey.shade800,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                      minHeight: 5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Main content ──
-            Expanded(
-              child: _isResting
-                  ? _buildRestScreen()
-                  : (currentEx != null
-                      ? _buildExerciseScreen(currentEx, total)
-                      : const Center(
-                          child: Text('Complete!', style: TextStyle(color: Colors.white, fontSize: 24)),
-                        )),
-            ),
-
-            // ── Bottom controls ──
-            if (!_isResting && currentEx != null) _buildBottomControls(),
-          ],
-        ),
-      ),
-      ),
-    );
-
-  }
-
-  // ─── Exercise Screen (fixed overflow) ──────────────────────
-  Widget _buildExerciseScreen(Exercise exercise, int total) {
-    final db = _dbFor(exercise.name);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── Image ──
-          if (db != null && db.images.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: db.gifUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: db.gifUrl!,
-                      height: 140,
-                      width: 200,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) => const SizedBox.shrink(),
-                      errorWidget: (_, __, ___) => _buildFallbackImage(db),
-                    )
-                  : _buildFallbackImage(db),
-            ),
-          if (db != null && db.images.isNotEmpty) const SizedBox(height: 12),
-
-          // ── Name ──
-          Text(
-            exercise.name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${exercise.reps} · ${exercise.sets} set${exercise.sets > 1 ? 's' : ''}',
-            style: const TextStyle(color: Colors.white60, fontSize: 16),
-          ),
-          if (db != null && db.instructions.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              db.instructions.first,
-              style: const TextStyle(color: Colors.white38, fontSize: 12),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-          const SizedBox(height: 12),
-
-          // ── Timer circle ──
-          _buildTimerCircle(
-            secondsLeft: _exerciseSecondsLeft,
-            totalSeconds: exercise.durationInSeconds,
-            label: 'seconds',
-            color: Colors.white,
-          ),
-          const SizedBox(height: 12),
-
-          // ── Motivational message ──
-          Text(
-            _motivationalMessage(),
-            style: const TextStyle(
-              color: Colors.white54,
-              fontSize: 14,
-              fontStyle: FontStyle.italic,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-
-          // ── Thumbnail list (now takes remaining space) ──
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8, top: 4),
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: total,
-                itemBuilder: (ctx, i) {
-                  final ex = _routine.exercises[i];
-                  final isDone = _completedNames.contains(ex.name);
-                  final isCurr = i == _currentIndex;
-                  return Container(
-                    width: 80,
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isDone
-                          ? Colors.green.withValues(alpha: 0.2)
-                          : isCurr
-                              ? Colors.white.withValues(alpha: 0.15)
-                              : Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(10),
-                      border: isCurr
-                          ? Border.all(color: Colors.white.withValues(alpha: 0.3))
-                          : null,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Column(
+            children: [
+              // ── Progress bar ──
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(
-                          isDone ? Icons.check_circle : Icons.circle_outlined,
-                          color: isDone ? Colors.greenAccent : Colors.white38,
-                          size: 18,
-                        ),
-                        const SizedBox(height: 4),
                         Text(
-                          ex.name,
+                          '$done of $total',
+                          style: const TextStyle(color: Colors.white60, fontSize: 14),
+                        ),
+                        Text(
+                          _isResting ? 'Rest' : 'Exercise ${_currentIndex + 1}',
                           style: TextStyle(
-                            color: isDone ? Colors.greenAccent : Colors.white54,
-                            fontSize: 10,
+                            color: _isResting ? Colors.orangeAccent : Colors.lightGreenAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
-                  );
-                },
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: progress.clamp(0, 1),
+                        backgroundColor: Colors.grey.shade800,
+                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                        minHeight: 4,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+
+              // ── Main content ──
+              Expanded(
+                child: _isResting
+                    ? _buildRestScreen()
+                    : (currentEx != null
+                        ? _buildExerciseScreen(currentEx, total)
+                        : const Center(
+                            child: Text('Complete!', style: TextStyle(color: Colors.white, fontSize: 24)),
+                          )),
+              ),
+
+              // ── Bottom controls ──
+              if (!_isResting && currentEx != null) _buildBottomControls(),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  // ─── Rest Screen (with circular timer) ──────────────────────
+  // ─── Exercise Screen (no overflow) ──────────────────────
+  Widget _buildExerciseScreen(Exercise exercise, int total) {
+    final db = _dbFor(exercise.name);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Image ──
+        if (db != null && db.images.isNotEmpty)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: db.gifUrl != null
+                ? CachedNetworkImage(
+                    imageUrl: db.gifUrl!,
+                    height: 120,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => const SizedBox.shrink(),
+                    errorWidget: (_, __, ___) => _buildFallbackImage(db),
+                  )
+                : _buildFallbackImage(db),
+          ),
+        if (db != null && db.images.isNotEmpty) const SizedBox(height: 8),
+
+        // ── Name ──
+        Text(
+          exercise.name,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${exercise.reps} · ${exercise.sets} set${exercise.sets > 1 ? 's' : ''}',
+          style: const TextStyle(color: Colors.white60, fontSize: 15),
+        ),
+        if (db != null && db.instructions.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            db.instructions.first,
+            style: const TextStyle(color: Colors.white38, fontSize: 12),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+        const SizedBox(height: 8),
+
+        // ── Timer circle ──
+        _buildTimerCircle(
+          secondsLeft: _exerciseSecondsLeft,
+          totalSeconds: exercise.durationInSeconds,
+          label: 'seconds',
+          color: Colors.white,
+        ),
+        const SizedBox(height: 8),
+
+        // ── Motivational message ──
+        Text(
+          _motivationalMessage(),
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 13,
+            fontStyle: FontStyle.italic,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+
+        // ── Thumbnail list (fixed height) ──
+        SizedBox(
+          height: 80,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: total,
+            itemBuilder: (ctx, i) {
+              final ex = _routine.exercises[i];
+              final isDone = _completedNames.contains(ex.name);
+              final isCurr = i == _currentIndex;
+              return Container(
+                width: 70,
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDone
+                      ? Colors.green.withValues(alpha: 0.2)
+                      : isCurr
+                          ? Colors.white.withValues(alpha: 0.15)
+                          : Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: isCurr
+                      ? Border.all(color: Colors.white.withValues(alpha: 0.3))
+                      : null,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isDone ? Icons.check_circle : Icons.circle_outlined,
+                      color: isDone ? Colors.greenAccent : Colors.white38,
+                      size: 16,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      ex.name,
+                      style: TextStyle(
+                        color: isDone ? Colors.greenAccent : Colors.white54,
+                        fontSize: 9,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Rest Screen ──────────────────────────────────────────
   Widget _buildRestScreen() {
     final nextIdx = _currentIndex + 1;
     final nextEx = nextIdx < _routine.exercises.length ? _routine.exercises[nextIdx] : null;
@@ -459,8 +452,8 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.timer_outlined, color: Colors.orangeAccent, size: 64),
-            const SizedBox(height: 16),
+            const Icon(Icons.timer_outlined, color: Colors.orangeAccent, size: 56),
+            const SizedBox(height: 12),
             const Text(
               'Rest',
               style: TextStyle(
@@ -469,17 +462,17 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             _buildTimerCircle(
               secondsLeft: _restSecondsLeft,
               totalSeconds: _defaultRestSecs,
               label: 's',
               color: Colors.orangeAccent,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             if (nextEx != null)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
@@ -487,16 +480,16 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.arrow_upward, color: Colors.white38, size: 18),
-                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_upward, color: Colors.white38, size: 16),
+                    const SizedBox(width: 6),
                     Text(
                       'Next: ${nextEx.name}',
-                      style: const TextStyle(color: Colors.white60, fontSize: 16),
+                      style: const TextStyle(color: Colors.white60, fontSize: 15),
                     ),
                   ],
                 ),
               ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -504,7 +497,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white.withValues(alpha: 0.1),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
@@ -518,7 +511,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
     );
   }
 
-  // ─── Shared timer circle ─────────────────────────────────────
+  // ─── Shared timer circle ─────────────────────────────────
   Widget _buildTimerCircle({
     required int secondsLeft,
     required int totalSeconds,
@@ -527,17 +520,17 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
   }) {
     final progress = totalSeconds > 0 ? secondsLeft / totalSeconds : 0.0;
     return SizedBox(
-      width: 150,
-      height: 150,
+      width: 120,
+      height: 120,
       child: Stack(
         alignment: Alignment.center,
         children: [
           SizedBox(
-            width: 150,
-            height: 150,
+            width: 120,
+            height: 120,
             child: CircularProgressIndicator(
               value: progress.clamp(0, 1),
-              strokeWidth: 6,
+              strokeWidth: 5,
               backgroundColor: Colors.grey.shade800,
               valueColor: AlwaysStoppedAnimation<Color>(
                 secondsLeft <= 5 ? Colors.redAccent : color,
@@ -551,7 +544,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
                 '$secondsLeft',
                 style: TextStyle(
                   color: secondsLeft <= 5 ? Colors.redAccent : Colors.white,
-                  fontSize: 44,
+                  fontSize: 36,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -559,7 +552,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
                 label,
                 style: const TextStyle(
                   color: Colors.white38,
-                  fontSize: 13,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -569,17 +562,10 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
     );
   }
 
-  // ─── Bottom Controls ──────────────────────────────────────────
+  // ─── Bottom Controls ──────────────────────────────────────
   Widget _buildBottomControls() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.black.withValues(alpha: 0), Colors.black],
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
       child: Row(
         children: [
           Expanded(
@@ -588,7 +574,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
               style: OutlinedButton.styleFrom(
                 side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
                 foregroundColor: Colors.white70,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
                 ),
@@ -596,7 +582,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
               child: const Text('Skip'),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(
             flex: 2,
             child: ElevatedButton.icon(
@@ -605,7 +591,7 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
               label: const Text('Done', style: TextStyle(color: Colors.white, fontSize: 16)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
                 ),
@@ -617,12 +603,12 @@ class _FollowRoutineScreenState extends State<FollowRoutineScreen> {
     );
   }
 
-  // ─── Fallback image ───────────────────────────────────────────
+  // ─── Fallback image ───────────────────────────────────────
   Widget _buildFallbackImage(ExerciseDb db) {
     return Image.network(
       db.imageUrl,
-      height: 140,
-      width: 200,
+      height: 120,
+      width: double.infinity,
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => const SizedBox.shrink(),
     );

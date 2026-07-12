@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:provider/provider.dart';
 
 import 'providers/auth_provider.dart';
@@ -14,6 +15,7 @@ import 'providers/place_provider.dart';
 import 'providers/news_provider.dart';
 import 'providers/health_provider.dart';
 import 'providers/notification_provider.dart';
+import 'providers/user_progress_provider.dart';
 
 import 'services/exercise_db.dart';
 import 'services/ai_service.dart';
@@ -54,6 +56,9 @@ void main() async {
         ChangeNotifierProvider(create: (_) => PlaceProvider()),
         ChangeNotifierProvider(create: (_) => NewsProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(
+          create: (_) => UserProgressProvider()..init(FirebaseAuth.instance),
+        ),
       ],
       child: const FitSyncApp(),
     ),

@@ -970,7 +970,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: GestureDetector(
-        onTap: () => Navigator.pushNamed(context, AppRoutes.pamelaWorkouts),
+        onTap: () => Navigator.pushNamed(context, AppRoutes.popularWorkouts),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(

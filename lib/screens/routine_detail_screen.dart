@@ -1,6 +1,6 @@
+// lib/screens/routine_detail_screen.dart
 import 'package:flutter/material.dart';
-import '../data/activity/activity_repository.dart';
-import '../data/activity/activity_model.dart';
+import '../data/activity/activity_repository.dart'; // ✅ single import
 import '../config/theme.dart';
 import 'follow_routine_screen.dart';
 
@@ -55,7 +55,8 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final routine = findRoutineById(widget.routineId);
+    // ✅ Use ActivityRepository
+    final routine = ActivityRepository.findRoutineById(widget.routineId);
     if (routine == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Routine')),
@@ -63,7 +64,7 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
       );
     }
 
-    final similarRoutines = allRoutines
+    final similarRoutines = ActivityRepository.allRoutines
         .where((r) => r.id != routine.id && r.focus == routine.focus)
         .take(3)
         .toList();
@@ -134,7 +135,6 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
                             }),
                           ),
                           const SizedBox(width: 6),
-                          // 🔥 FIX: Flexible + ellipsis prevents overflow
                           Flexible(
                             child: Text(
                               '~4.0',
@@ -434,8 +434,15 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Text(similar.icon,
-                                        style: const TextStyle(fontSize: 20)),
+                                    // ✅ REPLACED icon with colored circle
+                                    Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        color: Color(similar.colorValue),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
                                     const Spacer(),
                                     Container(
                                       padding: const EdgeInsets.symmetric(

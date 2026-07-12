@@ -30,8 +30,10 @@ class AppRoutes {
   static const String workoutDetail = '/workout-detail';
   static const String movement = '/movement';
   static const String places = '/places';
-  static const String pamelaWorkouts = '/pamela-workouts';
-  static const String routineDetail = '/routine-detail';
-  static const String followRoutine = '/follow-routine';
+  static const String popularWorkouts = '/popularWorkouts';   // add
+  static const String routineDetail = '/routineDetail';     // add
+  static const String followRoutine = '/followRoutine';     // add
+  static const String routineHistory = '/routineHistory';  // <-- add this
+  static const String routine = '/routine';  
   static const String exerciseLibrary = '/exercise-library';
 }

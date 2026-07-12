@@ -4,17 +4,18 @@ import '../config/theme.dart';
 import '../config/routes.dart';
 import '../providers/auth_provider.dart';
 import '../providers/planning_provider.dart';
+import '../providers/user_progress_provider.dart';
 import '../services/firebase_service.dart';
 import '../widgets/custom_header.dart';
 
-class ActivityScreen extends StatefulWidget {
-  const ActivityScreen({super.key});
+class routineHistoryScreen extends StatefulWidget {
+  const routineHistoryScreen({super.key});
 
   @override
-  State<ActivityScreen> createState() => _ActivityScreenState();
+  State<routineHistoryScreen> createState() => _routineHistoryScreenState();
 }
 
-class _ActivityScreenState extends State<ActivityScreen> {
+class _routineHistoryScreenState extends State<routineHistoryScreen> {
   int _selectedTab = 0;
 
   @override
@@ -38,22 +39,30 @@ class _ActivityScreenState extends State<ActivityScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // ─── CUSTOM HEADER ──────────────────────────────────
             CustomHeader(
               title: 'Activity',
               showBack: true,
+              onBack: () {
+                // Navigate to Planning screen
+                Navigator.pushReplacementNamed(context, AppRoutes.planning);
+              },
               actions: [
                 IconButton(
                   icon: const Icon(Icons.add),
                   tooltip: 'Add activity',
-                  onPressed: () =>
-                      Navigator.pushNamed(context, AppRoutes.workoutDetail),
+                  onPressed: () {
+                    // Navigate to Popular Workouts screen
+                    Navigator.pushNamed(context, AppRoutes.popularWorkouts);
+                  },
                 ),
               ],
             ),
+            // ─── TABS ───────────────────────────────────────────
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: const Color.fromARGB(255, 244, 244, 249).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Padding(
@@ -62,7 +71,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   children: [
                     _buildTabButton('History', 0),
                     _buildTabButton('Love Plan', 1),
-                    _buildTabButton('Achievements', 2),
+                    _buildTabButton('Achievement', 2),
                   ],
                 ),
               ),
@@ -70,10 +79,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
             Expanded(
               child: IndexedStack(
                 index: _selectedTab,
-                children: [
-                  const _HistoryTab(),
-                  const _LovePlanTab(),
-                  const _AchievementsTab(),
+                children: const [
+                  _HistoryTab(),
+                  _LovePlanTab(),
+                  _AchievementsTab(),
                 ],
               ),
             ),
@@ -172,10 +181,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 }
 
-// ─── History Tab with auto‑refresh ─────────────────────────────
+// ─── History Tab ──────────────────────────────────────────────
 class _HistoryTab extends StatefulWidget {
   const _HistoryTab();
-
   @override
   State<_HistoryTab> createState() => _HistoryTabState();
 }
@@ -183,18 +191,15 @@ class _HistoryTab extends StatefulWidget {
 class _HistoryTabState extends State<_HistoryTab>
     with AutomaticKeepAliveClientMixin {
   final FirebaseService _firebaseService = FirebaseService();
-  int _refreshCounter = 0; // used to force refresh
+  int _refreshCounter = 0;
 
   @override
-  bool get wantKeepAlive => false; // always rebuild when visible
+  bool get wantKeepAlive => false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Increment counter to trigger refresh when tab becomes visible
-    setState(() {
-      _refreshCounter++;
-    });
+    setState(() => _refreshCounter++);
   }
 
   Future<List<Map<String, dynamic>>> _fetchActivities() async {
@@ -205,12 +210,9 @@ class _HistoryTabState extends State<_HistoryTab>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // required for AutomaticKeepAliveClientMixin
-
+    super.build(context);
     return RefreshIndicator(
-      onRefresh: () async {
-        setState(() => _refreshCounter++);
-      },
+      onRefresh: () async => setState(() => _refreshCounter++),
       child: FutureBuilder<List<Map<String, dynamic>>>(
         future: _fetchActivities(),
         key: ValueKey(_refreshCounter),
@@ -218,7 +220,6 @@ class _HistoryTabState extends State<_HistoryTab>
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-
           if (snapshot.hasError) {
             return Center(
               child: Column(
@@ -226,7 +227,7 @@ class _HistoryTabState extends State<_HistoryTab>
                 children: [
                   const Icon(Icons.error_outline, size: 48, color: Colors.red),
                   const SizedBox(height: 12),
-                  Text('Error loading history: ${snapshot.error}'),
+                  Text('Error: ${snapshot.error}'),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () => setState(() => _refreshCounter++),
@@ -236,12 +237,8 @@ class _HistoryTabState extends State<_HistoryTab>
               ),
             );
           }
-
           final activities = snapshot.data ?? [];
-
-          if (activities.isEmpty) {
-            return _buildEmptyState(context);
-          }
+          if (activities.isEmpty) return _buildEmptyState(context);
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -251,23 +248,15 @@ class _HistoryTabState extends State<_HistoryTab>
               final title = a['title'] as String? ?? 'Workout';
               final duration = a['durationSeconds'] as int? ?? 0;
               final completedAt = a['completedAt'] as String? ?? '';
-              final dateStr = completedAt.isNotEmpty
-                  ? completedAt.substring(0, 10)
-                  : '';
-
+              final dateStr = completedAt.isNotEmpty ? completedAt.substring(0, 10) : '';
               final mins = duration ~/ 60;
               final secs = duration % 60;
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   leading: Container(
                     width: 48,
                     height: 48,
@@ -275,25 +264,16 @@ class _HistoryTabState extends State<_HistoryTab>
                       color: AppTheme.primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
-                      Icons.fitness_center,
-                      color: AppTheme.primaryColor,
-                    ),
+                    child: const Icon(Icons.fitness_center, color: AppTheme.primaryColor),
                   ),
-                  title: Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                  title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text(
                     '$mins:${secs.toString().padLeft(2, '0')}${dateStr.isNotEmpty ? ' · $dateStr' : ''}',
                     style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                   ),
                   trailing: Text(
                     '$mins min',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.primaryColor,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.primaryColor),
                   ),
                   onTap: () => Navigator.pushNamed(context, AppRoutes.workoutDetail),
                 ),
@@ -305,23 +285,18 @@ class _HistoryTabState extends State<_HistoryTab>
     );
   }
 
+
   Widget _buildEmptyState(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
           const SizedBox(height: 32),
-          Icon(
-            Icons.history,
-            size: 80,
-            color: AppTheme.textSecondary.withValues(alpha: 0.4),
-          ),
+          Icon(Icons.history, size: 80, color: AppTheme.textSecondary.withValues(alpha: 0.4)),
           const SizedBox(height: 24),
           Text(
             'Planning History',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Text(
@@ -329,11 +304,7 @@ class _HistoryTabState extends State<_HistoryTab>
             'Tap the + button to manually add any activities\n'
             'completed outside of the application.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 15,
-              height: 1.5,
-            ),
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 15, height: 1.5),
           ),
           const SizedBox(height: 48),
           SizedBox(
@@ -344,9 +315,7 @@ class _HistoryTabState extends State<_HistoryTab>
               label: const Text('Find a training plan'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
@@ -359,7 +328,6 @@ class _HistoryTabState extends State<_HistoryTab>
 // ─── Love Plan Tab ─────────────────────────────────────────────
 class _LovePlanTab extends StatelessWidget {
   const _LovePlanTab();
-
   @override
   Widget build(BuildContext context) {
     final planning = context.watch<PlanningProvider>();
@@ -371,17 +339,11 @@ class _LovePlanTab extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 32),
-            Icon(
-              Icons.favorite,
-              size: 80,
-              color: AppTheme.warningColor.withValues(alpha: 0.5),
-            ),
+            Icon(Icons.favorite, size: 80, color: AppTheme.warningColor.withValues(alpha: 0.5)),
             const SizedBox(height: 24),
             Text(
               'Your Favorite Plans',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Text(
@@ -389,25 +351,18 @@ class _LovePlanTab extends StatelessWidget {
               'Bookmark exercises from the planning screen\n'
               'to see them listed here.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 15,
-                height: 1.5,
-              ),
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 15, height: 1.5),
             ),
             const SizedBox(height: 48),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () =>
-                    Navigator.pushNamed(context, AppRoutes.planning),
+                onPressed: () => Navigator.pushNamed(context, AppRoutes.planning),
                 icon: const Icon(Icons.explore),
                 label: const Text('Browse exercises'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
@@ -439,11 +394,7 @@ class _LovePlanTab extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3)),
                 ],
               ),
               child: Column(
@@ -453,16 +404,10 @@ class _LovePlanTab extends StatelessWidget {
                     height: 80,
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.15),
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
-                      ),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                     ),
                     child: Center(
-                      child: Icon(
-                        Icons.fitness_center,
-                        size: 36,
-                        color: color.withValues(alpha: 0.5),
-                      ),
+                      child: Icon(Icons.fitness_center, size: 36, color: color.withValues(alpha: 0.5)),
                     ),
                   ),
                   Expanded(
@@ -473,19 +418,14 @@ class _LovePlanTab extends StatelessWidget {
                         children: [
                           Text(
                             title,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary,
-                            ),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const Spacer(),
                           Row(
                             children: [
-                              if (difficulty.isNotEmpty)
-                                _miniTag(difficulty, AppTheme.primaryColor),
+                              if (difficulty.isNotEmpty) _miniTag(difficulty, AppTheme.primaryColor),
                               const SizedBox(width: 4),
                               _miniTag('$duration m', AppTheme.warningColor),
                             ],
@@ -506,18 +446,8 @@ class _LovePlanTab extends StatelessWidget {
   Widget _miniTag(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10,
-          color: color,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
+      child: Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -525,9 +455,41 @@ class _LovePlanTab extends StatelessWidget {
 // ─── Achievements Tab ──────────────────────────────────────────
 class _AchievementsTab extends StatelessWidget {
   const _AchievementsTab();
-
   @override
   Widget build(BuildContext context) {
+    final userProgress = context.watch<UserProgressProvider>();
+
+    final totalWorkouts = userProgress.totalWorkouts;
+    final totalSteps = userProgress.totalSteps;
+    final totalDistanceKm = userProgress.totalDistanceKm;
+    final totalWorkoutMinutes = userProgress.totalWorkoutMinutes;
+    final dietDaysCompleted = userProgress.dietDaysCompleted;
+    final planningWeeksCompleted = userProgress.planningWeeksCompleted;
+
+    final dietAchievements = [
+      {'label': 'Day 3 Diet', 'image': 'FinishDay3Diet.png', 'unlock': dietDaysCompleted >= 3},
+      {'label': 'Week 5 Diet', 'image': 'FinishWeek5Diet.png', 'unlock': dietDaysCompleted >= 35},
+      {'label': '14-Week Diet', 'image': 'Finish14weekDiet.png', 'unlock': dietDaysCompleted >= 98},
+      {'label': 'Whole Planning', 'image': 'FinishWholePlanning.png', 'unlock': planningWeeksCompleted >= 1},
+    ];
+
+    final planningAchievements = [
+      {'label': 'Planning Week 5', 'image': 'planningWeek5.png', 'unlock': planningWeeksCompleted >= 5},
+      {'label': 'Planning Week 10', 'image': 'PlanningWeek10.png', 'unlock': planningWeeksCompleted >= 10},
+    ];
+
+    final specialAchievements = [
+      {'label': 'Quarter Century', 'image': 'QuarterCenturyClub.png', 'unlock': totalWorkouts >= 25},
+      {'label': 'Halfway Hero', 'image': 'HalfwayHero.png', 'unlock': totalWorkouts >= 50},
+      {'label': 'The Centurion', 'image': 'TheCenturion.png', 'unlock': totalWorkouts >= 100},
+    ];
+
+    final activityAchievements = [
+      {'label': 'High Steps', 'image': 'HightStep.png', 'unlock': totalSteps >= 10000},
+      {'label': 'High Distance', 'image': 'highDistance.png', 'unlock': totalDistanceKm >= 100.0},
+      {'label': 'High Workout Time', 'image': 'HigtWorkoutTime.png', 'unlock': totalWorkoutMinutes >= 5000},
+    ];
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -536,67 +498,78 @@ class _AchievementsTab extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(
-                Icons.local_fire_department,
-                color: AppTheme.warningColor,
-                size: 24,
-              ),
+              const Icon(Icons.emoji_events, color: AppTheme.warningColor, size: 24),
               const SizedBox(width: 8),
-              Text(
-                'Continuous Records',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
+              Text('Achievements', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 24),
-          Text(
-            'Weekly Milestones',
-            style: TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          _buildSectionTitle('Diet Milestones'),
           const SizedBox(height: 12),
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: List.generate(6, (i) {
-              final weeks = i + 2;
+            children: dietAchievements.map((a) {
               return _Badge(
-                icon: Icons.fitness_center,
-                label: '$weeks weeks',
-                unlocked: false,
+                icon: Icons.restaurant,
+                label: a['label'] as String,
+                unlocked: a['unlock'] as bool,
+                assetPath: 'lib/assets/achievement/${a['image']}',
               );
-            }),
+            }).toList(),
           ),
           const SizedBox(height: 32),
-          Text(
-            'Monthly Milestones',
-            style: TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          _buildSectionTitle('Planning Progress'),
           const SizedBox(height: 12),
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: List.generate(6, (i) {
-              final months = i + 2;
+            children: planningAchievements.map((a) {
               return _Badge(
-                icon: Icons.emoji_events,
-                label: '$months months',
-                unlocked: false,
+                icon: Icons.calendar_today,
+                label: a['label'] as String,
+                unlocked: a['unlock'] as bool,
+                assetPath: 'lib/assets/achievement/${a['image']}',
               );
-            }),
+            }).toList(),
+          ),
+          const SizedBox(height: 32),
+          _buildSectionTitle('Special Medals'),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: specialAchievements.map((a) {
+              return _Badge(
+                icon: Icons.star,
+                label: a['label'] as String,
+                unlocked: a['unlock'] as bool,
+                assetPath: 'lib/assets/achievement/${a['image']}',
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 32),
+          _buildSectionTitle('Activity Records'),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: activityAchievements.map((a) {
+              return _Badge(
+                icon: Icons.fitness_center,
+                label: a['label'] as String,
+                unlocked: a['unlock'] as bool,
+                assetPath: 'lib/assets/achievement/${a['image']}',
+              );
+            }).toList(),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(title, style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, fontWeight: FontWeight.w600));
   }
 }
 
@@ -605,12 +578,9 @@ class _Badge extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool unlocked;
+  final String? assetPath;
 
-  const _Badge({
-    required this.icon,
-    required this.label,
-    this.unlocked = false,
-  });
+  const _Badge({required this.icon, required this.label, this.unlocked = false, this.assetPath});
 
   @override
   Widget build(BuildContext context) {
@@ -618,17 +588,22 @@ class _Badge extends StatelessWidget {
       width: 90,
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: unlocked ? Colors.amber.shade50 : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: unlocked ? AppTheme.warningColor : Colors.grey.shade300, width: unlocked ? 2 : 1),
+        boxShadow: unlocked ? [BoxShadow(color: AppTheme.warningColor.withAlpha(30), blurRadius: 8)] : [],
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            size: 36,
-            color: unlocked ? AppTheme.warningColor : Colors.grey.shade400,
-          ),
+          assetPath != null
+              ? Image.asset(
+                  assetPath!,
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Icon(icon, size: 36, color: unlocked ? AppTheme.warningColor : Colors.grey.shade400),
+                )
+              : Icon(icon, size: 36, color: unlocked ? AppTheme.warningColor : Colors.grey.shade400),
           const SizedBox(height: 8),
           Text(
             label,

@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../config/routes.dart';
 
-class WorkoutCompleteSummaryScreen extends StatefulWidget {
+class RoutineCompleteSummaryScreen extends StatefulWidget {
   final String routineTitle;
   final int durationSeconds;
   final List<String> completedExercises;
   final List<String> pendingExercises;
   final String routineDifficulty;
 
-  const WorkoutCompleteSummaryScreen({
+  const RoutineCompleteSummaryScreen({
     super.key,
     required this.routineTitle,
     required this.durationSeconds,
@@ -19,12 +19,12 @@ class WorkoutCompleteSummaryScreen extends StatefulWidget {
   });
 
   @override
-  State<WorkoutCompleteSummaryScreen> createState() =>
-      _WorkoutCompleteSummaryScreenState();
+  State<RoutineCompleteSummaryScreen> createState() =>
+      _RoutineCompleteSummaryScreenState();
 }
 
-class _WorkoutCompleteSummaryScreenState
-    extends State<WorkoutCompleteSummaryScreen> {
+class _RoutineCompleteSummaryScreenState
+    extends State<RoutineCompleteSummaryScreen> {
   late List<String> _pending;
   late List<String> _completed;
   bool _completedExpanded = true;

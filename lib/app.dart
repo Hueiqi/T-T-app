@@ -28,7 +28,7 @@ import 'screens/otp_verification_screen.dart';
 import 'screens/notification_settings_screen.dart';
 import 'screens/notification_history_screen.dart';
 import 'screens/ai_chat_screen.dart';
-import 'screens/activity_screen.dart';
+import 'screens/routine_historyscreen.dart';
 import 'screens/movement_screen.dart';
 import 'screens/places_screen.dart';
 import 'screens/popular_exersive_screen.dart';
@@ -94,11 +94,12 @@ class FitSyncApp extends StatelessWidget {
             const NotificationSettingsScreen(),
         AppRoutes.notificationHistory: (_) => const NotificationHistoryScreen(),
         AppRoutes.planning: (_) => const PlanningScreen(),
-        AppRoutes.activityHistory: (_) => const ActivityScreen(),
+        AppRoutes.popularWorkouts: (_) => PopularWorkoutsScreen(),
         AppRoutes.movement: (_) => const MovementScreen(),
         AppRoutes.places: (_) => const PlacesScreen(),
-        AppRoutes.activity: (_) => const ActivityScreen(),
-        AppRoutes.pamelaWorkouts: (_) => PopularWorkoutsScreen(),
+        AppRoutes.routineHistory: (_) => const routineHistoryScreen(),
+        AppRoutes.routine: (_) => const routineHistoryScreen(),
+        AppRoutes.popularWorkouts: (_) => PopularWorkoutsScreen(),
         AppRoutes.routineDetail: (ctx) {
           final id = ModalRoute.of(ctx)?.settings.arguments as String? ?? '';
           return RoutineDetailScreen(routineId: id);
