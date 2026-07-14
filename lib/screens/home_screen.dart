@@ -340,6 +340,14 @@ class _DashboardTabState extends State<_DashboardTab>
 
       await health.initializeHealthAccess();
 
+      // No real heart-rate reading yet (e.g. Health Connect has no HR data,
+      // or no BLE watch connected) — auto-start the simulated heart rate as
+      // soon as the user enters the app, so the dashboard and workout screen
+      // show a live BPM instead of "--". Real data always wins if present.
+      if (health.currentHeartRate == 0 && !health.isSimulating) {
+        health.startHeartRateSimulation();
+      }
+
       if (!mounted) return;
 
       await Future.wait([

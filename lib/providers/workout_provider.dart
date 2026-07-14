@@ -29,6 +29,7 @@ class WorkoutProvider extends ChangeNotifier {
   SleepData? _lastNightSleep;
   Timer? _bpmAdjustTimer;
   Timer? _manualOverrideTimer;
+  StreamSubscription<int>? _extHrSub;
   bool _smartwatchConnected = false;
   String? _spotifyError;
   bool _manualOverrideActive = false;
@@ -74,7 +75,25 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> startWorkout(String userId, {bool spotifyConnected = false}) async {
+  /// Shared handler for every incoming HR reading (real or simulated):
+  /// updates the current value, history, and zone.
+  void _onWorkoutHeartRate(int hr) {
+    _currentHeartRate = hr;
+    _heartRateHistory.add(hr);
+    final newZone = AppConstants.getHrZone(hr);
+    if (newZone != _currentHrZone) {
+      _currentMusicZone = _hrZoneToMusicZone(newZone);
+    }
+    _currentHrZone = newZone;
+    notifyListeners();
+  }
+
+  Future<void> startWorkout(
+    String userId, {
+    bool spotifyConnected = false,
+    bool simulateHeartRate = false,
+    Stream<int>? simulatedStream,
+  }) async {
     // 1. Check smartwatch connection
     bool hrAvailable = false;
     if (!_isWeb) {
@@ -108,18 +127,13 @@ class WorkoutProvider extends ChangeNotifier {
       await _firebaseService.saveWorkout(_currentWorkout!);
     } catch (_) {}
 
-    // 4. Start HR streaming every 5 seconds (if smartwatch available)
-    if (_smartwatchConnected) {
-      _healthService.startHeartRateMonitoring((int hr) {
-        _currentHeartRate = hr;
-        _heartRateHistory.add(hr);
-        final newZone = AppConstants.getHrZone(hr);
-        if (newZone != _currentHrZone) {
-          _currentMusicZone = _hrZoneToMusicZone(newZone);
-        }
-        _currentHrZone = newZone;
-        notifyListeners();
-      });
+    // 4. Start HR: simulation (demo, follows the same BPM stream as the home
+    // dashboard) if requested, else real smartwatch/Health Connect stream.
+    _extHrSub?.cancel();
+    if (simulateHeartRate && simulatedStream != null) {
+      _extHrSub = simulatedStream.listen(_onWorkoutHeartRate);
+    } else if (_smartwatchConnected) {
+      _healthService.startHeartRateMonitoring(_onWorkoutHeartRate);
     }
 
     // 5. Start Spotify if connected
@@ -227,6 +241,8 @@ class WorkoutProvider extends ChangeNotifier {
   }) async {
     _isWorkoutActive = false;
     _healthService.stopHeartRateMonitoring();
+    _extHrSub?.cancel();
+    _extHrSub = null;
     _currentTrackName = '';
     _currentTrackArtist = '';
     _currentMusicZone = '';
@@ -369,6 +385,7 @@ class WorkoutProvider extends ChangeNotifier {
   void dispose() {
     _bpmAdjustTimer?.cancel();
     _manualOverrideTimer?.cancel();
+    _extHrSub?.cancel();
     _healthService.stopHeartRateMonitoring();
     super.dispose();
   }
