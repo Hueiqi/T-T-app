@@ -21,6 +21,8 @@ class BodyStatisticsScreen extends StatefulWidget {
 
 class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
   int _selectedTab = 0;
+  bool _isLoading = true;
+  String? _loadError;
 
   @override
   void initState() {
@@ -29,15 +31,78 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
   }
 
   Future<void> _loadData() async {
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
-    context.read<WorkoutProvider>().loadDashboardData(auth.user!.uid);
-    context.read<NutritionProvider>().loadTodayMeals(auth.user!.uid);
-    context.read<SleepProvider>().loadSleepData(auth.user!.uid);
+    try {
+      final auth = context.read<AuthProvider>();
+      if (auth.user == null) {
+        if (mounted) setState(() { _isLoading = false; });
+        return;
+      }
+      await Future.wait([
+        context.read<WorkoutProvider>().loadDashboardData(auth.user!.uid),
+        context.read<NutritionProvider>().loadTodayMeals(auth.user!.uid),
+        context.read<SleepProvider>().loadSleepData(auth.user!.uid),
+      ]);
+    } catch (e) {
+      if (mounted) {
+        setState(() { _loadError = e.toString(); });
+      }
+    } finally {
+      if (mounted) setState(() { _isLoading = false; });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        title: const Text('Body Statistics'),
+        backgroundColor: AppTheme.appBarColor,
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () => Navigator.pushNamed(context, '/profile'),
+            tooltip: 'Profile',
+          ),
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_loadError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: AppTheme.errorColor, size: 48),
+              const SizedBox(height: 16),
+              const Text('Something went wrong', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(_loadError!, textAlign: TextAlign.center, style: const TextStyle(color: AppTheme.textSecondary)),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () { setState(() { _isLoading = true; _loadError = null; }); _loadData(); },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final auth = context.watch<AuthProvider>();
     final user = auth.user;
     final workout = context.watch<WorkoutProvider>();
@@ -46,102 +111,60 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     final motion = context.watch<MotionProvider>();
     final place = context.watch<PlaceProvider>();
 
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      body: SafeArea(
-        child: RefreshIndicator(
-        onRefresh: _loadData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ─── APP BAR (FIXED COLOR) ────────────────────────
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppTheme.appBarColor,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const Expanded(
-                      child: Text(
-                        'Body Statistics',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    if (auth.user == null)
-                      IconButton(
-                        icon: const Icon(Icons.login, color: Colors.white),
-                        onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
-                      ),
-                    IconButton(
-                      icon: const Icon(Icons.person_outline, color: Colors.white),
-                      onPressed: () => Navigator.pushNamed(context, '/profile'),
-                      tooltip: 'Profile',
-                    ),
-                  ],
-                ),
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ─── BMI CARD ────────────────────────────────────
+            if (user != null && user.height > 0)
+              _buildMetricCard(
+                title: 'Body Mass Index (BMI)',
+                value: user.bmi.toStringAsFixed(1),
+                subtitle: _getBmiCategory(user.bmi),
+                icon: Icons.monitor_heart,
+                color: _getBmiColor(user.bmi),
               ),
-              const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-              if (user != null && user.height > 0)
-                _buildMetricCard(
-                  title: 'Body Mass Index (BMI)',
-                  value: user.bmi.toStringAsFixed(1),
-                  subtitle: _getBmiCategory(user.bmi),
-                  icon: Icons.monitor_heart,
-                  color: _getBmiColor(user.bmi),
-                ),
-              const SizedBox(height: 16),
-
-              // ─── TABS ─────────────────────────────────────────
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildTabButton('Overview', 0),
-                        _buildTabButton('Workout', 1),
-                        _buildTabButton('Nutrition', 2),
-                        _buildTabButton('Sleep', 3),
-                        _buildTabButton('Movement', 4),
-                        _buildTabButton('Places', 5),
-                      ],
-                    ),
+            // ─── TABS ────────────────────────────────────────
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildTabButton('Overview', 0),
+                      _buildTabButton('Workout', 1),
+                      _buildTabButton('Nutrition', 2),
+                      _buildTabButton('Sleep', 3),
+                      _buildTabButton('Movement', 4),
+                      _buildTabButton('Places', 5),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+            ),
+            const SizedBox(height: 20),
 
-              // ─── TABS CONTENT ──────────────────────────────
-              if (_selectedTab == 0)
-                _buildOverviewTab(user, workout, nutrition, sleep),
-              if (_selectedTab == 1) _buildWorkoutTab(workout, user),
-              if (_selectedTab == 2) _buildNutritionTab(nutrition, user),
-              if (_selectedTab == 3) _buildSleepTab(sleep),
-              if (_selectedTab == 4) _buildMovementTab(motion),
-              if (_selectedTab == 5) _buildPlacesTab(place),
-            ],
-          ),
+            // ─── TAB CONTENT ────────────────────────────────
+            if (_selectedTab == 0)
+              _buildOverviewTab(user, workout, nutrition, sleep),
+            if (_selectedTab == 1) _buildWorkoutTab(workout, user),
+            if (_selectedTab == 2) _buildNutritionTab(nutrition, user),
+            if (_selectedTab == 3) _buildSleepTab(sleep),
+            if (_selectedTab == 4) _buildMovementTab(motion),
+            if (_selectedTab == 5) _buildPlacesTab(place),
+          ],
         ),
-      ),
       ),
     );
   }
@@ -235,7 +258,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     return AppTheme.errorColor;
   }
 
-  // ─── OVERVIEW TAB (FIXED ROW LAYOUT) ─────────────────────────
+  // ─── OVERVIEW TAB ────────────────────────────────────────────
   Widget _buildOverviewTab(
     AppUser? user,
     WorkoutProvider workout,
@@ -244,12 +267,10 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
   ) {
     return Column(
       children: [
-        // ─── Row 1: Avg Heart Rate + Today Calories ──────────
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
+        // Row 1: Avg Heart Rate + Today Calories
+        Row(
           children: [
-            Flexible(
+            Expanded(
               child: _StatCard(
                 icon: Icons.favorite,
                 label: 'Avg Heart Rate',
@@ -261,7 +282,8 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                 color: AppTheme.accentColor,
               ),
             ),
-            Flexible(
+            const SizedBox(width: 12),
+            Expanded(
               child: _StatCard(
                 icon: Icons.local_fire_department,
                 label: 'Today Calories',
@@ -273,12 +295,10 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
         ),
         const SizedBox(height: 12),
 
-        // ─── Row 2: Last Sleep + Workouts ─────────────────────
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
+        // Row 2: Last Sleep + Workouts
+        Row(
           children: [
-            Flexible(
+            Expanded(
               child: _StatCard(
                 icon: Icons.bedtime,
                 label: 'Last Sleep',
@@ -286,7 +306,8 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                 color: AppTheme.secondaryColor,
               ),
             ),
-            Flexible(
+            const SizedBox(width: 12),
+            Expanded(
               child: _StatCard(
                 icon: Icons.fitness_center,
                 label: 'Workouts',
@@ -298,6 +319,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
         ),
         const SizedBox(height: 16),
 
+        // Weekly Calories Chart (only if enough data)
         if (workout.workouts.length >= 2)
           Card(
             child: Padding(
@@ -320,7 +342,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           ),
         const SizedBox(height: 16),
 
-        // ─── Body Stats Summary ──────────────────────────────
+        // Body Stats Summary
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -351,7 +373,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     });
 
     final dayLabels = last7Days.map((d) {
-      final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       return weekdays[d.weekday - 1];
     }).toList();
 
@@ -420,6 +442,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
+  // ─── WORKOUT TAB ──────────────────────────────────────────────
   Widget _buildWorkoutTab(WorkoutProvider workout, AppUser? user) {
     final workouts = workout.workouts;
 
@@ -548,11 +571,24 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
+  // ─── NUTRITION TAB ──────────────────────────────────────────
   Widget _buildNutritionTab(NutritionProvider nutrition, AppUser? user) {
     final meals = nutrition.todayMeals;
     final proteinGoal = nutrition.getProteinGoal();
     final carbsGoal = nutrition.getCarbsGoal();
     final fatGoal = nutrition.getFatGoal();
+
+    // Ensure maxY is never 0
+    final List<double> values = [
+      nutrition.totalProtein,
+      proteinGoal,
+      nutrition.totalCarbs,
+      carbsGoal,
+      nutrition.totalFat,
+      fatGoal,
+    ];
+    final maxVal = values.reduce((a, b) => a > b ? a : b);
+    final maxY = maxVal > 0 ? maxVal * 1.3 : 1.0;
 
     return Column(
       children: [
@@ -636,14 +672,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                         ]),
                       ],
                       minY: 0,
-                      maxY: [
-                        nutrition.totalProtein,
-                        proteinGoal,
-                        nutrition.totalCarbs,
-                        carbsGoal,
-                        nutrition.totalFat,
-                        fatGoal,
-                      ].reduce((a, b) => a > b ? a : b) * 1.3,
+                      maxY: maxY,
                       barTouchData: BarTouchData(
                         touchTooltipData: BarTouchTooltipData(
                           getTooltipItem: (group, groupIndex, rod, rodIndex) {
@@ -738,6 +767,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
+  // ─── SLEEP TAB ──────────────────────────────────────────────
   Widget _buildSleepTab(SleepProvider sleep) {
     final history = sleep.sleepHistory;
 
@@ -774,7 +804,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                                   getTitlesWidget: (v, m) {
                                     final idx = v.toInt();
                                     if (idx < 0 || idx >= history.length) return const Text('');
-                                    final dates = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                                    const dates = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
                                     return Text(dates[history[idx].date.weekday - 1], style: const TextStyle(fontSize: 10));
                                   },
                                 ),
@@ -907,6 +937,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
+  // ─── MOVEMENT TAB ────────────────────────────────────────────
   Widget _buildMovementTab(MotionProvider motion) {
     return Card(
       child: Padding(
@@ -959,6 +990,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
+  // ─── PLACES TAB ──────────────────────────────────────────────
   Widget _buildPlacesTab(PlaceProvider place) {
     final places = place.visitedPlaces;
     return Card(
@@ -1013,6 +1045,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
+  // ─── HELPER: Row Builder ──────────────────────────────────────
   Widget _buildRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1026,13 +1059,19 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
+  // ─── HEART RATE PIE CHART (with empty check) ────────────────
   Widget _buildHeartRatePieChart(List<int> hrHistory) {
-    if (hrHistory.isEmpty) return const Center(child: Text('No HR data', style: TextStyle(color: AppTheme.textSecondary)));
+    if (hrHistory.isEmpty) {
+      return const Center(
+        child: Text('No HR data', style: TextStyle(color: AppTheme.textSecondary)),
+      );
+    }
     int resting = hrHistory.where((hr) => hr < 60).length;
     int normal = hrHistory.where((hr) => hr >= 60 && hr < 100).length;
     int fatBurn = hrHistory.where((hr) => hr >= 100 && hr < 130).length;
     int cardio = hrHistory.where((hr) => hr >= 130 && hr < 160).length;
     int peak = hrHistory.where((hr) => hr >= 160).length;
+
     final sections = [
       PieChartSectionData(value: resting.toDouble(), title: 'Resting', color: Colors.blue, radius: 60),
       PieChartSectionData(value: normal.toDouble(), title: 'Normal', color: Colors.green, radius: 60),
@@ -1040,17 +1079,29 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
       PieChartSectionData(value: cardio.toDouble(), title: 'Cardio', color: AppTheme.accentColor, radius: 60),
       PieChartSectionData(value: peak.toDouble(), title: 'Peak', color: AppTheme.errorColor, radius: 60),
     ].where((s) => s.value > 0).toList();
+
+    if (sections.isEmpty) {
+      return const Center(
+        child: Text('No HR zones data', style: TextStyle(color: AppTheme.textSecondary)),
+      );
+    }
+
     return PieChart(PieChartData(sections: sections));
   }
 }
 
-// ─── STAT CARD (with overflow protection) ──────────────────────
+// ─── STAT CARD ──────────────────────────────────────────────────
 class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
   final Color color;
-  const _StatCard({required this.icon, required this.label, required this.value, required this.color});
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {

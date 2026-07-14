@@ -115,7 +115,15 @@ class _MealHistoryScreenState extends State<MealHistoryScreen> {
             ],
           ),
         ),
-        ..._filteredMeals.map((meal) => _HistoryMealCard(meal: meal)),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 0.72,
+          children: _filteredMeals.map((meal) => _HistoryMealCard(meal: meal)).toList(),
+        ),
       ],
     );
   }
@@ -224,117 +232,43 @@ class _HistoryMealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final timeStr = DateFormat('hh:mm a').format(meal.dateTime);
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _showDetail(context),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+      onTap: () => _showDetail(context),
+      child: Card(
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
-                ),
-              ),
-              // ─── REPLACE THE ICON WITH THIS ───
-              child: meal.imageUrl != null && meal.imageUrl!.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        bottomLeft: Radius.circular(16),
-                      ),
-                      child: CachedNetworkImage(
-                        imageUrl: meal.imageUrl!,
-                        fit: BoxFit.cover,
-                        width: 80,
-                        height: 80,
-                        placeholder: (context, url) => Image.asset(
-                          'lib/assets/diet/${meal.mealType}.png',
-                          width: 32,
-                          height: 32,
-                          errorBuilder: (_, __, ___) => Icon(
-                            _mealIcon(meal.mealType),
-                            color: AppTheme.primaryColor,
-                            size: 32,
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Image.asset(
-                          'lib/assets/diet/${meal.mealType}.png',
-                          width: 32,
-                          height: 32,
-                          errorBuilder: (_, __, ___) => Icon(
-                            _mealIcon(meal.mealType),
-                            color: AppTheme.primaryColor,
-                            size: 32,
-                          ),
-                        ),
-                      ),
-                    )
-                  : Image.asset(
-                      'lib/assets/diet/${meal.mealType}.png',
-                      width: 32,
-                      height: 32,
-                      errorBuilder: (_, __, ___) => Icon(
-                        _mealIcon(meal.mealType),
-                        color: AppTheme.primaryColor,
-                        size: 32,
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      meal.foodName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      timeStr,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        _typeChip(meal.mealType),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${meal.calories.toStringAsFixed(0)} kcal',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.warningColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+              child: _buildImage(),
             ),
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Icon(Icons.chevron_right, color: Colors.grey),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    meal.foodName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${meal.calories.toStringAsFixed(0)} kcal',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.warningColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -342,7 +276,231 @@ class _HistoryMealCard extends StatelessWidget {
     );
   }
 
-  // ─── All the helper methods remain unchanged ───
+  Widget _buildImage() {
+    if (meal.imageUrl != null && meal.imageUrl!.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: meal.imageUrl!,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => _placeholderWidget(),
+        errorWidget: (context, url, error) => _placeholderWidget(),
+      );
+    }
+    return _placeholderWidget();
+  }
+
+  Widget _placeholderWidget() {
+    return Container(
+      color: Colors.grey.withValues(alpha: 0.15),
+      child: const Center(
+        child: Icon(
+          Icons.restaurant,
+          color: Colors.grey,
+          size: 40,
+        ),
+      ),
+    );
+  }
+
+  void _showDetail(BuildContext context) {
+    final totalVitamins = meal.vitaminA + meal.vitaminB + meal.vitaminC +
+        meal.vitaminD + meal.vitaminE + meal.vitaminK;
+    final totalMinerals = meal.calcium + meal.iron + meal.magnesium +
+        meal.potassium + meal.sodium;
+    final hasMicros = totalVitamins > 0 || totalMinerals > 0 || meal.fiber > 0 || meal.water > 0;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (ctx, scrollController) => ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(20),
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Food image
+            if (meal.imageUrl != null && meal.imageUrl!.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: CachedNetworkImage(
+                  imageUrl: meal.imageUrl!,
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  placeholder: (ctx, url) => _detailPlaceholder(),
+                  errorWidget: (ctx, url, error) => _detailPlaceholder(),
+                ),
+              )
+            else
+              _detailPlaceholder(),
+            const SizedBox(height: 20),
+            Text(
+              meal.foodName,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _typeChip(meal.mealType),
+                const SizedBox(width: 12),
+                Text(
+                  DateFormat('MMM d, yyyy – hh:mm a').format(meal.dateTime),
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Macros
+            const Text(
+              'Macronutrients',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _nutrientCard('Calories', '${meal.calories.toStringAsFixed(0)} kcal', AppTheme.warningColor, Icons.local_fire_department)),
+                const SizedBox(width: 8),
+                Expanded(child: _nutrientCard('Protein', '${meal.protein.toStringAsFixed(1)}g', AppTheme.accentColor, Icons.fitness_center)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: _nutrientCard('Carbs', '${meal.carbs.toStringAsFixed(1)}g', AppTheme.successColor, Icons.grain)),
+                const SizedBox(width: 8),
+                Expanded(child: _nutrientCard('Fat', '${meal.fat.toStringAsFixed(1)}g', AppTheme.secondaryColor, Icons.water_drop)),
+              ],
+            ),
+            if (hasMicros) ...[
+              const SizedBox(height: 20),
+              const Text(
+                'Micronutrients',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              if (totalVitamins > 0) ...[
+                const Text('Vitamins', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    if (meal.vitaminA > 0) _microTag('A', '${meal.vitaminA.toStringAsFixed(1)}mg'),
+                    if (meal.vitaminB > 0) _microTag('B', '${meal.vitaminB.toStringAsFixed(1)}mg'),
+                    if (meal.vitaminC > 0) _microTag('C', '${meal.vitaminC.toStringAsFixed(1)}mg'),
+                    if (meal.vitaminD > 0) _microTag('D', '${meal.vitaminD.toStringAsFixed(1)}mg'),
+                    if (meal.vitaminE > 0) _microTag('E', '${meal.vitaminE.toStringAsFixed(1)}mg'),
+                    if (meal.vitaminK > 0) _microTag('K', '${meal.vitaminK.toStringAsFixed(1)}mg'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (totalMinerals > 0) ...[
+                const Text('Minerals', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    if (meal.calcium > 0) _microTag('Calcium', '${meal.calcium.toStringAsFixed(1)}mg'),
+                    if (meal.iron > 0) _microTag('Iron', '${meal.iron.toStringAsFixed(1)}mg'),
+                    if (meal.magnesium > 0) _microTag('Magnesium', '${meal.magnesium.toStringAsFixed(1)}mg'),
+                    if (meal.potassium > 0) _microTag('Potassium', '${meal.potassium.toStringAsFixed(1)}mg'),
+                    if (meal.sodium > 0) _microTag('Sodium', '${meal.sodium.toStringAsFixed(1)}mg'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (meal.fiber > 0 || meal.water > 0) ...[
+                const Text('Other', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.grey)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    if (meal.fiber > 0) _microTag('Fiber', '${meal.fiber.toStringAsFixed(1)}g'),
+                    if (meal.water > 0) _microTag('Water', '${meal.water.toStringAsFixed(0)}ml'),
+                  ],
+                ),
+              ],
+            ],
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailPlaceholder() {
+    return Container(
+      height: 200,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.restaurant,
+          color: Colors.grey,
+          size: 56,
+        ),
+      ),
+    );
+  }
+
+  Widget _nutrientCard(String label, String value, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)),
+                Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _microTag(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text('$label: $value', style: const TextStyle(fontSize: 12)),
+    );
+  }
+
   Widget _typeChip(String type) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -367,109 +525,6 @@ class _HistoryMealCard extends StatelessWidget {
       case 'lunch': return const Color(0xFF059669);
       case 'dinner': return const Color(0xFF7C3AED);
       default: return const Color(0xFFEC4899);
-    }
-  }
-
-  void _showDetail(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              meal.foodName,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _typeChip(meal.mealType),
-                const SizedBox(width: 12),
-                Text(
-                  DateFormat('MMM d, yyyy – hh:mm a').format(meal.dateTime),
-                  style: const TextStyle(color: Colors.grey),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                _nutrientChip('Calories', '${meal.calories.toStringAsFixed(0)} kcal', AppTheme.warningColor),
-                if (meal.protein > 0) _nutrientChip('Protein', '${meal.protein.toStringAsFixed(1)}g', AppTheme.accentColor),
-                if (meal.carbs > 0) _nutrientChip('Carbs', '${meal.carbs.toStringAsFixed(1)}g', AppTheme.successColor),
-                if (meal.fat > 0) _nutrientChip('Fat', '${meal.fat.toStringAsFixed(1)}g', AppTheme.secondaryColor),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _microNutrientsSection(meal),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _nutrientChip(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-      ],
-    );
-  }
-
-  Widget _microNutrientsSection(Meal meal) {
-    final totalVitamins = meal.vitaminA + meal.vitaminB + meal.vitaminC + meal.vitaminD + meal.vitaminE + meal.vitaminK;
-    final totalMinerals = meal.calcium + meal.iron + meal.magnesium + meal.potassium + meal.sodium;
-    if (totalVitamins <= 0 && totalMinerals <= 0 && meal.fiber <= 0) {
-      return const SizedBox.shrink();
-    }
-    return Column(
-      children: [
-        const Divider(),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 16,
-          children: [
-            if (totalVitamins > 0) _nutrientChip('Vitamins', '${totalVitamins.toStringAsFixed(0)}g', Colors.purple),
-            if (totalMinerals > 0) _nutrientChip('Minerals', '${totalMinerals.toStringAsFixed(0)}g', Colors.teal),
-            if (meal.fiber > 0) _nutrientChip('Fiber', '${meal.fiber.toStringAsFixed(0)}g', Colors.brown),
-          ],
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  IconData _mealIcon(String mealType) {
-    switch (mealType) {
-      case 'breakfast':
-        return Icons.wb_sunny;
-      case 'lunch':
-        return Icons.wb_cloudy;
-      case 'dinner':
-        return Icons.nightlight_round;
-      default:
-        return Icons.restaurant;
     }
   }
 }

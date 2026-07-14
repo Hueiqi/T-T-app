@@ -38,6 +38,7 @@ class ActivityRoutine {
   final String focus;
   final String equipment;
   final int colorValue;
+  final String imageAsset;
   final List<Exercise> exercises;
   final String? description;
 
@@ -49,6 +50,7 @@ class ActivityRoutine {
     required this.focus,
     required this.equipment,
     required this.colorValue,
+    required this.imageAsset,
     required this.exercises,
     this.description,
   });

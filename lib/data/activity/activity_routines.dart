@@ -9,6 +9,7 @@ final ActivityRoutine workoutAbs10Min = ActivityRoutine(
   focus: 'Core',
   equipment: 'No equipment',
   colorValue: 0xFFE91E63,
+  imageAsset: 'assets/images/Planning/abs.png',
   description: 'Fast-paced core burner with zero rest.',
   exercises: [
     Exercise(name: 'Crunches', reps: '30 sec', images: ['Crunches/0.jpg', 'Crunches/1.jpg']),
@@ -37,6 +38,7 @@ final ActivityRoutine workoutBeginnerAbs10Min = ActivityRoutine(
   focus: 'Core',
   equipment: 'No equipment',
   colorValue: 0xFF4CAF50,
+  imageAsset: 'assets/images/Planning/10min_abs.png',
   description: 'Gentle core activation for beginners.',
   exercises: [
     Exercise(name: 'Crunches', reps: '30 sec', images: ['Crunches/0.jpg', 'Crunches/1.jpg']),
@@ -61,6 +63,7 @@ final ActivityRoutine workoutFullBody20MinBeginner = ActivityRoutine(
   focus: 'Total Body',
   equipment: 'No equipment',
   colorValue: 0xFF2196F3,
+  imageAsset: 'assets/images/Planning/20minFullBody.png',
   description: 'Slow-paced routine with no jumping.',
   exercises: [
     Exercise(name: 'Arm Circles', reps: '30 sec', images: ['Arm_Circles/0.jpg', 'Arm_Circles/1.jpg']),
@@ -94,7 +97,8 @@ final ActivityRoutine workoutCoreStability10Min = ActivityRoutine(
   difficulty: 'Intermediate',
   focus: 'Core',
   equipment: 'No equipment',
-  colorValue: 0xFFFF9800, // orange
+  colorValue: 0xFFFF9800,
+  imageAsset: 'assets/images/Planning/coreStability.jpg',
   description: 'Build deep core strength and control with slow, controlled moves.',
   exercises: [
     Exercise(name: 'Plank', reps: '45 sec', images: ['Plank/0.jpg', 'Plank/1.jpg']),
@@ -122,6 +126,7 @@ final ActivityRoutine workoutFullBody20MinIntense = ActivityRoutine(
   focus: 'Full Body',
   equipment: 'Dumbbells + Bodyweight',
   colorValue: 0xFF9C27B0,
+  imageAsset: 'assets/images/Planning/FullBodyWorkout.png',
   description: 'High‑intensity compound movements.',
   exercises: [
     Exercise(name: 'Bodyweight Squat', reps: '45 sec', sets: 3, images: ['Bodyweight_Squat/0.jpg', 'Bodyweight_Squat/1.jpg']),

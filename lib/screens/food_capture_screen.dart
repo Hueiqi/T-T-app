@@ -566,10 +566,16 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
                               ),
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(
-                              Icons.camera_alt_rounded,
-                              size: 44,
-                              color: AppTheme.primaryColor,
+                            child: Image.asset(
+                              'lib/assets/diet/camera.png',
+                              width: 48,
+                              height: 48,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.camera_alt_rounded,
+                                size: 44,
+                                color: AppTheme.primaryColor,
+                              ),
                             ),
                           ),
                         ),
@@ -597,18 +603,24 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildActionChip(
-                            icon: Icons.camera_alt_rounded,
+                          _buildPillButton(
                             label: 'Camera',
                             onTap: _takePhoto,
-                            filled: true,
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                            ),
+                            icon: Icons.camera_alt_rounded,
                           ),
                           const SizedBox(width: 14),
-                          _buildActionChip(
-                            icon: Icons.photo_library_rounded,
+                          _buildPillButton(
                             label: 'Gallery',
                             onTap: _pickFromGallery,
-                            filled: false,
+                            gradient: LinearGradient(
+                              colors: [Color(0xFFFEF3C7), Color(0xFFFDE68A)],
+                            ),
+                            icon: Icons.photo_library_rounded,
+                            iconColor: const Color(0xFF92400E),
+                            textColor: const Color(0xFF92400E),
                           ),
                         ],
                       ),
@@ -625,48 +637,39 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     );
   }
 
-  Widget _buildActionChip({
-    required IconData icon,
+  Widget _buildPillButton({
     required String label,
     required VoidCallback onTap,
-    required bool filled,
+    required Gradient gradient,
+    required IconData icon,
+    Color iconColor = Colors.white,
+    Color textColor = Colors.white,
   }) {
     return Material(
-      elevation: filled ? 4 : 0,
-      shadowColor: filled ? AppTheme.primaryColor.withValues(alpha: 0.3) : Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
+      elevation: 4,
+      shadowColor: Colors.black.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(30),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(30),
         child: Container(
+          width: 150,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           decoration: BoxDecoration(
-            color: filled
-                ? AppTheme.primaryColor
-                : AppTheme.primaryColor.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(16),
-            border: filled
-                ? null
-                : Border.all(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.2),
-                    width: 1.5,
-                  ),
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(30),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 22,
-                color: filled ? Colors.white : AppTheme.primaryColor,
-              ),
+              Icon(icon, size: 22, color: iconColor),
               const SizedBox(width: 10),
               Text(
                 label,
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
-                  color: filled ? Colors.white : AppTheme.primaryColor,
+                  color: textColor,
                 ),
               ),
             ],
@@ -703,20 +706,45 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
         const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () =>
-                Navigator.pushNamed(context, '/food-search', arguments: 'lunch'),
-            icon: const Icon(Icons.search_rounded, size: 22),
-            label: const Text(
-              'Search food database',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-            ),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppTheme.primaryColor.withValues(alpha: 0.06),
+                  AppTheme.primaryColor.withValues(alpha: 0.03),
+                ],
               ),
-              side: BorderSide(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: AppTheme.primaryColor.withValues(alpha: 0.15),
+                width: 1.5,
+              ),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () =>
+                    Navigator.pushNamed(context, '/food-search', arguments: 'lunch'),
+                borderRadius: BorderRadius.circular(30),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.search_rounded, size: 22, color: AppTheme.primaryColor),
+                      SizedBox(width: 10),
+                      Text(
+                        'Search food database',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -937,7 +965,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 2,
               child: ElevatedButton.icon(
                 onPressed: _saveMeal,
                 icon: const Icon(Icons.add_circle_outline),

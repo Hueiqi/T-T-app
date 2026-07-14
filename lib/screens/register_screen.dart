@@ -25,6 +25,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   double? _height;
   String? _activityLevel;
   String? _gender;
+  String? _dietPreference;
   DateTime? _workoutEndDate;
 
   @override
@@ -41,6 +42,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _height = args['height'] as double?;
           _activityLevel = args['activityLevel'] as String?;
           _gender = args['gender'] as String?;
+          _dietPreference = args['dietPreference'] as String?;
           final endDateStr = args['workoutEndDate'] as String?;
           if (endDateStr != null) {
             _workoutEndDate = DateTime.parse(endDateStr);
@@ -75,6 +77,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       height: _height,
       activityLevel: _activityLevel,
       gender: _gender,
+      dietPreference: _dietPreference,
     );
 
     if (success && mounted) {

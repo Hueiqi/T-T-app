@@ -32,14 +32,13 @@ class _RoutineCompleteSummaryScreenState
   late List<String> _pending;
   late List<String> _completed;
   bool _completedExpanded = true;
-  bool _isSaved = false;  // ✅ moved here
+  bool _isSaved = false;
 
   @override
   void initState() {
     super.initState();
     _pending = List.from(widget.pendingExercises);
     _completed = List.from(widget.completedExercises);
-    // Save the routine when the screen appears
     WidgetsBinding.instance.addPostFrameCallback((_) => _saveRoutine());
   }
 
@@ -52,15 +51,12 @@ class _RoutineCompleteSummaryScreenState
     if (userId == null) return;
 
     final firebase = FirebaseService();
-    // Build the activity map
     final activity = {
-      'id': DateTime.now().millisecondsSinceEpoch.toString(), // simple unique ID
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
       'title': widget.routineTitle,
       'durationSeconds': widget.durationSeconds,
       'completedAt': DateTime.now().toIso8601String(),
     };
-
-      // Call with two positional arguments
     await firebase.saveActivity(userId, activity);
 
     final progress = context.read<UserProgressProvider>();
@@ -68,7 +64,6 @@ class _RoutineCompleteSummaryScreenState
     await progress.addWorkoutMinutes((widget.durationSeconds / 60).ceil());
   }
 
-  // ─── formatting helpers ──────────────────────────────────────
   String _formatTime(int totalSeconds) {
     final mins = totalSeconds ~/ 60;
     final secs = totalSeconds % 60;
@@ -84,29 +79,19 @@ class _RoutineCompleteSummaryScreenState
 
   int _calPerMinute(String diff) {
     switch (diff.toLowerCase()) {
-      case 'beginner':
-        return 4;
-      case 'intermediate':
-        return 6;
-      case 'advanced':
-      case 'intense':
-        return 8;
-      default:
-        return 5;
+      case 'beginner': return 4;
+      case 'intermediate': return 6;
+      case 'advanced': case 'intense': return 8;
+      default: return 5;
     }
   }
 
   int _heartRateEstimate(String diff) {
     switch (diff.toLowerCase()) {
-      case 'beginner':
-        return 110;
-      case 'intermediate':
-        return 130;
-      case 'advanced':
-      case 'intense':
-        return 150;
-      default:
-        return 120;
+      case 'beginner': return 110;
+      case 'intermediate': return 130;
+      case 'advanced': case 'intense': return 150;
+      default: return 120;
     }
   }
 
@@ -128,7 +113,6 @@ class _RoutineCompleteSummaryScreenState
     });
   }
 
-  // ─── BUILD ────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final total = _completed.length + _pending.length;
@@ -137,79 +121,50 @@ class _RoutineCompleteSummaryScreenState
 
     return Scaffold(
       body: SafeArea(
-        child: SizedBox.expand(
-          child: CustomScrollView(
-            physics: const ClampingScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.only(top: 12),
-                sliver: SliverToBoxAdapter(
-                  child: _buildHeader(progress, total, allDone),
-                ),
+        child: CustomScrollView(
+          physics: const ClampingScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.only(top: 12),
+              sliver: SliverToBoxAdapter(
+                child: _buildHeader(progress, allDone),
               ),
-              if (!allDone) const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              if (!allDone)
+            ),
+            if (!allDone) const SliverToBoxAdapter(child: SizedBox(height: 8)),
+            if (!allDone)
               SliverToBoxAdapter(child: _buildStatsRow()),
-              SliverToBoxAdapter(child: _buildCompletedSection()),
-              if (!allDone) SliverToBoxAdapter(child: _buildPendingSection()),
-              SliverToBoxAdapter(child: _buildMotivationalCard()),
-              SliverToBoxAdapter(child: _buildActionButtons()),
-              SliverPadding(
-                padding: const EdgeInsets.only(bottom: 80),
-                sliver: SliverToBoxAdapter(child: const SizedBox.shrink()),
-              ),
-            ],
-          ),
+            SliverToBoxAdapter(child: _buildCompletedSection()),
+            if (!allDone) SliverToBoxAdapter(child: _buildPendingSection()),
+            SliverToBoxAdapter(child: _buildMotivationalCard()),
+            SliverToBoxAdapter(child: _buildActionButtons()),
+            SliverPadding(
+              padding: const EdgeInsets.only(bottom: 80),
+              sliver: SliverToBoxAdapter(child: const SizedBox.shrink()),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // ─── UI sub‑widgets ──────────────────────────────────────────
-    // ─── Header: ONLY percentage ring + title ──────────────────
-  Widget _buildHeader(double progress, int total, bool allDone) {
+  Widget _buildHeader(double progress, bool allDone) {
+    final color = allDone ? AppTheme.successColor : AppTheme.primaryColor;
     return Column(
       children: [
-        TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: progress),
-          duration: const Duration(milliseconds: 1000),
-          builder: (ctx, value, _) => SizedBox(
-            width: 160,
-            height: 160,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(
-                  value: value,
-                  strokeWidth: 10,
-                  backgroundColor: Colors.grey.shade200,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    allDone ? AppTheme.successColor : AppTheme.primaryColor,
-                  ),
-                ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${(value * 100).round()}%',
-                      style: TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
-                        color: allDone ? AppTheme.successColor : AppTheme.primaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      allDone ? 'Complete!' : 'In Progress',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: allDone ? AppTheme.successColor : AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: progress.clamp(0.0, 1.0)),
+            duration: const Duration(milliseconds: 1000),
+            curve: Curves.easeOut,
+            builder: (ctx, animatedValue, _) {
+              return ProgressCircle(
+                percentage: animatedValue,
+                size: 150,
+                color: color,
+                subtitle: allDone ? 'Complete!' : 'In Progress',
+              );
+            },
           ),
         ),
         const SizedBox(height: 12),
@@ -225,7 +180,6 @@ class _RoutineCompleteSummaryScreenState
       ],
     );
   }
-
 
   Widget _buildStatsRow() {
     return Padding(
@@ -298,15 +252,10 @@ class _RoutineCompleteSummaryScreenState
                 constraints: const BoxConstraints(maxHeight: 200),
                 child: ListView.builder(
                   shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
+                  physics: const ClampingScrollPhysics(),
                   itemCount: _completed.length,
                   itemBuilder: (ctx, i) => Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      i == 0 ? 0 : 2,
-                      16,
-                      i == _completed.length - 1 ? 12 : 2,
-                    ),
+                    padding: EdgeInsets.fromLTRB(16, i == 0 ? 0 : 2, 16, i == _completed.length - 1 ? 12 : 2),
                     child: Row(
                       children: [
                         Container(
@@ -374,50 +323,58 @@ class _RoutineCompleteSummaryScreenState
                 style: TextStyle(fontSize: 12, color: Colors.amber.shade700),
               ),
               const SizedBox(height: 10),
-              ...List.generate(_pending.length, (i) {
-                final name = _pending[i];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.amber.withValues(alpha: 0.5), width: 2),
-                        ),
-                        child: const Icon(Icons.remove, color: Colors.amber, size: 14),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          name,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                      SizedBox(
-                        height: 34,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _completePending(i),
-                          icon: const Icon(Icons.check, size: 16),
-                          label: const Text('Mark as done'),
-                          style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: AppTheme.successColor,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  physics: const ClampingScrollPhysics(),
+                  itemCount: _pending.length,
+                  itemBuilder: (ctx, i) {
+                    final name = _pending[i];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.amber.withValues(alpha: 0.5), width: 2),
+                            ),
+                            child: const Icon(Icons.remove, color: Colors.amber, size: 14),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: const TextStyle(fontSize: 14),
                             ),
                           ),
-                        ),
+                          SizedBox(
+                            height: 34,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _completePending(i),
+                              icon: const Icon(Icons.check, size: 16),
+                              label: const Text('Mark as done'),
+                              style: ElevatedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                backgroundColor: AppTheme.successColor,
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              }),
+                    );
+                  },
+                ),
+              ),
             ],
           ),
         ),
@@ -501,7 +458,7 @@ class _RoutineCompleteSummaryScreenState
             child: ElevatedButton.icon(
               onPressed: () => Navigator.pushReplacementNamed(
                 context,
-                AppRoutes.popularWorkouts, // make sure this route exists
+                AppRoutes.popularWorkouts,
               ),
               icon: const Icon(Icons.play_arrow, size: 20),
               label: const Text('Next Workout'),
@@ -519,9 +476,9 @@ class _RoutineCompleteSummaryScreenState
                 child: OutlinedButton.icon(
                   onPressed: () => Navigator.pushReplacementNamed(
                     context,
-                    AppRoutes.routineHistory, // ✅ correct route for history
+                    AppRoutes.routineHistory,
                   ),
-                  icon: const Icon(Icons.history, size: 20),
+                  icon: const Icon(Icons.history, size: 18),
                   label: const Text('View History'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -531,6 +488,81 @@ class _RoutineCompleteSummaryScreenState
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── FIXED Progress Circle ─────────────────────────────────────
+class ProgressCircle extends StatelessWidget {
+  final double percentage;
+  final double size;
+  final String? subtitle;
+  final Color color;
+
+  const ProgressCircle({
+    super.key,
+    required this.percentage,
+    this.size = 80,
+    this.subtitle,
+    this.color = AppTheme.primaryColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = percentage.clamp(0.0, 1.0);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: clamped,
+            strokeWidth: 10,
+            backgroundColor: Colors.grey.shade200,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+          SizedBox(
+            width: size * 0.75,
+            height: size * 0.75,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${(clamped * 100).toInt()}%',
+                      style: TextStyle(
+                        fontSize: size * 0.22,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        subtitle!,
+                        style: TextStyle(
+                          fontSize: size * 0.09,
+                          color: AppTheme.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),

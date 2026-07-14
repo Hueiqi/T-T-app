@@ -9,11 +9,18 @@ import '../models/meal_model.dart';
 import '../widgets/bottom_nav_shell.dart';
 import 'meal_history_screen.dart';
 import 'food_capture_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
 class NutritionScreen extends StatefulWidget {
   final bool showBottomNav;
   final bool showBack;
   final DateTime? initialDate;
-  const NutritionScreen({super.key, this.showBottomNav = false, this.showBack = false, this.initialDate});
+  const NutritionScreen({
+    super.key,
+    this.showBottomNav = false,
+    this.showBack = false,
+    this.initialDate,
+  });
 
   @override
   State<NutritionScreen> createState() => _NutritionScreenState();
@@ -22,7 +29,7 @@ class NutritionScreen extends StatefulWidget {
 class _NutritionScreenState extends State<NutritionScreen> {
   double _portionSlider = 1.0;
   String _selectedMealType = 'snack';
-  late DateTime _selectedDate;   
+  late DateTime _selectedDate;
   List<Meal> _displayedMeals = [];
   final ScrollController _calendarScrollController = ScrollController();
 
@@ -45,14 +52,13 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 
   Future<void> _loadMealsForDate(String userId, DateTime date) async {
- // Clear the cache for this date
-   final key = DateFormat('yyyy-MM-dd').format(date);
-   context.read<NutritionProvider>().clearCacheForDate(key); // add this method
-   await context.read<NutritionProvider>().loadMealsForDate(userId, date);
-  setState(() {
-        _selectedDate = date;
-       _displayedMeals = context.read<NutritionProvider>().selectedDateMeals;
-  });
+    final key = DateFormat('yyyy-MM-dd').format(date);
+    context.read<NutritionProvider>().clearCacheForDate(key);
+    await context.read<NutritionProvider>().loadMealsForDate(userId, date);
+    setState(() {
+      _selectedDate = date;
+      _displayedMeals = context.read<NutritionProvider>().selectedDateMeals;
+    });
     _scrollToDate(date);
   }
 
@@ -60,7 +66,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_calendarScrollController.hasClients) return;
       final today = DateTime.now();
-      final startDate = DateTime(today.year, today.month, today.day).subtract(const Duration(days: 7));
+      final startDate =
+          DateTime(today.year, today.month, today.day).subtract(const Duration(days: 7));
       final targetDate = DateTime(date.year, date.month, date.day);
       final index = targetDate.difference(startDate).inDays;
       if (index < 0) return;
@@ -95,38 +102,42 @@ class _NutritionScreenState extends State<NutritionScreen> {
                       ),
                 ),
                 const SizedBox(height: 16),
-                  _QuickActionTile(
-                    imagePath: 'lib/assets/diet/breakfast.png',
-                    label: 'Add Breakfast',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'breakfast');
-                    },
-                  ),
-                  _QuickActionTile(
-                    imagePath: 'lib/assets/diet/lunch.png',
-                    label: 'Add Lunch',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'lunch');
-                    },
-                  ),
-                  _QuickActionTile(
-                    imagePath: 'lib/assets/diet/dinner.png',
-                    label: 'Add Dinner',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'dinner');
-                    },
-                  ),
-                  _QuickActionTile(
-                    imagePath: 'lib/assets/diet/snack.png',
-                    label: 'Add Snack',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'snack');
-                    },
-                  ),
+                _QuickActionTile(
+                  imagePath: 'lib/assets/diet/breakfast.png',
+                  label: 'Add Breakfast',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, AppRoutes.foodSearch,
+                        arguments: 'breakfast');
+                  },
+                ),
+                _QuickActionTile(
+                  imagePath: 'lib/assets/diet/lunch.png',
+                  label: 'Add Lunch',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, AppRoutes.foodSearch,
+                        arguments: 'lunch');
+                  },
+                ),
+                _QuickActionTile(
+                  imagePath: 'lib/assets/diet/dinner.png',
+                  label: 'Add Dinner',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, AppRoutes.foodSearch,
+                        arguments: 'dinner');
+                  },
+                ),
+                _QuickActionTile(
+                  imagePath: 'lib/assets/diet/snack.png',
+                  label: 'Add Snack',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, AppRoutes.foodSearch,
+                        arguments: 'snack');
+                  },
+                ),
                 _QuickActionTile(
                   imagePath: 'lib/assets/diet/camera.png',
                   label: 'Scan Food',
@@ -160,8 +171,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
           ? nutrition.todayWeight!.weight.toStringAsFixed(1)
           : '',
     );
-
-    
 
     showDialog(
       context: context,
@@ -254,7 +263,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 4,
-                      children: ['breakfast', 'lunch', 'dinner', 'snack'].map((type) {
+                      children: ['breakfast', 'lunch', 'dinner', 'snack']
+                          .map((type) {
                         final isSelected = selectedMealType == type;
                         return ChoiceChip(
                           label: Text(
@@ -327,10 +337,10 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     }
                     if (ctx.mounted) {
                       Navigator.pop(ctx);
-                        final auth = context.read<AuthProvider>();
-                        if (auth.user != null) {
-                          await _loadMealsForDate(auth.user!.uid, _selectedDate);
-                        }
+                      final auth = context.read<AuthProvider>();
+                      if (auth.user != null) {
+                        await _loadMealsForDate(auth.user!.uid, _selectedDate);
+                      }
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Meal logged successfully'),
@@ -351,32 +361,31 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 
   void _addQuickFood(String name, double baseCalories,
-    {double protein = 0, double carbs = 0, double fat = 0}) {
-  final auth = context.read<AuthProvider>();
-  if (auth.user == null) return;
-  final scale = _portionSlider;
-  final cals = (baseCalories * scale).roundToDouble();
-  context.read<NutritionProvider>().saveMeal(
-    userId: auth.user!.uid,
-    mealType: _selectedMealType,
-    foodName: name,
-    calories: cals,
-    protein: (protein * scale).roundToDouble(),
-    carbs: (carbs * scale).roundToDouble(),
-    fat: (fat * scale).roundToDouble(),
-    dateTime: _selectedDate,
-  ).then((_) {
-    // 🔄 Reload meals for the selected date
-    _loadMealsForDate(auth.user!.uid, _selectedDate);
-  });
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text('Added $name (${cals.toInt()} kcal)'),
-      backgroundColor: AppTheme.successColor,
-      duration: const Duration(seconds: 2),
-    ),
-  );
-}
+      {double protein = 0, double carbs = 0, double fat = 0}) {
+    final auth = context.read<AuthProvider>();
+    if (auth.user == null) return;
+    final scale = _portionSlider;
+    final cals = (baseCalories * scale).roundToDouble();
+    context.read<NutritionProvider>().saveMeal(
+      userId: auth.user!.uid,
+      mealType: _selectedMealType,
+      foodName: name,
+      calories: cals,
+      protein: (protein * scale).roundToDouble(),
+      carbs: (carbs * scale).roundToDouble(),
+      fat: (fat * scale).roundToDouble(),
+      dateTime: _selectedDate,
+    ).then((_) {
+      _loadMealsForDate(auth.user!.uid, _selectedDate);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Added $name (${cals.toInt()} kcal)'),
+        backgroundColor: AppTheme.successColor,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -410,200 +419,211 @@ class _NutritionScreenState extends State<NutritionScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: widget.showBottomNav ? buildBottomNavBar(context, currentIndex: 3) : null,
+      bottomNavigationBar:
+          widget.showBottomNav ? buildBottomNavBar(context, currentIndex: 3) : null,
       body: SafeArea(
         child: Column(
           children: [
             _buildCalendarStrip(),
             Expanded(
               child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(), 
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // ── Date Picker Row ──
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back_ios, size: 18),
-                          onPressed: () {
-                            final newDate = _selectedDate.subtract(const Duration(days: 1));
-                            final auth = context.read<AuthProvider>();
-                            if (auth.user != null) {
-                              _loadMealsForDate(auth.user!.uid, newDate);
-                            }
-                          },
-                        ),
-                        GestureDetector(
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: _selectedDate,
-                              firstDate: DateTime(2020, 1, 1),
-                              lastDate: DateTime.now(),
-                            );
-                            if (picked != null) {
-                              if (!context.mounted) return;
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Date Picker Row ──
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back_ios, size: 18),
+                            onPressed: () {
+                              final newDate =
+                                  _selectedDate.subtract(const Duration(days: 1));
                               final auth = context.read<AuthProvider>();
                               if (auth.user != null) {
-                                _loadMealsForDate(auth.user!.uid, picked);
+                                _loadMealsForDate(auth.user!.uid, newDate);
                               }
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  DateFormat('EEEE, MMM d').format(_selectedDate),
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
+                            },
+                          ),
+                          GestureDetector(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: _selectedDate,
+                                firstDate: DateTime(2020, 1, 1),
+                                lastDate: DateTime.now(),
+                              );
+                              if (picked != null) {
+                                if (!context.mounted) return;
+                                final auth = context.read<AuthProvider>();
+                                if (auth.user != null) {
+                                  _loadMealsForDate(auth.user!.uid, picked);
+                                }
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color: AppTheme.primaryColor.withValues(alpha: 0.2)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      DateFormat('EEEE, MMM d').format(_selectedDate),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 4),
-                                Icon(Icons.calendar_today, size: 16, color: AppTheme.primaryColor),
-                              ],
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.calendar_today, size: 16,
+                                      color: AppTheme.primaryColor),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.arrow_forward_ios, size: 18),
-                          onPressed: () {
-                            final newDate = _selectedDate.add(const Duration(days: 1));
-                            if (newDate.isAfter(DateTime.now())) return;
-                            final auth = context.read<AuthProvider>();
-                            if (auth.user != null) {
-                              _loadMealsForDate(auth.user!.uid, newDate);
-                            }
-                          },
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.history),
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const MealHistoryScreen()),
+                          IconButton(
+                            icon: const Icon(Icons.arrow_forward_ios, size: 18),
+                            onPressed: () {
+                              final newDate =
+                                  _selectedDate.add(const Duration(days: 1));
+                              if (newDate.isAfter(DateTime.now())) return;
+                              final auth = context.read<AuthProvider>();
+                              if (auth.user != null) {
+                                _loadMealsForDate(auth.user!.uid, newDate);
+                              }
+                            },
                           ),
-                          tooltip: 'View meal history',
-                        ),
-                      ],
-                    ),
-                  ),
-                  _DashboardHeader(
-                    totalCalories: totalCalories,
-                    dailyGoal: nutrition.dailyCalorieGoal,
-                    onCameraTap: () async {
-                     final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => FoodCaptureScreen(initialDate: _selectedDate),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.history),
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const MealHistoryScreen()),
+                            ),
+                            tooltip: 'View meal history',
+                          ),
+                        ],
                       ),
-                    );
-                    if (result == true) {
-                      final auth = context.read<AuthProvider>();
-                      if (auth.user != null) {
-                        await _loadMealsForDate(auth.user!.uid, _selectedDate);
-                      }
-                    }
-                  }
-                  ),
-                  _buildCaloriesRemaining(totalCalories, nutrition.dailyCalorieGoal),
-                  const SizedBox(height: 12),
-                  _QuickAddCard(
-                    portionSlider: _portionSlider,
-                    selectedMealType: _selectedMealType,
-                    remainingCalories: nutrition.dailyCalorieGoal - totalCalories,
-                    onSliderChanged: (v) => setState(() => _portionSlider = v),
-                    onMealTypeChanged: (t) => setState(() => _selectedMealType = t),
-                    onAddFood: _addQuickFood,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMacroBreakdown(totalProtein, totalCarbs, totalFat, nutrition),
-                  const SizedBox(height: 12),
-                  _MealGroup(
-                    mealType: 'breakfast',
-                    meals: meals,
-                    color: const Color(0xFFF59E0B),
-                    onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'breakfast'),
-                    onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
-                    onDelete: (meal) => _confirmDeleteMeal(meal),
-                    onMealTap: _showMealDetail,
-                  ),
-                  const SizedBox(height: 12),
-                  _MealGroup(
-                    mealType: 'lunch',
-                    meals: meals,
-                    color: const Color(0xFF059669),
-                    onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'lunch'),
-                    onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
-                    onDelete: (meal) => _confirmDeleteMeal(meal),
-                    onMealTap: _showMealDetail,
-                  ),
-                  const SizedBox(height: 12),
-                  _MealGroup(
-                    mealType: 'dinner',
-                    meals: meals,
-                    color: const Color(0xFF7C3AED),
-                    onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'dinner'),
-                    onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
-                    onDelete: (meal) => _confirmDeleteMeal(meal),
-                    onMealTap: _showMealDetail,
-                  ),
-                  const SizedBox(height: 12),
-                  _MealGroup(
-                    mealType: 'snack',
-                    meals: meals,
-                    color: const Color(0xFFEC4899),
-                    onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch, arguments: 'snack'),
-                    onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
-                    onDelete: (meal) => _confirmDeleteMeal(meal),
-                    onMealTap: _showMealDetail,
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                    ),
+                    _DashboardHeader(
+                      totalCalories: totalCalories,
+                      dailyGoal: nutrition.dailyCalorieGoal,
+                      onCameraTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                FoodCaptureScreen(initialDate: _selectedDate),
+                          ),
+                        );
+                        if (result == true) {
+                          final auth = context.read<AuthProvider>();
+                          if (auth.user != null) {
+                            await _loadMealsForDate(auth.user!.uid, _selectedDate);
+                          }
+                        }
+                      },
+                    ),
+                    _buildCaloriesRemaining(totalCalories, nutrition.dailyCalorieGoal),
+                    const SizedBox(height: 12),
+                    _QuickAddCard(
+                      portionSlider: _portionSlider,
+                      selectedMealType: _selectedMealType,
+                      remainingCalories: nutrition.dailyCalorieGoal - totalCalories,
+                      onSliderChanged: (v) => setState(() => _portionSlider = v),
+                      onMealTypeChanged: (t) => setState(() => _selectedMealType = t),
+                      onAddFood: _addQuickFood,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildMacroBreakdown(totalProtein, totalCarbs, totalFat, nutrition),
+                    const SizedBox(height: 12),
+                    _MealGroup(
+                      mealType: 'breakfast',
+                      meals: meals,
+                      color: const Color(0xFFF59E0B),
+                      onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch,
+                          arguments: 'breakfast'),
+                      onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
+                      onDelete: (meal) => _confirmDeleteMeal(meal),
+                      onMealTap: _showMealDetail,
+                    ),
+                    const SizedBox(height: 12),
+                    _MealGroup(
+                      mealType: 'lunch',
+                      meals: meals,
+                      color: const Color(0xFF059669),
+                      onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch,
+                          arguments: 'lunch'),
+                      onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
+                      onDelete: (meal) => _confirmDeleteMeal(meal),
+                      onMealTap: _showMealDetail,
+                    ),
+                    const SizedBox(height: 12),
+                    _MealGroup(
+                      mealType: 'dinner',
+                      meals: meals,
+                      color: const Color(0xFF7C3AED),
+                      onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch,
+                          arguments: 'dinner'),
+                      onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
+                      onDelete: (meal) => _confirmDeleteMeal(meal),
+                      onMealTap: _showMealDetail,
+                    ),
+                    const SizedBox(height: 12),
+                    _MealGroup(
+                      mealType: 'snack',
+                      meals: meals,
+                      color: const Color(0xFFEC4899),
+                      onAddFood: () => Navigator.pushNamed(context, AppRoutes.foodSearch,
+                          arguments: 'snack'),
+                      onEdit: (meal) => _showManualAddDialog(existingMeal: meal),
+                      onDelete: (meal) => _confirmDeleteMeal(meal),
+                      onMealTap: _showMealDetail,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 
   Widget _buildCaloriesRemaining(double totalCalories, double dailyGoal) {
     final remaining = dailyGoal - totalCalories;
+    final isOver = remaining < 0;
+
+    if (!isOver) return const SizedBox.shrink();
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            remaining >= 0 ? Icons.flash_on : Icons.flash_off,
-            size: 16,
-            color: remaining >= 0 ? AppTheme.successColor : AppTheme.errorColor,
-          ),
+          Icon(Icons.flash_off, size: 16, color: AppTheme.errorColor),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              remaining >= 0
-                  ? 'Remaining: ${remaining.toStringAsFixed(0)} kcal'
-                  : 'Over by ${(-remaining).toStringAsFixed(0)} kcal',
+              'Over by ${(-remaining).toStringAsFixed(0)} kcal',
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: remaining >= 0 ? AppTheme.textPrimary : AppTheme.errorColor,
+                color: AppTheme.errorColor,
               ),
             ),
           ),
@@ -626,7 +646,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
   Widget _buildCalendarStrip() {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
-    final selectedDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    final selectedDate =
+        DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
     final auth = context.read<AuthProvider>();
     final userId = auth.user?.uid;
     final startDate = todayDate.subtract(const Duration(days: 7));
@@ -706,7 +727,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
     );
   }
 
-  Widget _buildMacroBreakdown(double totalProtein, double totalCarbs, double totalFat, NutritionProvider nutrition) {
+  Widget _buildMacroBreakdown(
+      double totalProtein, double totalCarbs, double totalFat, NutritionProvider nutrition) {
     final proteinGoal = nutrition.getProteinGoal();
     final carbsGoal = nutrition.getCarbsGoal();
     final fatGoal = nutrition.getFatGoal();
@@ -850,7 +872,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
             const Divider(height: 1),
             const SizedBox(height: 16),
             _buildNutrientGrid(meal),
-            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -860,10 +881,17 @@ class _NutritionScreenState extends State<NutritionScreen> {
   Widget _mealTypeChip(String type) {
     final Color color;
     switch (type) {
-      case 'breakfast': color = const Color(0xFFF59E0B); break;
-      case 'lunch': color = const Color(0xFF059669); break;
-      case 'dinner': color = const Color(0xFF7C3AED); break;
-      default: color = const Color(0xFFEC4899);
+      case 'breakfast':
+        color = const Color(0xFFF59E0B);
+        break;
+      case 'lunch':
+        color = const Color(0xFF059669);
+        break;
+      case 'dinner':
+        color = const Color(0xFF7C3AED);
+        break;
+      default:
+        color = const Color(0xFFEC4899);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -879,65 +907,100 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 
   Widget _buildNutrientGrid(Meal meal) {
-    final totalVitamins = meal.vitaminA + meal.vitaminB + meal.vitaminC + meal.vitaminD + meal.vitaminE + meal.vitaminK;
-    final totalMinerals = meal.calcium + meal.iron + meal.magnesium + meal.potassium + meal.sodium;
+    final totalVitamins = meal.vitaminA + meal.vitaminB + meal.vitaminC +
+        meal.vitaminD + meal.vitaminE + meal.vitaminK;
+    final totalMinerals = meal.calcium + meal.iron + meal.magnesium +
+        meal.potassium + meal.sodium;
+
     final nutrients = [
-      _NutrientItem(Icons.local_fire_department, 'Calories', '${meal.calories.toStringAsFixed(0)} kcal', const Color(0xFFF59E0B)),
-      _NutrientItem(Icons.fitness_center, 'Protein', '${meal.protein.toStringAsFixed(1)}g', const Color(0xFF6366F1)),
-      _NutrientItem(Icons.grain, 'Carbs', '${meal.carbs.toStringAsFixed(1)}g', const Color(0xFFF59E0B)),
-      _NutrientItem(Icons.water_drop, 'Fat', '${meal.fat.toStringAsFixed(1)}g', const Color(0xFFEC4899)),
-      _NutrientItem(Icons.eco, 'Vitamins', '${totalVitamins.toStringAsFixed(0)}g', const Color(0xFF8B5CF6)),
-      _NutrientItem(Icons.science, 'Minerals', '${totalMinerals.toStringAsFixed(0)}g', const Color(0xFF14B8A6)),
-      _NutrientItem(Icons.agriculture, 'Fiber', '${meal.fiber.toStringAsFixed(0)}g', const Color(0xFFA16207)),
-      _NutrientItem(Icons.water, 'Water', '${meal.water.toStringAsFixed(0)}g', const Color(0xFF3B82F6)),
+      _NutrientItem(Icons.local_fire_department, 'Calories',
+          '${meal.calories.toStringAsFixed(0)} kcal', const Color(0xFFF59E0B)),
+      _NutrientItem(Icons.fitness_center, 'Protein',
+          '${meal.protein.toStringAsFixed(1)}g', const Color(0xFF6366F1)),
+      _NutrientItem(Icons.grain, 'Carbs', '${meal.carbs.toStringAsFixed(1)}g',
+          const Color(0xFFF59E0B)),
+      _NutrientItem(Icons.water_drop, 'Fat', '${meal.fat.toStringAsFixed(1)}g',
+          const Color(0xFFEC4899)),
+      _NutrientItem(Icons.eco, 'Vitamins', '${totalVitamins.toStringAsFixed(0)}mg',
+          const Color(0xFF8B5CF6)),
+      _NutrientItem(Icons.science, 'Minerals', '${totalMinerals.toStringAsFixed(0)}mg',
+          const Color(0xFF14B8A6)),
+      _NutrientItem(Icons.agriculture, 'Fiber', '${meal.fiber.toStringAsFixed(0)}g',
+          const Color(0xFFA16207)),
+      _NutrientItem(Icons.water, 'Water', '${meal.water.toStringAsFixed(0)}g',
+          const Color(0xFF3B82F6)),
     ];
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
-      ),
-      itemCount: nutrients.length,
-      itemBuilder: (_, i) {
-        final n = nutrients[i];
-        return Container(
-          decoration: BoxDecoration(
-            color: n.color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: n.color.withValues(alpha: 0.15)),
+    final filtered = nutrients.where((n) =>
+        n.value != '0g' && n.value != '0mg' && n.value != '0 kcal').toList();
+
+    if (filtered.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        int crossAxisCount;
+        double spacing;
+
+        if (width < 360) {
+          crossAxisCount = 2;
+          spacing = 8;
+        } else if (width < 480) {
+          crossAxisCount = 3;
+          spacing = 10;
+        } else {
+          crossAxisCount = 4;
+          spacing = 12;
+        }
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            childAspectRatio: 0.9,
           ),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(n.icon, color: n.color, size: 22),
-              const SizedBox(height: 6),
-              Text(
-                n.value,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: n.color,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+          itemCount: filtered.length,
+          itemBuilder: (_, i) {
+            final n = filtered[i];
+            return Container(
+              decoration: BoxDecoration(
+                color: n.color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: n.color.withValues(alpha: 0.15)),
               ),
-              const SizedBox(height: 2),
-              Text(
-                n.label,
-                style: TextStyle(
-                  fontSize: 9,
-                  color: n.color.withValues(alpha: 0.7),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(n.icon, color: n.color, size: 20),
+                  const SizedBox(height: 4),
+                  Text(
+                    n.value,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: n.color,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    n.label,
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: n.color.withValues(alpha: 0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -967,6 +1030,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
     );
   }
 }
+
+// ─── Top‑level classes ──────────────────────────────────────────
 
 class _DashboardHeader extends StatelessWidget {
   final double totalCalories;
@@ -1017,7 +1082,8 @@ class _DashboardHeader extends StatelessWidget {
                       'lib/assets/diet/camera.png',
                       width: 28,
                       height: 28,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.camera_alt, size: 28),
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.camera_alt, size: 28),
                     ),
                     onPressed: onCameraTap,
                     tooltip: 'Scan Food',
@@ -1181,7 +1247,7 @@ class _QuickAddCard extends StatelessWidget {
           protein: 2.7, carbs: 28, fat: 0.3),
       _QuickFood('Eggs', 155, Colors.orange.shade300,
           protein: 13, carbs: 1.1, fat: 11),
-      _QuickFood('Banana', 105, Color(0xFFFCD34D),
+      _QuickFood('Banana', 105, const Color(0xFFFCD34D),
           protein: 1.3, carbs: 27, fat: 0.4),
     ];
 
@@ -1207,7 +1273,8 @@ class _QuickAddCard extends StatelessWidget {
                     color: AppTheme.primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.add_circle_outline, size: 18, color: AppTheme.primaryColor),
+                  child: const Icon(Icons.add_circle_outline, size: 18,
+                      color: AppTheme.primaryColor),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -1232,7 +1299,9 @@ class _QuickAddCard extends StatelessWidget {
                       Icon(
                         remainingCalories > 0 ? Icons.flash_on : Icons.flash_off,
                         size: 12,
-                        color: remainingCalories > 0 ? AppTheme.successColor : AppTheme.errorColor,
+                        color: remainingCalories > 0
+                            ? AppTheme.successColor
+                            : AppTheme.errorColor,
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -1240,7 +1309,9 @@ class _QuickAddCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: remainingCalories > 0 ? AppTheme.successColor : AppTheme.errorColor,
+                          color: remainingCalories > 0
+                              ? AppTheme.successColor
+                              : AppTheme.errorColor,
                         ),
                       ),
                     ],
@@ -1291,7 +1362,9 @@ class _QuickAddCard extends StatelessWidget {
                   label: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Image.asset(m.$2, width: 14, height: 14, errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, size: 14)),
+                      Image.asset(m.$2, width: 14, height: 14,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.fastfood, size: 14)),
                       const SizedBox(width: 4),
                       Text(m.$1[0].toUpperCase() + m.$1.substring(1)),
                     ],
@@ -1316,7 +1389,7 @@ class _QuickAddCard extends StatelessWidget {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: quickFoods.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (ctx, i) {
                   final f = quickFoods[i];
                   final adjusted = (f.baseCalories * _portionMultiplier).round();
@@ -1329,9 +1402,7 @@ class _QuickAddCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: f.color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: f.color.withValues(alpha: 0.25),
-                        ),
+                        border: Border.all(color: f.color.withValues(alpha: 0.25)),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1341,7 +1412,8 @@ class _QuickAddCard extends StatelessWidget {
                             width: 18,
                             height: 18,
                             color: f.color,
-                            errorBuilder: (_, __, ___) => Icon(Icons.restaurant, color: f.color, size: 18),
+                            errorBuilder: (_, __, ___) =>
+                                Icon(Icons.restaurant, color: f.color, size: 18),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -1438,7 +1510,8 @@ class _MealGroup extends StatelessWidget {
                     width: 20,
                     height: 20,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Icon(Icons.fastfood, color: color, size: 20),
+                    errorBuilder: (_, __, ___) =>
+                        Icon(Icons.fastfood, color: color, size: 20),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1530,54 +1603,17 @@ class _FoodItemRow extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Image.asset(
-              'lib/assets/diet/${meal.mealType}.png',
-              width: 22,
-              height: 22,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Icon(_mealIcon(meal.mealType), color: AppTheme.primaryColor, size: 22),
-            ),
-          ),
+          _buildMealIcon(),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  meal.foodName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    _macroChip('P', meal.protein, const Color(0xFF6366F1)),
-                    const SizedBox(width: 6),
-                    _macroChip('C', meal.carbs, const Color(0xFFF59E0B)),
-                    const SizedBox(width: 6),
-                    _macroChip('F', meal.fat, const Color(0xFFEC4899)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${meal.calories.toStringAsFixed(0)} kcal',
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
+            child: Text(
+              meal.foodName,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           PopupMenuButton<String>(
@@ -1615,33 +1651,35 @@ class _FoodItemRow extends StatelessWidget {
     );
   }
 
-  IconData _mealIcon(String mealType) {
-    switch (mealType) {
-      case 'breakfast':
-        return Icons.wb_sunny;
-      case 'lunch':
-        return Icons.wb_cloudy;
-      case 'dinner':
-        return Icons.nightlight_round;
-      default:
-        return Icons.restaurant;
+  Widget _buildMealIcon() {
+    if (meal.imageUrl != null && meal.imageUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: CachedNetworkImage(
+          imageUrl: meal.imageUrl!,
+          width: 44,
+          height: 44,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => _defaultIconContainer(),
+          errorWidget: (context, url, error) => _defaultIconContainer(),
+        ),
+      );
     }
+    return _defaultIconContainer();
   }
 
-  Widget _macroChip(String label, double value, Color color) {
+  Widget _defaultIconContainer() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
+        color: Colors.grey.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(
-        '$label ${value.toStringAsFixed(1)}g',
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
+      child: const Icon(
+        Icons.restaurant,
+        color: Colors.grey,
+        size: 22,
       ),
     );
   }

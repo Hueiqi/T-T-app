@@ -169,18 +169,10 @@ class _PlanningScreenState extends State<PlanningScreen> {
                       Icon(Icons.search, color: const Color.fromARGB(255, 207, 200, 200), size: 20),
                       const SizedBox(width: 10),
                       Text(
-                        'Search exercises...',
+                        'Search exercises',
                         style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
                       ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      
-                      ),
+                
                     ],
                   ),
                 ),
@@ -190,7 +182,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
             _buildFilterChips(),
             // Active Plan card (when plan is selected)
             if (planning.activePlan != null)
-              _buildActivePlanCard(planning.activePlan!, planning),
+              _buildActivePlanCard(planning.activePlan!, planning, auth),
             if (planning.isGenerating) _buildGeneratingIndicator(),
             if (planning.error != null && planning.plans.isEmpty)
               _buildErrorBanner(planning, auth),
@@ -206,8 +198,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
             // Exercise Instruction Card
             _buildExerciseInstructionCard(),
 
-            // Workout Progress Card
-            _buildWorkoutProgressCard(),
+          
             // Calorie History Card
             _buildCalorieHistoryCard(),
             const SizedBox(height: 32),
@@ -266,7 +257,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
   }
 
   // ── Active Plan / In Progress Card ──
-  Widget _buildActivePlanCard(FitnessPlan plan, PlanningProvider planning) {
+  Widget _buildActivePlanCard(FitnessPlan plan, PlanningProvider planning, AuthProvider auth) {
     final totalWeeks = plan.estimatedGoalWeeks;
     final currentWk = planning.currentWeek;
     final progress = ((currentWk - 1) / totalWeeks).clamp(0.0, 1.0);
@@ -285,16 +276,16 @@ class _PlanningScreenState extends State<PlanningScreen> {
             children: [
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.successColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.play_circle_fill,
-                      color: AppTheme.successColor,
-                      size: 20,
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppTheme.successColor.withValues(alpha: 0.15),
+                    child: Text(
+                      (auth.user?.displayName ?? 'U')[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.successColor,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -590,112 +581,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
     );
   }
 
-  // ── Workout Progress Card ──
-  Widget _buildWorkoutProgressCard() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.show_chart,
-                      color: AppTheme.primaryColor,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Your Progress',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  _progressStat(
-                    Icons.fitness_center,
-                    '$_totalWorkouts',
-                    'Workouts',
-                    AppTheme.primaryColor,
-                  ),
-                  _progressStat(
-                    Icons.local_fire_department,
-                    '${_totalCaloriesBurned.toInt()}',
-                    'Total kcal',
-                    Colors.orangeAccent,
-                  ),
-                  _progressStat(
-                    Icons.whatshot,
-                    '$_currentStreak',
-                    'Day streak',
-                    Colors.deepOrange,
-                  ),
-                  _progressStat(
-                    Icons.today,
-                    '${_todayCalories.toInt()}',
-                    'Today kcal',
-                    AppTheme.successColor,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _progressStat(IconData icon, String value, String label, Color color) {
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // ── Calorie History Card ──
   Widget _buildCalorieHistoryCard() {
@@ -1361,31 +1247,6 @@ class _PlanCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                _getImageForPlan(plan.title),
-                width: 56,
-                height: 56,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? Colors.white.withValues(alpha: 0.2)
-                        : AppTheme.primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.fitness_center,
-                    color: isSelected ? Colors.white : AppTheme.primaryColor,
-                    size: 28,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1466,17 +1327,6 @@ class _PlanCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _getImageForPlan(String title) {
-    final lower = title.toLowerCase();
-    if (lower.contains('full body')) return 'lib/assets/Planning/FullBodyWorkout.png';
-    if (lower.contains('20 min')) return 'lib/assets/Planning/20minFullBody.png';
-    if (lower.contains('abs')) return 'lib/assets/Planning/abs.png';
-    if (lower.contains('core')) return 'lib/assets/Planning/coreStability.jpg';
-    if (lower.contains('outdoor')) return 'lib/assets/Planning/outdoor-workout.webp';
-    if (lower.contains('ai')) return 'lib/assets/Planning/ai-planning.png';
-    return 'lib/assets/Planning/planningRoutinesIcon.png';
   }
 
   Widget _buildChip(String label, Color bgColor, Color textColor) {

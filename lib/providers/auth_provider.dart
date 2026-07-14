@@ -110,6 +110,7 @@ class AuthProvider extends ChangeNotifier {
     double? height,
     String? activityLevel,
     String? gender,
+    String? dietPreference,
   }) async {
     _isLoading = true;
     _error = null;
@@ -128,6 +129,7 @@ class AuthProvider extends ChangeNotifier {
         height: height,
         activityLevel: activityLevel,
         gender: gender,
+        dietPreference: dietPreference,
       );
       _isLoading = false;
       notifyListeners();

@@ -16,6 +16,7 @@ import 'providers/news_provider.dart';
 import 'providers/health_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/user_progress_provider.dart';
+import 'providers/exercise_favorites_provider.dart';
 
 import 'services/exercise_db.dart';
 import 'services/ai_service.dart';
@@ -59,6 +60,7 @@ void main() async {
         ChangeNotifierProvider(
           create: (_) => UserProgressProvider()..init(FirebaseAuth.instance),
         ),
+        ChangeNotifierProvider(create: (_) => ExerciseFavoritesProvider()),
       ],
       child: const FitSyncApp(),
     ),

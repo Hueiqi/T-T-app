@@ -70,6 +70,7 @@ class AuthService {
     double? height,
     String? activityLevel,
     String? gender,
+    String? dietPreference,
   }) async {
     if (_demoMode) {
       _currentUser = AppUser(
@@ -81,6 +82,7 @@ class AuthService {
         height: height ?? 170,
         gender: gender ?? 'male',
         activityLevel: activityLevel ?? 'moderate',
+        dietPreference: dietPreference ?? 'none',
         targetWeightKg: targetWeightKg,
         dailyCalorieTarget: dailyCalorieTarget,
         workoutGoal: workoutGoal,
@@ -102,6 +104,7 @@ class AuthService {
       height: height ?? 170,
       gender: gender ?? 'male',
       activityLevel: activityLevel ?? 'moderate',
+      dietPreference: dietPreference ?? 'none',
       targetWeightKg: targetWeightKg,
       dailyCalorieTarget: dailyCalorieTarget,
       workoutGoal: workoutGoal,

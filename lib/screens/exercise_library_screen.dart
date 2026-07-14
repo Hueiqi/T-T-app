@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/exercise_db.dart';
 import '../models/exercise_model.dart';
 import '../config/theme.dart';
+import '../providers/exercise_favorites_provider.dart';
 import 'exercise_detail_screen.dart';
 
 class ExerciseLibraryScreen extends StatefulWidget {
@@ -21,7 +23,6 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   bool _isLoading = true;
 
   final List<ExerciseDb> _recentlyViewed = [];
-  final Set<String> _favoriteIds = {};
   final _random = Random();
 
   @override
@@ -75,13 +76,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   }
 
   void _toggleFavorite(String id) {
-    setState(() {
-      if (_favoriteIds.contains(id)) {
-        _favoriteIds.remove(id);
-      } else {
-        _favoriteIds.add(id);
-      }
-    });
+    context.read<ExerciseFavoritesProvider>().toggleFavorite(id);
   }
 
   void _showQuickPreview(ExerciseDb ex) {
@@ -201,6 +196,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final favorites = context.watch<ExerciseFavoritesProvider>();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Exercise Library'),
@@ -221,29 +217,39 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                 // Search bar
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search exercises...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                _applyFilters();
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.grey.shade100,
+                          Colors.grey.shade50,
+                        ],
                       ),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                        width: 1.5,
+                      ),
                     ),
-                    onChanged: (_) => _applyFilters(),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search exercises...',
+                        prefixIcon: const Icon(Icons.search, color: AppTheme.primaryColor),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _applyFilters();
+                                },
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      ),
+                      onChanged: (_) => _applyFilters(),
+                    ),
                   ),
                 ),
                 // Filter chips
@@ -267,7 +273,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                         _applyFilters();
                       }),
                       const SizedBox(width: 8),
-                      if (_favoriteIds.isNotEmpty)
+                      if (favorites.favoriteIds.isNotEmpty)
                         GestureDetector(
                           onTap: () {
                             setState(() {
@@ -275,7 +281,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                               _selectedLevel = 'All';
                               _selectedEquipment = 'All';
                               _searchController.clear();
-                              _filtered = ExerciseDatabase.all.where((e) => _favoriteIds.contains(e.id)).toList();
+                              _filtered = favorites.favoriteExercises;
                             });
                           },
                           child: Container(
@@ -291,7 +297,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                                 Icon(Icons.star, size: 14, color: AppTheme.warningColor),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Favorites (${_favoriteIds.length})',
+                                  'Favorites (${favorites.favoriteIds.length})',
                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.warningColor),
                                 ),
                               ],
@@ -304,13 +310,14 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                 // Results count + Clear
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         '${_filtered.length} exercise${_filtered.length == 1 ? '' : 's'}',
                         style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                       ),
-                      const Spacer(),
                       if (_selectedMuscle != 'All' || _selectedLevel != 'All' || _selectedEquipment != 'All')
                         TextButton(
                           onPressed: () {
@@ -409,7 +416,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
                     itemCount: _filtered.length,
                     itemBuilder: (ctx, i) {
                       final ex = _filtered[i];
-                      final isFav = _favoriteIds.contains(ex.id);
+                      final isFav = favorites.isFavorite(ex.id);
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

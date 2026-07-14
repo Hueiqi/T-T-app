@@ -48,10 +48,10 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
 
   Color _difficultyColor(String difficulty) {
     return switch (difficulty.toLowerCase()) {
-      'beginner' => AppTheme.successColor,
-      'intermediate' => AppTheme.warningColor,
-      'advanced' => AppTheme.errorColor,
-      _ => AppTheme.textSecondary,
+      'beginner' => const Color.fromARGB(255, 101, 197, 167),
+      'intermediate' => const Color.fromARGB(255, 242, 197, 120),
+      'advanced' => const Color.fromARGB(255, 248, 155, 155),
+      _ => const Color.fromARGB(255, 150, 152, 245),
     };
   }
 
@@ -59,7 +59,7 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('10-Min Routines'),
+        title: const Text('Popular Routines'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -74,44 +74,7 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
       body: SafeArea(
         child: Column(
         children: [
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFF472B6), Color(0xFFFB923C)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Row(
-              children: [
-                Text('🧘', style: TextStyle(fontSize: 32)),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Popular Routines',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Quick and effective home workouts',
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -197,7 +160,6 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
     );
   }
 }
-
 class _RoutineGridCard extends StatelessWidget {
   final ActivityRoutine routine;
   final bool isDone;
@@ -219,11 +181,12 @@ class _RoutineGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final imageAsset = routine.imageAsset;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: Color(routine.colorValue).withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(16),
           border: isDone
               ? Border.all(
@@ -232,175 +195,194 @@ class _RoutineGridCard extends StatelessWidget {
                 )
               : null,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top section: color indicator + badge (icon removed)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Replace icon with a small colored circle
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: Color(routine.colorValue).withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: Color(routine.colorValue),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  // Difficulty badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: difficultyColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      routine.difficulty,
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: difficultyColor,
-                      ),
-                    ),
-                  ),
-                ],
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // ─── Background Image ──────────────────────────
+              Image.asset(
+                imageAsset,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Color(routine.colorValue).withValues(alpha: 0.2),
+                ),
               ),
-            ),
-            const Spacer(),
-            // Bottom section: info + action
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    routine.title,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.timer_outlined,
-                        size: 12,
-                        color: Color(routine.colorValue),
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        routine.duration,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Color(routine.colorValue),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.local_fire_department,
-                        size: 12,
-                        color: AppTheme.warningColor,
-                      ),
-                      const SizedBox(width: 2),
-                      Text(
-                        '~$estimatedCalories',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppTheme.warningColor,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 28,
-                          child: ElevatedButton.icon(
-                            onPressed: onQuickStart,
-                            icon: const Icon(Icons.play_arrow, size: 14),
-                            label: Text(
-                              isDone ? 'Again' : 'Start',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (isDone) ...[
-                        const SizedBox(width: 6),
+              // ─── Dark Overlay ──────────────────────────────
+              Container(
+                color: Colors.black.withValues(alpha: 0.45),
+              ),
+              // ─── Content ────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ─── Top row: difficulty badge only ────────
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
+                            horizontal: 7,
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: AppTheme.successColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
+                            color: difficultyColor.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.check_circle,
-                                size: 11,
-                                color: AppTheme.successColor,
-                              ),
-                              if (doneCount > 1) ...[
-                                const SizedBox(width: 2),
-                                Text(
-                                  '${doneCount}x',
-                                  style: const TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.successColor,
-                                  ),
-                                ),
-                              ],
-                            ],
+                          child: Text(
+                            routine.difficulty,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
+                        const Spacer(),
                       ],
-                    ],
-                  ),
-                ],
+                    ),
+                    const Spacer(),
+                    // ─── Bottom section ──────────────────────
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          routine.title,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                offset: Offset(0, 1),
+                                blurRadius: 4,
+                                color: Colors.black38,
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.timer_outlined,
+                              size: 12,
+                              color: Colors.white70,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              routine.duration,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                shadows: [
+                                  Shadow(
+                                    offset: Offset(0, 1),
+                                    blurRadius: 4,
+                                    color: Colors.black38,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.local_fire_department,
+                              size: 12,
+                              color: Colors.white70,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              '~$estimatedCalories',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                                shadows: [
+                                  Shadow(
+                                    offset: Offset(0, 1),
+                                    blurRadius: 4,
+                                    color: Colors.black38,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 28,
+                                child: ElevatedButton.icon(
+                                  onPressed: onQuickStart,
+                                  icon: const Icon(Icons.play_arrow, size: 14),
+                                  label: Text(
+                                    isDone ? 'Again' : 'Start',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (isDone) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.check_circle,
+                                      size: 11,
+                                      color: Colors.white,
+                                    ),
+                                    if (doneCount > 1) ...[
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        '${doneCount}x',
+                                        style: const TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -5,8 +5,10 @@ import '../config/routes.dart';
 import '../providers/auth_provider.dart';
 import '../providers/planning_provider.dart';
 import '../providers/user_progress_provider.dart';
+import '../providers/exercise_favorites_provider.dart';
 import '../services/firebase_service.dart';
 import '../widgets/custom_header.dart';
+import 'exercise_detail_screen.dart';
 
 class RoutineHistoryScreen extends StatefulWidget {
   const RoutineHistoryScreen({super.key});
@@ -70,19 +72,28 @@ class _RoutineHistoryScreenState extends State<RoutineHistoryScreen> {
                 child: Row(
                   children: [
                     _buildTabButton('History', 0),
-                    _buildTabButton('Love Plan', 1),
+                    _buildTabButton('Love Exercise', 1),
                     _buildTabButton('Achievement', 2),
                   ],
                 ),
               ),
             ),
             Expanded(
-              child: IndexedStack(
-                index: _selectedTab,
-                children: const [
-                  _HistoryTab(),
-                  _LovePlanTab(),
-                  _AchievementsTab(),
+              child: Stack(
+                fit: StackFit.expand,   // forces all children to fill the available space
+                children: [
+                  Offstage(
+                    offstage: _selectedTab != 0,
+                    child: const _HistoryTab(),
+                  ),
+                  Offstage(
+                    offstage: _selectedTab != 1,
+                    child: const _LoveExerciseTab(),
+                  ),
+                  Offstage(
+                    offstage: _selectedTab != 2,
+                    child: const _AchievementsTab(),
+                  ),
                 ],
               ),
             ),
@@ -325,44 +336,56 @@ class _HistoryTabState extends State<_HistoryTab>
   }
 }
 
-// ─── Love Plan Tab ─────────────────────────────────────────────
-class _LovePlanTab extends StatelessWidget {
-  const _LovePlanTab();
+// ─── Love Exercise Tab ─────────────────────────────────────────
+class _LoveExerciseTab extends StatelessWidget {
+  const _LoveExerciseTab();
+
   @override
   Widget build(BuildContext context) {
-    final planning = context.watch<PlanningProvider>();
-    final bookmarks = planning.bookmarkedWorkouts;
+    final favorites = context.watch<ExerciseFavoritesProvider>();
+    final exercises = favorites.favoriteExercises;
 
-    if (bookmarks.isEmpty) {
+    if (exercises.isEmpty) {
       return SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
             const SizedBox(height: 32),
-            Icon(Icons.favorite, size: 80, color: AppTheme.warningColor.withValues(alpha: 0.5)),
+            Icon(
+              Icons.favorite_border,
+              size: 80,
+              color: AppTheme.warningColor.withValues(alpha: 0.5),
+            ),
             const SizedBox(height: 24),
             Text(
-              'Your Favorite Plans',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              'No Favorite Exercises',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 12),
             Text(
-              'Save your favorite exercise plans here.\n'
-              'Bookmark exercises from the planning screen\n'
-              'to see them listed here.',
+              'Star exercises in the Exercise Library to see them here.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 15, height: 1.5),
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 15,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 48),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => Navigator.pushNamed(context, AppRoutes.planning),
-                icon: const Icon(Icons.explore),
-                label: const Text('Browse exercises'),
+                onPressed: () =>
+                    Navigator.pushNamed(context, AppRoutes.exerciseLibrary),
+                icon: const Icon(Icons.search),
+                label: const Text('Browse Exercise Library'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
@@ -380,21 +403,28 @@ class _LovePlanTab extends StatelessWidget {
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
         ),
-        itemCount: bookmarks.length,
+        itemCount: exercises.length,
         itemBuilder: (context, index) {
-          final w = bookmarks[index];
-          final color = Color(w['color'] as int? ?? 0xFF818CF8);
-          final title = w['title'] as String? ?? '';
-          final difficulty = w['difficulty'] as String? ?? '';
-          final duration = w['durationMinutes'] as int? ?? 0;
+          final ex = exercises[index];
           return GestureDetector(
-            onTap: () => Navigator.pushNamed(context, AppRoutes.workoutDetail),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ExerciseDetailScreen(exercise: ex),
+                ),
+              );
+            },
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3)),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
                 ],
               ),
               child: Column(
@@ -403,12 +433,35 @@ class _LovePlanTab extends StatelessWidget {
                   Container(
                     height: 80,
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.15),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                      color: AppTheme.indigo100,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16),
+                      ),
                     ),
-                    child: Center(
-                      child: Icon(Icons.fitness_center, size: 36, color: color.withValues(alpha: 0.5)),
-                    ),
+                    child: ex.images.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(16),
+                            ),
+                            child: Image.network(
+                              ex.imageUrl,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: 80,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.fitness_center,
+                                size: 36,
+                                color: AppTheme.primaryColor.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Icon(
+                              Icons.fitness_center,
+                              size: 36,
+                              color: AppTheme.primaryColor.withValues(alpha: 0.5),
+                            ),
+                          ),
                   ),
                   Expanded(
                     child: Padding(
@@ -417,17 +470,24 @@ class _LovePlanTab extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            title,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                            ex.name,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const Spacer(),
                           Row(
                             children: [
-                              if (difficulty.isNotEmpty) _miniTag(difficulty, AppTheme.primaryColor),
+                              _miniTag(ex.level, AppTheme.primaryColor),
                               const SizedBox(width: 4),
-                              _miniTag('$duration m', AppTheme.warningColor),
+                              _miniTag(
+                                ex.equipment.isNotEmpty ? ex.equipment : 'body',
+                                AppTheme.warningColor,
+                              ),
                             ],
                           ),
                         ],
@@ -446,8 +506,18 @@ class _LovePlanTab extends StatelessWidget {
   Widget _miniTag(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-      child: Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

@@ -13,6 +13,7 @@ class OnboardingPlanScreen extends StatefulWidget {
 class _OnboardingPlanScreenState extends State<OnboardingPlanScreen> {
   String _activityLevel = 'moderate';
   String _gender = 'male';
+  String _dietPreference = 'none';
 
   final List<Map<String, String>> _activityLevels = [
     {'value': 'sedentary', 'label': 'Little or no exercise'},
@@ -20,6 +21,18 @@ class _OnboardingPlanScreenState extends State<OnboardingPlanScreen> {
     {'value': 'moderate', 'label': 'Moderate exercise 3-5 days/week'},
     {'value': 'very_active', 'label': 'Hard exercise 6-7 days/week'},
     {'value': 'extremely_active', 'label': 'Very hard exercise / athlete'},
+  ];
+
+  final List<Map<String, String>> _dietPreferences = [
+    {'value': 'none', 'label': 'No specific diet'},
+    {'value': 'vegetarian', 'label': 'Vegetarian'},
+    {'value': 'vegan', 'label': 'Vegan'},
+    {'value': 'keto', 'label': 'Ketogenic'},
+    {'value': 'paleo', 'label': 'Paleo'},
+    {'value': 'mediterranean', 'label': 'Mediterranean'},
+    {'value': 'halal', 'label': 'Halal'},
+    {'value': 'gluten_free', 'label': 'Gluten-free'},
+    {'value': 'low_carb', 'label': 'Low-carb'},
   ];
 
   Map<String, dynamic> _calculatePlan(Map args) {
@@ -95,6 +108,7 @@ class _OnboardingPlanScreenState extends State<OnboardingPlanScreen> {
         ...args,
         'activityLevel': _activityLevel,
         'gender': _gender,
+        'dietPreference': _dietPreference,
       },
     );
   }
@@ -395,6 +409,62 @@ class _OnboardingPlanScreenState extends State<OnboardingPlanScreen> {
                                   ),
                                 ),
                               ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.restaurant,
+                                    color: AppTheme.primaryColor, size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Diet Preference',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Any dietary restrictions?',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: _dietPreferences.map((diet) {
+                                final isSelected = _dietPreference == diet['value'];
+                                return ChoiceChip(
+                                  label: Text(diet['label']!),
+                                  selected: isSelected,
+                                  onSelected: (_) =>
+                                      setState(() => _dietPreference = diet['value']!),
+                                  selectedColor: AppTheme.primaryColor,
+                                  labelStyle: TextStyle(
+                                    color: isSelected ? Colors.white : null,
+                                    fontSize: 13,
+                                  ),
+                                );
+                              }).toList(),
                             ),
                           ],
                         ),

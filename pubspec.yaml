@@ -44,7 +44,6 @@ dependencies:
   intl: ^0.20.2
   shared_preferences: ^2.5.3
   permission_handler: ^11.4.0
-  lottie: ^3.3.1
   cached_network_image: ^3.3.1
   shimmer: ^3.0.0
   google_fonts: ^6.2.1
@@ -75,4 +74,4 @@ flutter:
     - assets/exercises.json
     - lib/assets/achievement/
     - lib/assets/diet/
-    - lib/assets/Planning/
+    - assets/images/Planning/

@@ -254,24 +254,32 @@ class _PlanDetailScreenState extends State<PlanDetailScreen> {
           ),
           const SizedBox(height: 8),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  _buildDifficultyChip(plan.difficulty),
-                  const SizedBox(width: 8),
-                  _buildChip(
-                    '${plan.workoutsPerWeek}/wk',
-                    Colors.white.withValues(alpha: 0.2),
-                    Colors.white,
-                  ),
-                ],
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildDifficultyChip(plan.difficulty),
+                    const SizedBox(width: 8),
+                    _buildChip(
+                      '${plan.workoutsPerWeek}/wk',
+                      Colors.white.withValues(alpha: 0.2),
+                      Colors.white,
+                    ),
+                  ],
+                ),
               ),
-              Text(
-                '$_totalWorkoutsDone workouts · ${_totalCaloriesBurned.toInt()} kcal',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontSize: 11,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  '$_totalWorkoutsDone workouts · ${_totalCaloriesBurned.toInt()} kcal',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 11,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
                 ),
               ),
             ],
@@ -425,10 +433,14 @@ class _PlanDetailScreenState extends State<PlanDetailScreen> {
                   ? Colors.white
                   : AppTheme.textPrimary,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           Text(
             label,
             style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 6),
           child,
@@ -533,16 +545,18 @@ Widget _buildMacroSection(FitnessPlan plan, NutritionProvider nutrition) {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white70
-                    : AppTheme.textPrimary,
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white70
+                      : AppTheme.textPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Text(
@@ -552,6 +566,7 @@ Widget _buildMacroSection(FitnessPlan plan, NutritionProvider nutrition) {
                 fontWeight: FontWeight.w600,
                 color: color,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -943,35 +958,37 @@ Widget _buildMacroSection(FitnessPlan plan, NutritionProvider nutrition) {
             children: dayNames.map((day) {
               final isWorkoutDay = workoutDays.contains(day);
               final isToday = day == todayAbbr;
-              return Container(
-                width: 40,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: isToday
-                      ? AppTheme.primaryColor
-                      : (isWorkoutDay
-                          ? AppTheme.primaryColor.withValues(alpha: 0.1)
-                          : Colors.transparent),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      day,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
-                        color: isToday ? Colors.white : Colors.grey,
+              return Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: isToday
+                        ? AppTheme.primaryColor
+                        : (isWorkoutDay
+                            ? AppTheme.primaryColor.withValues(alpha: 0.1)
+                            : Colors.transparent),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        day,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
+                          color: isToday ? Colors.white : Colors.grey,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Icon(
-                      isWorkoutDay ? Icons.fitness_center : Icons.bedtime,
-                      size: 14,
-                      color: isToday ? Colors.white70 : (isWorkoutDay ? AppTheme.primaryColor : Colors.grey.shade300),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Icon(
+                        isWorkoutDay ? Icons.fitness_center : Icons.bedtime,
+                        size: 14,
+                        color: isToday ? Colors.white70 : (isWorkoutDay ? AppTheme.primaryColor : Colors.grey.shade300),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }).toList(),

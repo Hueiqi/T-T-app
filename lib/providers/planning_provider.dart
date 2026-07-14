@@ -130,7 +130,7 @@ class PlanningProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> generatePlans(AppUser user) async {
+  Future<void> generatePlans(AppUser user, {double? averageSleepHours}) async {
     _isGenerating = true;
     _error = null;
     _plans = [];
@@ -138,7 +138,7 @@ class PlanningProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _callGroqApi(user);
+      final response = await _callGroqApi(user, averageSleepHours: averageSleepHours);
       _plans = response;
       for (final plan in _plans) {
         await _firebaseService.savePlan(user.uid, plan);
@@ -154,11 +154,11 @@ class PlanningProvider extends ChangeNotifier {
     }
   }
 
-  Future<List<FitnessPlan>> _callGroqApi(AppUser user) async {
+  Future<List<FitnessPlan>> _callGroqApi(AppUser user, {double? averageSleepHours}) async {
     const maxRetries = 2;
     for (int i = 0; i <= maxRetries; i++) {
       try {
-        return await _callGroqApiOnce(user);
+        return await _callGroqApiOnce(user, averageSleepHours: averageSleepHours);
       } catch (e) {
         final msg = e.toString();
         if (msg.contains('429') && i < maxRetries) {
@@ -171,8 +171,8 @@ class PlanningProvider extends ChangeNotifier {
     throw Exception('Max retries exceeded');
   }
 
-  Future<List<FitnessPlan>> _callGroqApiOnce(AppUser user) async {
-    final systemPrompt = _buildSystemPrompt(user);
+  Future<List<FitnessPlan>> _callGroqApiOnce(AppUser user, {double? averageSleepHours}) async {
+    final systemPrompt = _buildSystemPrompt(user, averageSleepHours: averageSleepHours);
 
     final body = jsonEncode({
       'model': _model,
@@ -211,7 +211,7 @@ class PlanningProvider extends ChangeNotifier {
     return _parsePlansResponse(data);
   }
 
-  String _buildSystemPrompt(AppUser user) {
+  String _buildSystemPrompt(AppUser user, {double? averageSleepHours}) {
     final goalLabels = {
       'lose_weight': 'lose weight',
       'build_muscle': 'build muscle',
@@ -219,19 +219,52 @@ class PlanningProvider extends ChangeNotifier {
       'endurance': 'build endurance',
     };
 
+    final activityLabels = {
+      'sedentary': 'Sedentary (little or no exercise)',
+      'light': 'Lightly active (light exercise 1-3 days/week)',
+      'moderate': 'Moderately active (moderate exercise 3-5 days/week)',
+      'very_active': 'Very active (hard exercise 6-7 days/week)',
+      'extremely_active': 'Extremely active (very hard exercise / athlete)',
+    };
+
+    final dietLabels = {
+      'none': 'No specific diet preference',
+      'vegetarian': 'Vegetarian (no meat, eggs/dairy OK)',
+      'vegan': 'Vegan (no animal products)',
+      'keto': 'Ketogenic (high fat, very low carb)',
+      'paleo': 'Paleo (whole foods, no grains/processed)',
+      'mediterranean': 'Mediterranean diet',
+      'halal': 'Halal diet',
+      'gluten_free': 'Gluten-free diet',
+      'low_carb': 'Low-carb diet',
+    };
+
     final goal = goalLabels[user.fitnessGoal] ?? 'improve fitness';
+    final activity = activityLabels[user.activityLevel] ?? user.activityLevel;
+    final diet = dietLabels[user.dietPreference] ?? user.dietPreference;
     final bmi = user.bmi.toStringAsFixed(1);
 
     return '''You are an expert fitness and nutrition planner. Generate a JSON response with exactly 4 different personalized fitness plans for a user with this profile:
 
 Profile:
 - Age: ${user.age}
+- Gender: ${user.gender}
 - Weight: ${user.weight} kg
 - Height: ${user.height} cm
 - BMI: $bmi
 - Goal: $goal
+- Activity Level: $activity
 ${user.targetWeightKg != null ? '- Target Weight: ${user.targetWeightKg} kg' : ''}
 ${user.dailyCalorieTarget != null ? '- Daily Calorie Target: ${user.dailyCalorieTarget!.toInt()} kcal' : ''}
+${user.dietPreference != 'none' ? '- Diet Preference: $diet' : ''}
+${averageSleepHours != null ? '- Average Sleep: ${averageSleepHours.toStringAsFixed(1)} hours/night' : ''}
+
+IMPORTANT INSTRUCTIONS:
+- Tailor workout intensity and complexity to the user's activity level. A sedentary user should start with gentle workouts; an extremely active user should get challenging routines.
+- All meal plans MUST respect the user's diet preference. If they are vegetarian, no meat in any meals. If vegan, no animal products at all. If halal, only halal protein sources.
+- Calorie targets should align with the user's goal: deficit for weight loss, surplus for muscle gain, maintenance for general fitness.
+- Sleep recommendations should be 7-9 hours. If the user's average sleep is below 7 hours, emphasize sleep improvement in the plan.
+- Consider the user's age: older users may need more recovery time and joint-friendly exercises.
 
 The 4 plans should have different approaches:
 1. An "intensive" high-intensity plan for fastest results (aggressive)
@@ -322,6 +355,9 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
   List<FitnessPlan> _fallbackPlans(AppUser user) {
     final isLoseWeight = user.fitnessGoal == 'lose_weight';
     final isBuildMuscle = user.fitnessGoal == 'build_muscle';
+    final isSedentary = user.activityLevel == 'sedentary' || user.activityLevel == 'light';
+    final isVegan = user.dietPreference == 'vegan';
+    final isVegetarian = user.dietPreference == 'vegetarian' || isVegan;
     final baseCalories = user.dailyCalorieTarget?.toInt() ?? 2200;
 
     return [
@@ -374,10 +410,10 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
           DailyActivity(time: '9:30 PM', title: 'Sleep', description: 'Full recovery sleep', type: 'sleep'),
         ],
         meals: [
-          MealPlan(meal: 'Breakfast', time: '7:30 AM', description: 'Egg whites, oatmeal, banana', calories: 400, options: ['Scrambled eggs + oats', 'Protein smoothie']),
-          MealPlan(meal: 'Lunch', time: '12:00 PM', description: 'Grilled chicken, brown rice, broccoli', calories: 550, options: ['Chicken bowl', 'Turkey wrap']),
-          MealPlan(meal: 'Snack', time: '3:30 PM', description: 'Protein shake + almonds', calories: 250, options: ['Whey shake', 'Greek yogurt']),
-          MealPlan(meal: 'Dinner', time: '6:30 PM', description: 'Salmon, sweet potato, asparagus', calories: 500, options: ['Salmon plate', 'Lean beef bowl']),
+          MealPlan(meal: 'Breakfast', time: '7:30 AM', description: isVegan ? 'Tofu scramble, oats, banana' : isVegetarian ? 'Egg whites, oatmeal, banana' : 'Egg whites, oatmeal, banana', calories: 400, options: isVegan ? ['Tofu scramble + oats', 'Protein smoothie'] : ['Scrambled eggs + oats', 'Protein smoothie']),
+          MealPlan(meal: 'Lunch', time: '12:00 PM', description: isVegan ? 'Quinoa bowl with beans and veggies' : isVegetarian ? 'Paneer/chickpea bowl with rice' : 'Grilled chicken, brown rice, broccoli', calories: 550, options: isVegan ? ['Quinoa bowl', 'Bean wrap'] : ['Chicken bowl', 'Turkey wrap']),
+          MealPlan(meal: 'Snack', time: '3:30 PM', description: isVegan ? 'Plant protein shake + almonds' : 'Protein shake + almonds', calories: 250, options: isVegan ? ['Plant protein shake', 'Trail mix'] : ['Whey shake', 'Greek yogurt']),
+          MealPlan(meal: 'Dinner', time: '6:30 PM', description: isVegan ? 'Tempeh with sweet potato, asparagus' : isVegetarian ? 'Grilled halloumi, sweet potato, veggies' : 'Salmon, sweet potato, asparagus', calories: 500, options: isVegan ? ['Tempeh plate', 'Lentil curry'] : ['Salmon plate', 'Lean beef bowl']),
         ],
         weeklyWorkouts: [
           WorkoutDay(day: 'Monday', focus: 'Chest & Triceps', durationMinutes: 50, exercises: ['Bench Press', 'Incline Dumbbell', 'Tricep Pushdowns', 'Dips']),
@@ -430,10 +466,10 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
           DailyActivity(time: '10:00 PM', title: 'Sleep', description: 'Rest and recovery', type: 'sleep'),
         ],
         meals: [
-          MealPlan(meal: 'Breakfast', time: '8:00 AM', description: 'Whole grain toast, eggs, fruit', calories: 380, options: ['Avocado toast + eggs', 'Oatmeal + berries']),
-          MealPlan(meal: 'Lunch', time: '12:30 PM', description: 'Mixed protein bowl with veggies', calories: 500, options: ['Quinoa bowl', 'Whole grain wrap']),
+          MealPlan(meal: 'Breakfast', time: '8:00 AM', description: isVegan ? 'Avocado toast with seeds, fruit' : isVegetarian ? 'Whole grain toast, eggs, fruit' : 'Whole grain toast, eggs, fruit', calories: 380, options: isVegan ? ['Avocado toast + seeds', 'Oatmeal + berries'] : ['Avocado toast + eggs', 'Oatmeal + berries']),
+          MealPlan(meal: 'Lunch', time: '12:30 PM', description: isVegan ? 'Buddha bowl with tofu and veggies' : isVegetarian ? 'Quinoa bowl with cheese and veggies' : 'Mixed protein bowl with veggies', calories: 500, options: isVegan ? ['Buddha bowl', 'Veggie wrap'] : ['Quinoa bowl', 'Whole grain wrap']),
           MealPlan(meal: 'Snack', time: '4:00 PM', description: 'Fruit + nuts', calories: 200, options: ['Apple + peanut butter', 'Berries + yogurt']),
-          MealPlan(meal: 'Dinner', time: '7:00 PM', description: 'Lean protein + vegetables', calories: 450, options: ['Grilled fish + salad', 'Chicken stir-fry']),
+          MealPlan(meal: 'Dinner', time: '7:00 PM', description: isVegan ? 'Lentil curry with brown rice' : isVegetarian ? 'Cheese and vegetable stir-fry' : 'Lean protein + vegetables', calories: 450, options: isVegan ? ['Lentil curry', 'Veggie stir-fry'] : ['Grilled fish + salad', 'Chicken stir-fry']),
         ],
         weeklyWorkouts: [
           WorkoutDay(day: 'Monday', focus: 'Upper Body', durationMinutes: 40, exercises: ['Bench Press', 'Rows', 'Shoulder Press', 'Curls']),
@@ -457,8 +493,8 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
         carbsG: 220,
         fatG: 60,
         workoutStyle: 'Walking + Bodyweight',
-        workoutsPerWeek: 3,
-        workoutDurationMinutes: 30,
+        workoutsPerWeek: isSedentary ? 3 : 3,
+        workoutDurationMinutes: isSedentary ? 25 : 30,
         sampleExercises: [
           'Brisk Walking',
           'Bodyweight Squats',
@@ -491,10 +527,10 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
           DailyActivity(time: '10:30 PM', title: 'Sleep', description: 'Full night rest', type: 'sleep'),
         ],
         meals: [
-          MealPlan(meal: 'Breakfast', time: '8:30 AM', description: 'Simple oatmeal or toast with fruit', calories: 300, options: ['Oatmeal + banana', 'Toast + peanut butter']),
-          MealPlan(meal: 'Lunch', time: '1:00 PM', description: 'Light sandwich or salad', calories: 450, options: ['Turkey sandwich', 'Garden salad + protein']),
+          MealPlan(meal: 'Breakfast', time: '8:30 AM', description: isVegan ? 'Oatmeal with plant milk and fruit' : isVegetarian ? 'Oatmeal with yogurt and fruit' : 'Simple oatmeal or toast with fruit', calories: 300, options: isVegan ? ['Oatmeal + banana', 'Toast + peanut butter'] : ['Oatmeal + banana', 'Toast + peanut butter']),
+          MealPlan(meal: 'Lunch', time: '1:00 PM', description: isVegan ? 'Hummus veggie wrap or bean salad' : isVegetarian ? 'Cheese sandwich or salad' : 'Light sandwich or salad', calories: 450, options: isVegan ? ['Vegan wrap', 'Bean salad'] : ['Turkey sandwich', 'Garden salad + protein']),
           MealPlan(meal: 'Snack', time: '4:00 PM', description: 'Fresh fruit or veggies', calories: 150, options: ['Apple', 'Carrot sticks + hummus']),
-          MealPlan(meal: 'Dinner', time: '7:30 PM', description: 'Simple home-cooked meal', calories: 400, options: ['Grilled chicken + veggies', 'Fish + rice']),
+          MealPlan(meal: 'Dinner', time: '7:30 PM', description: isVegan ? 'Stir-fried tofu with rice and veggies' : isVegetarian ? 'Pasta with vegetables' : 'Simple home-cooked meal', calories: 400, options: isVegan ? ['Tofu stir-fry', 'Veggie curry + rice'] : ['Grilled chicken + veggies', 'Fish + rice']),
         ],
         weeklyWorkouts: [
           WorkoutDay(day: 'Monday', focus: 'Full Body Basics', durationMinutes: 30, exercises: ['Brisk Walk', 'Bodyweight Squats', 'Wall Push-ups', 'Cat-Cow Stretch']),
@@ -565,16 +601,16 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
         ],
         meals: isBuildMuscle
             ? [
-                MealPlan(meal: 'Breakfast', time: '7:00 AM', description: 'Eggs, oatmeal, banana, protein shake', calories: 600, options: ['Mass gainer smoothie', 'Egg + oat bowl']),
-                MealPlan(meal: 'Lunch', time: '12:00 PM', description: 'Chicken, rice, veggies, avocado', calories: 700, options: ['Chicken rice bowl', 'Beef + potato']),
-                MealPlan(meal: 'Snack', time: '3:30 PM', description: 'Pre-workout: banana + PB', calories: 350, options: ['Rice cakes + PB', 'Fruit + whey']),
-                MealPlan(meal: 'Dinner', time: '6:30 PM', description: 'Steak, sweet potato, greens', calories: 650, options: ['Beef bowl', 'Salmon plate']),
+                MealPlan(meal: 'Breakfast', time: '7:00 AM', description: isVegan ? 'Tofu scramble, oats, banana, plant protein shake' : 'Eggs, oatmeal, banana, protein shake', calories: 600, options: isVegan ? ['Mass gainer smoothie', 'Tofu + oat bowl'] : ['Mass gainer smoothie', 'Egg + oat bowl']),
+                MealPlan(meal: 'Lunch', time: '12:00 PM', description: isVegan ? 'Tempeh, quinoa, veggies, avocado' : 'Chicken, rice, veggies, avocado', calories: 700, options: isVegan ? ['Tempeh rice bowl', 'Bean + potato'] : ['Chicken rice bowl', 'Beef + potato']),
+                MealPlan(meal: 'Snack', time: '3:30 PM', description: 'Pre-workout: banana + PB', calories: 350, options: isVegan ? ['Rice cakes + PB', 'Fruit + plant protein'] : ['Rice cakes + PB', 'Fruit + whey']),
+                MealPlan(meal: 'Dinner', time: '6:30 PM', description: isVegan ? 'Lentil stew, sweet potato, greens' : 'Steak, sweet potato, greens', calories: 650, options: isVegan ? ['Lentil stew', 'Tofu plate'] : ['Beef bowl', 'Salmon plate']),
               ]
             : [
-                MealPlan(meal: 'Breakfast', time: '7:00 AM', description: 'Egg whites, grapefruit, green tea', calories: 300, options: ['Egg white omelette', 'Protein smoothie']),
-                MealPlan(meal: 'Lunch', time: '12:00 PM', description: 'Lean protein + large salad', calories: 450, options: ['Grilled chicken salad', 'Turkey lettuce wraps']),
+                MealPlan(meal: 'Breakfast', time: '7:00 AM', description: isVegan ? 'Plant protein smoothie, grapefruit' : 'Egg whites, grapefruit, green tea', calories: 300, options: isVegan ? ['Plant protein smoothie', 'Avocado toast'] : ['Egg white omelette', 'Protein smoothie']),
+                MealPlan(meal: 'Lunch', time: '12:00 PM', description: isVegan ? 'Large vegan salad with chickpeas' : 'Lean protein + large salad', calories: 450, options: isVegan ? ['Chickpea salad', 'Veggie wraps'] : ['Grilled chicken salad', 'Turkey lettuce wraps']),
                 MealPlan(meal: 'Snack', time: '3:30 PM', description: 'Celery + almond butter', calories: 200, options: ['Veggie sticks', 'Protein water']),
-                MealPlan(meal: 'Dinner', time: '6:30 PM', description: 'Fish + steamed vegetables', calories: 400, options: ['Grilled fish + greens', 'Chicken + broccoli']),
+                MealPlan(meal: 'Dinner', time: '6:30 PM', description: isVegan ? 'Stir-fried tofu with steamed vegetables' : 'Fish + steamed vegetables', calories: 400, options: isVegan ? ['Tofu stir-fry', 'Veggie curry'] : ['Grilled fish + greens', 'Chicken + broccoli']),
               ],
         weeklyWorkouts: isBuildMuscle
             ? [

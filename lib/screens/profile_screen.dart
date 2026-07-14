@@ -94,16 +94,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     context.read<PlanningProvider>().loadBookmarks(auth.user!.uid);
   }
 
-  String _goalLabel(String goal) {
-    switch (goal) {
-      case 'lose_weight': return 'Lose Weight';
-      case 'build_muscle': return 'Build Muscle';
-      case 'endurance': return 'Increase Endurance';
-      case 'strength': return 'Get Stronger';
-      default: return 'Build Confidence';
-    }
-  }
-
   Future<void> _saveProfile() async {
     final auth = context.read<AuthProvider>();
     if (auth.user == null) return;
@@ -132,7 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     setState(() {
       _hasUnsavedChanges = false;
-      _isEditing = false; // exit edit mode after saving
+      _isEditing = false;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Profile updated')),
@@ -261,24 +251,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  int _computeStreak(List<Workout> workouts) {
-    if (workouts.isEmpty) return 0;
-    final sorted = List<Workout>.from(workouts)
-      ..sort((a, b) => b.startTime.compareTo(a.startTime));
-    int streak = 0;
-    final today = DateTime.now();
-    for (int i = 0; i < sorted.length; i++) {
-      final d = sorted[i].startTime;
-      final expected = today.subtract(Duration(days: streak));
-      if (d.year == expected.year && d.month == expected.month && d.day == expected.day) {
-        streak++;
-      } else if (streak == 0 && d.isBefore(expected)) {
-        break;
-      }
-    }
-    return streak;
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -338,7 +310,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   setState(() {
                     _isEditing = !_isEditing;
                     if (!_isEditing && _hasUnsavedChanges) {
-                      // if exiting edit without saving, discard changes? better to prompt.
                       _showDiscardDialog();
                     }
                   });
@@ -372,11 +343,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                user?.displayName ?? 'User',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
+              Flexible(
+                child: Text(
+                  user?.displayName ?? 'User',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 8),
@@ -529,7 +505,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  flex: 2,
                   child: ElevatedButton.icon(
                     onPressed: _hasUnsavedChanges ? _saveProfile : null,
                     icon: const Icon(Icons.save),
@@ -564,7 +539,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               setState(() {
                 _isEditing = false;
                 _hasUnsavedChanges = false;
-                // reload original values
                 final user = context.read<AuthProvider>().user;
                 if (user != null) {
                   _nameController.text = user.displayName ?? '';
@@ -596,27 +570,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _buildWorkoutCard(workout.recentWorkout),
         const SizedBox(height: 12),
         _buildCalorieBalanceCard(nutrition, workout, user),
-
         const SizedBox(height: 20),
-
-        _sectionHeader(Icons.monitor_heart, 'Health Metrics'),
-        const SizedBox(height: 8),
-        _buildHealthMetrics(user),
-
-        const SizedBox(height: 20),
-
-        _sectionHeader(Icons.auto_graph, 'Progress Summary'),
-        const SizedBox(height: 8),
-        _buildProgressSummary(workout),
-
-        const SizedBox(height: 20),
-
         _sectionHeader(Icons.assessment, 'Reports'),
         const SizedBox(height: 8),
         _buildReportsTile(),
-
         const SizedBox(height: 20),
-
         _sectionHeader(Icons.link, 'Connections & Settings'),
         const SizedBox(height: 8),
         _buildConnectionsSettings(user, workout),
@@ -750,7 +708,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(width: 6),
-                            Text('${deepPercent.toStringAsFixed(0)}%', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+                            SizedBox(
+                              width: 32,
+                              child: Text('${deepPercent.toStringAsFixed(0)}%',
+                                style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                                maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -768,7 +732,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             )),
                             const SizedBox(width: 6),
-                            Text('${(hours * 60 - deepMin).round()}m', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+                            SizedBox(
+                              width: 32,
+                              child: Text('${(hours * 60 - deepMin).round()}m',
+                                style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                                maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.end,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -849,7 +819,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: const Icon(Icons.favorite, size: 18, color: AppTheme.errorColor),
                   ),
                   const SizedBox(width: 10),
-                  Text(isToday ? "Today's Workout" : 'Most Recent Workout', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  Flexible(
+                    child: Text(isToday ? "Today's Workout" : 'Most Recent Workout',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   const Spacer(),
                   const Icon(Icons.chevron_right, color: AppTheme.textSecondary, size: 18),
                 ],
@@ -913,10 +889,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Remaining', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                    Text('${remaining.toStringAsFixed(0)} kcal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: remaining >= 0 ? AppTheme.successColor : AppTheme.errorColor)),
+                    Flexible(
+                      child: Text('Remaining', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                        overflow: TextOverflow.ellipsis, maxLines: 1,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text('${remaining.toStringAsFixed(0)} kcal',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: remaining >= 0 ? AppTheme.successColor : AppTheme.errorColor),
+                        overflow: TextOverflow.ellipsis, maxLines: 1, textAlign: TextAlign.end,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -929,123 +914,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     valueColor: AlwaysStoppedAnimation<Color>(
                       eaten > goal ? AppTheme.errorColor : AppTheme.successColor,
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Health Metrics ──
-  Widget _buildHealthMetrics(dynamic user) {
-    if (user == null || user.height <= 0) return const SizedBox.shrink();
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _StatItem(icon: Icons.fitness_center, label: 'BMI', value: user.bmi.toStringAsFixed(1)),
-            _StatItem(icon: Icons.local_fire_department, label: 'BMR', value: '${_calculateBmr(user).toStringAsFixed(0)} kcal'),
-            _StatItem(icon: Icons.flag, label: 'Goal', value: _goalLabel(_workoutGoal)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Progress Summary ──
-  Widget _buildProgressSummary(dynamic workout) {
-    final workouts = workout.workouts as List<Workout>;
-    final now = DateTime.now();
-    final monthWorkouts = workouts.where((w) =>
-      w.startTime.month == now.month && w.startTime.year == now.year).toList();
-    final monthCalories = monthWorkouts.fold<double>(0, (s, w) => s + w.caloriesBurned);
-    final streak = _computeStreak(workouts);
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _StatItem(icon: Icons.fitness_center, label: 'Workouts', value: '${monthWorkouts.length}'),
-            _StatItem(icon: Icons.local_fire_department, label: 'Cal Burned', value: monthCalories.toStringAsFixed(0)),
-            _StatItem(icon: Icons.local_fire_department_rounded, label: 'Streak', value: '$streak days'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Connections & Settings ──
-  Widget _buildConnectionsSettings(dynamic user, dynamic workout) {
-    final health = context.watch<HealthProvider>();
-    final notifications = context.watch<NotificationProvider>();
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _ServiceSwitchTile(
-                    icon: Icons.music_note,
-                    iconColor: const Color(0xFF1DB954),
-                    label: 'Spotify',
-                    connected: user?.spotifyConnected == 'connected',
-                    onToggle: (_) => _toggleSpotify(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ServiceSwitchTile(
-                    icon: Icons.watch,
-                    iconColor: AppTheme.primaryColor,
-                    label: 'Smartwatch',
-                    connected: health.smartwatchConnected,
-                    onToggle: (_) => _toggleSmartwatch(context),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionChipButton(
-                    icon: Icons.tune,
-                    label: 'Notification Settings',
-                    subtitle: 'Configure alerts',
-                    onTap: () async {
-                      if (user != null) {
-                        await notifications.loadSettings(user.uid);
-                      }
-                      if (context.mounted) {
-                        Navigator.pushNamed(context, AppRoutes.notificationSettings);
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ActionChipButton(
-                    icon: Icons.history,
-                    label: 'Notification History',
-                    subtitle: 'View past alerts',
-                    onTap: () => Navigator.pushNamed(context, AppRoutes.notificationHistory),
                   ),
                 ),
               ],
@@ -1209,6 +1077,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  // ─── Connections & Settings ──
+  Widget _buildConnectionsSettings(dynamic user, dynamic workout) {
+    final health = context.watch<HealthProvider>();
+    final notifications = context.watch<NotificationProvider>();
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _ServiceSwitchTile(
+                    icon: Icons.music_note,
+                    iconColor: const Color(0xFF1DB954),
+                    label: 'Spotify',
+                    connected: user?.spotifyConnected == 'connected',
+                    onToggle: (_) => _toggleSpotify(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ServiceSwitchTile(
+                    icon: Icons.watch,
+                    iconColor: AppTheme.primaryColor,
+                    label: 'Smartwatch',
+                    connected: health.smartwatchConnected,
+                    onToggle: (_) => _toggleSmartwatch(context),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionChipButton(
+                    icon: Icons.tune,
+                    label: 'Notification Settings',
+                    subtitle: 'Configure alerts',
+                    onTap: () async {
+                      if (user != null) {
+                        await notifications.loadSettings(user.uid);
+                      }
+                      if (context.mounted) {
+                        Navigator.pushNamed(context, AppRoutes.notificationSettings);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ActionChipButton(
+                    icon: Icons.history,
+                    label: 'Notification History',
+                    subtitle: 'View past alerts',
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.notificationHistory),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ─── Static Widgets ────────────────────────────────────────────
@@ -1277,25 +1215,6 @@ class _BpmGauge extends StatelessWidget {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  const _StatItem({required this.icon, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: AppTheme.primaryColor, size: 22),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        Text(label, style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
-      ],
-    );
-  }
-}
-
 class _ServiceSwitchTile extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -1323,7 +1242,9 @@ class _ServiceSwitchTile extends StatelessWidget {
         children: [
           Icon(icon, color: iconColor, size: 28),
           const SizedBox(height: 6),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 6),
           Switch(
             value: connected,
@@ -1367,9 +1288,13 @@ class _ActionChipButton extends StatelessWidget {
             children: [
               Icon(icon, color: AppTheme.primaryColor, size: 24),
               const SizedBox(height: 6),
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+              Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 2),
-              Text(subtitle, style: TextStyle(color: AppTheme.textSecondary, fontSize: 10), textAlign: TextAlign.center),
+              Text(subtitle, style: TextStyle(color: AppTheme.textSecondary, fontSize: 10),
+                maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+              ),
             ],
           ),
         ),
@@ -1378,7 +1303,7 @@ class _ActionChipButton extends StatelessWidget {
   }
 }
 
-// ── BLE Scanner Sheet (unchanged) ──────────────────────────────
+// ── BLE Scanner Sheet ──────────────────────────────────────────
 
 class _BleDeviceScannerSheet extends StatefulWidget {
   final void Function(String deviceId) onDeviceSelected;

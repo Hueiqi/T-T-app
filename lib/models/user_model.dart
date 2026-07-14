@@ -12,6 +12,7 @@ class AppUser {
   final DateTime? workoutEndDate;
   final String gender;
   final String activityLevel;
+  final String dietPreference;
   final String spotifyConnected;
   final String smartwatchConnected;
   final bool hasSeenQuickTour;
@@ -31,6 +32,7 @@ class AppUser {
     this.fitnessGoal = 'general_fitness',
     this.gender = 'male',
     this.activityLevel = 'moderate',
+    this.dietPreference = 'none',
     this.targetWeightKg,
     this.dailyCalorieTarget,
     this.workoutGoal,
@@ -56,6 +58,7 @@ class AppUser {
         'fitnessGoal': fitnessGoal,
         'gender': gender,
         'activityLevel': activityLevel,
+        'dietPreference': dietPreference,
         if (targetWeightKg != null) 'targetWeightKg': targetWeightKg,
         if (dailyCalorieTarget != null) 'dailyCalorieTarget': dailyCalorieTarget,
         if (workoutGoal != null) 'workoutGoal': workoutGoal,
@@ -79,6 +82,7 @@ class AppUser {
         fitnessGoal: map['fitnessGoal'] as String? ?? 'general_fitness',
         gender: map['gender'] as String? ?? 'male',
         activityLevel: map['activityLevel'] as String? ?? 'moderate',
+        dietPreference: map['dietPreference'] as String? ?? 'none',
         targetWeightKg: (map['targetWeightKg'] as num?)?.toDouble(),
         dailyCalorieTarget: (map['dailyCalorieTarget'] as num?)?.toDouble(),
         workoutGoal: map['workoutGoal'] as String?,
@@ -108,6 +112,7 @@ class AppUser {
     String? fitnessGoal,
     String? gender,
     String? activityLevel,
+    String? dietPreference,
     double? targetWeightKg,
     double? dailyCalorieTarget,
     String? workoutGoal,
@@ -127,6 +132,7 @@ class AppUser {
         fitnessGoal: fitnessGoal ?? this.fitnessGoal,
         gender: gender ?? this.gender,
         activityLevel: activityLevel ?? this.activityLevel,
+        dietPreference: dietPreference ?? this.dietPreference,
         targetWeightKg: targetWeightKg ?? this.targetWeightKg,
         dailyCalorieTarget: dailyCalorieTarget ?? this.dailyCalorieTarget,
         workoutGoal: workoutGoal ?? this.workoutGoal,
