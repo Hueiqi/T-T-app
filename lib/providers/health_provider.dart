@@ -1,11 +1,139 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/health_service.dart';
 import '../services/bluetooth_service.dart';
 
 class HealthProvider extends ChangeNotifier {
   final HealthService _healthService = HealthService();
   final BluetoothService _bluetoothService = BluetoothService();
+
+  // ── Heart-rate simulation (demo mode) ──
+  // Produces a realistic live BPM when no real HR source is available (e.g. a
+  // vendor-locked watch, or Health Connect not sharing HR yet). Two modes:
+  //   • random  — gentle baseline wander (startHeartRateSimulation)
+  //   • gps     — target BPM derived from your movement speed, so walking/
+  //               running raises HR and standing still lowers it
+  //               (startGpsHeartRateSimulation)
+  // Both feed the same fields/stream as real data, so the dashboard card and
+  // the workout screen update together.
+  Timer? _simTimer;
+  StreamSubscription<Position>? _gpsSub;
+  final _random = Random();
+  bool _simulating = false;
+  bool _gpsMode = false;
+  double _simCurrent = 78; // eased current bpm (double for smooth ramping)
+  double _targetHr = 78; // bpm the current value eases toward
+  Position? _lastPos;
+  DateTime? _lastPosTime;
+  final StreamController<int> _simController =
+      StreamController<int>.broadcast();
+
+  bool get isSimulating => _simulating;
+  bool get isGpsSimulation => _gpsMode;
+
+  /// Emits simulated BPM values (~1 Hz) while a simulation is running.
+  Stream<int> get simulatedHeartRateStream => _simController.stream;
+
+  /// Random-wander demo heart rate.
+  void startHeartRateSimulation() => _beginSimulation(gps: false);
+
+  /// Movement-driven demo heart rate: reads GPS speed and maps it to a target
+  /// BPM (still ≈ resting, walking ≈ moderate, running ≈ high).
+  Future<void> startGpsHeartRateSimulation() async {
+    var perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) {
+      _error = 'Location permission is needed to simulate from movement.';
+      notifyListeners();
+      return;
+    }
+
+    _beginSimulation(gps: true);
+
+    _gpsSub?.cancel();
+    _lastPos = null;
+    _lastPosTime = null;
+    _gpsSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 0,
+      ),
+    ).listen(
+      (pos) {
+        final speed = _speedFrom(pos); // m/s
+        // ~70 bpm at rest, rising ~20 bpm per m/s of pace.
+        _targetHr = (70 + speed * 20).clamp(65, 175);
+      },
+      onError: (_) {},
+    );
+  }
+
+  /// Best-effort speed in m/s: trust the OS speed when valid, else derive it
+  /// from the distance between consecutive fixes.
+  double _speedFrom(Position pos) {
+    double speed = (pos.speed.isFinite && pos.speed > 0) ? pos.speed : 0;
+    final now = DateTime.now();
+    if (speed == 0 && _lastPos != null && _lastPosTime != null) {
+      final meters = Geolocator.distanceBetween(
+        _lastPos!.latitude,
+        _lastPos!.longitude,
+        pos.latitude,
+        pos.longitude,
+      );
+      final secs = now.difference(_lastPosTime!).inMilliseconds / 1000.0;
+      if (secs > 0) speed = meters / secs;
+    }
+    _lastPos = pos;
+    _lastPosTime = now;
+    return speed.clamp(0, 8); // cap absurd GPS jumps
+  }
+
+  void _beginSimulation({required bool gps}) {
+    _gpsMode = gps;
+    if (_simulating) {
+      notifyListeners();
+      return;
+    }
+    _simulating = true;
+    _simCurrent = 78;
+    _targetHr = 78;
+    _simTimer?.cancel();
+    _simTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_gpsMode) {
+        // Random mode: drift the target gently.
+        _targetHr = (_targetHr + _random.nextInt(3) - 1).clamp(62, 150);
+      }
+      // Ease the current value toward the target (~15%/s) so HR ramps and
+      // recovers naturally instead of jumping.
+      _simCurrent += (_targetHr - _simCurrent) * 0.15;
+      final bpm = (_simCurrent + _random.nextInt(3) - 1).round().clamp(50, 185);
+
+      _currentHeartRate = bpm;
+      _heartRateHistory.add(bpm);
+      if (_heartRateHistory.length > 100) {
+        _heartRateHistory =
+            _heartRateHistory.sublist(_heartRateHistory.length - 100);
+      }
+      if (!_simController.isClosed) _simController.add(bpm);
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  void stopHeartRateSimulation() {
+    _simulating = false;
+    _gpsMode = false;
+    _simTimer?.cancel();
+    _simTimer = null;
+    _gpsSub?.cancel();
+    _gpsSub = null;
+    notifyListeners();
+  }
 
   int _currentHeartRate = 75;
   List<int> _heartRateHistory = [];
@@ -179,6 +307,9 @@ class HealthProvider extends ChangeNotifier {
 
   Future<int> updateHeartRate() async {
     try {
+      // Don't overwrite a live BLE reading or a running simulation with a
+      // (possibly stale/empty) Health Connect read.
+      if (_simulating) return _currentHeartRate;
       if (_smartwatchConnected && _bluetoothService.isConnected) {
         return _currentHeartRate;
       }
@@ -262,6 +393,9 @@ class HealthProvider extends ChangeNotifier {
   void dispose() {
     _bleHrSubscription?.cancel();
     _bleScanSubscription?.cancel();
+    _simTimer?.cancel();
+    _gpsSub?.cancel();
+    _simController.close();
     _bluetoothService.dispose();
     super.dispose();
   }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
+import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:location/location.dart' as loc;
 import 'package:provider/provider.dart';
 import '../providers/workout_provider.dart';
 import '../providers/auth_provider.dart';
@@ -60,6 +63,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     spotifyConnected: spotifyConnected,
                   ),
                 const SizedBox(height: 20),
+                if (workout.isWorkoutActive) ...[
+                  const _WorkoutMapCard(),
+                  const SizedBox(height: 20),
+                ],
                 _HeartRateChart(heartRates: workout.heartRateHistory),
               ],
             ),
@@ -341,9 +348,22 @@ class _WorkoutStartPanel extends StatelessWidget {
                   }
 
                   try {
+                    // Auto-simulate whenever there's no real HR reading yet
+                    // and no simulation is already running (the home
+                    // dashboard starts one automatically on app entry) — real
+                    // data always wins once a watch genuinely shares it.
+                    if (!healthProvider.isSimulating &&
+                        healthProvider.currentHeartRate == 0) {
+                      healthProvider.startHeartRateSimulation();
+                    }
+                    final useSimulation = healthProvider.isSimulating;
                     await workout.startWorkout(
                       auth.user!.uid,
                       spotifyConnected: spotifyConnected,
+                      simulateHeartRate: useSimulation,
+                      simulatedStream: useSimulation
+                          ? healthProvider.simulatedHeartRateStream
+                          : null,
                     );
                   } catch (e) {
                     if (context.mounted) {
@@ -926,6 +946,87 @@ class _MetricColumn extends StatelessWidget {
         ),
         Text(label, style: TextStyle(color: AppTheme.textSecondary)),
       ],
+    );
+  }
+}
+
+class _WorkoutMapCard extends StatefulWidget {
+  const _WorkoutMapCard();
+
+  @override
+  State<_WorkoutMapCard> createState() => _WorkoutMapCardState();
+}
+
+class _WorkoutMapCardState extends State<_WorkoutMapCard> {
+  final loc.Location _location = loc.Location();
+  MapLibreMapController? _mapController;
+  LatLng? _currentLocation;
+  StreamSubscription<loc.LocationData>? _locationSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _initLocation();
+  }
+
+  @override
+  void dispose() {
+    _locationSub?.cancel();
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initLocation() async {
+    final permission = await _location.requestPermission();
+    if (permission != loc.PermissionStatus.granted &&
+        permission != loc.PermissionStatus.grantedLimited) {
+      return;
+    }
+    final current = await _location.getLocation();
+    if (!mounted) return;
+    if (current.latitude != null && current.longitude != null) {
+      setState(() {
+        _currentLocation = LatLng(current.latitude!, current.longitude!);
+      });
+    }
+
+    _locationSub?.cancel();
+    _locationSub = _location.onLocationChanged.listen((data) {
+      if (data.latitude == null || data.longitude == null) return;
+      final pos = LatLng(data.latitude!, data.longitude!);
+      if (mounted) setState(() => _currentLocation = pos);
+      _mapController?.animateCamera(CameraUpdate.newLatLng(pos));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SizedBox(
+        height: 200,
+        width: double.infinity,
+        child: _currentLocation == null
+            ? const Center(child: CircularProgressIndicator())
+            : MapLibreMap(
+                onMapCreated: (controller) => _mapController = controller,
+                styleString: 'https://tiles.openfreemap.org/styles/positron',
+                initialCameraPosition: CameraPosition(
+                  target: _currentLocation!,
+                  zoom: 15,
+                ),
+                myLocationEnabled: !kIsWeb,
+                myLocationTrackingMode:
+                    !kIsWeb ? MyLocationTrackingMode.tracking : MyLocationTrackingMode.none,
+                compassEnabled: false,
+                rotateGesturesEnabled: false,
+                zoomGesturesEnabled: false,
+                dragEnabled: false,
+                scrollGesturesEnabled: false,
+                tiltGesturesEnabled: false,
+              ),
+      ),
     );
   }
 }
