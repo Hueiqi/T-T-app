@@ -65,6 +65,16 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="myfitnessTTapp" android:host="callback" />
             </intent-filter>
+
+            <!-- OAuth redirect for the standalone Spotify browsing/playback
+                 feature (lib/spotify/*) — separate client registration from
+                 the existing SpotifyService flow above. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="watchspotify" android:host="callback" />
+            </intent-filter>
         </activity>
 
         <!-- Required for flutter_web_auth to capture redirect on Android -->
@@ -75,6 +85,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="myfitnessTTapp" android:host="callback" />
+            </intent-filter>
+            <intent-filter android:label="flutter_web_auth">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="watchspotify" android:host="callback" />
             </intent-filter>
         </activity>
 
@@ -105,5 +121,7 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Allow detecting/launching the Spotify app (spotify_sdk, Android 11+) -->
+        <package android:name="com.spotify.music" />
     </queries>
 </manifest>
