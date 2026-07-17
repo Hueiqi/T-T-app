@@ -13,6 +13,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneController = TextEditingController(text: '+60');
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
 
@@ -20,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -46,6 +48,26 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _sendOtp() async {
+    if (_phoneController.text.trim().length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid phone number')),
+      );
+      return;
+    }
+
+    final auth = context.read<AuthProvider>();
+    final success = await auth.sendPhoneOtp(_phoneController.text.trim());
+
+    if (success && mounted) {
+      Navigator.pushNamed(
+        context,
+        '/otp-verify',
+        arguments: {'phone': _phoneController.text.trim()},
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -58,14 +80,14 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 60),
-                Icon(
-                  Icons.fitness_center,
-                  size: 80,
-                  color: AppTheme.primaryColor,
+                Image.asset(
+                  'lib/assets/icon/app_icon_foreground.png',
+                  height: 80,
+                  width: 80,
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'T&T AI',
+                  'T&T Fitness',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                     fontWeight: FontWeight.bold,
@@ -201,9 +223,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone Number',
+                    hintText: '+60 12 345 6789',
+                    prefixIcon: Icon(Icons.phone),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 OutlinedButton.icon(
-                  onPressed: () =>
-                      Navigator.pushNamed(context, '/phone-login'),
+                  onPressed: _sendOtp,
                   icon: const Icon(Icons.phone_android),
                   label: const Text('Continue with Phone'),
                   style: OutlinedButton.styleFrom(

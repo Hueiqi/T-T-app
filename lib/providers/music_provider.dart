@@ -19,6 +19,23 @@ class MusicProvider extends ChangeNotifier {
   List<MusicTrack> get queue => _queue;
   String? get error => _error;
 
+  SpotifyService get spotifyService => _spotifyService;
+
+  /// Try to restore a previously saved Spotify session (survives app restart).
+  Future<bool> restoreSession() async {
+    try {
+      final restored = await _spotifyService.restoreSession();
+      if (restored) {
+        _isConnected = true;
+        _error = null;
+        notifyListeners();
+      }
+      return restored;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<bool> connect() async {
     try {
       final success = await _spotifyService.authenticate();
@@ -48,6 +65,9 @@ class MusicProvider extends ChangeNotifier {
       _currentTrack = track;
       _isPlaying = true;
       _error = null;
+      notifyListeners();
+    } on SpotifyNoDeviceException catch (e) {
+      _error = e.message;
       notifyListeners();
     } catch (e) {
       _error = 'Failed to play track';
@@ -91,6 +111,16 @@ class MusicProvider extends ChangeNotifier {
   }
 
   void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
+  void clear() {
+    _isConnected = false;
+    _isPlaying = false;
+    _currentTrack = null;
+    _searchResults = [];
+    _queue.clear();
     _error = null;
     notifyListeners();
   }

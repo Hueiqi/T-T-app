@@ -398,32 +398,48 @@ class _NutritionScreenState extends State<NutritionScreen> {
     final totalFat = meals.fold<double>(0, (sum, m) => sum + m.fat);
 
     return Scaffold(
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton.small(
-            heroTag: 'history',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MealHistoryScreen()),
-            ),
-            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.8),
-            child: const Icon(Icons.history, color: Colors.white),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton(
-            heroTag: 'add',
-            onPressed: _showQuickActions,
-            backgroundColor: AppTheme.primaryColor,
-            child: const Icon(Icons.add, color: Colors.white),
-          ),
-        ],
+      appBar: null,
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'add',
+        onPressed: _showQuickActions,
+        backgroundColor: AppTheme.primaryColor,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       bottomNavigationBar:
           widget.showBottomNav ? buildBottomNavBar(context, currentIndex: 3) : null,
       body: SafeArea(
         child: Column(
           children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Diet',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.history, color: AppTheme.primaryColor),
+                      tooltip: 'Meal History',
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MealHistoryScreen()),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             _buildCalendarStrip(),
             Expanded(
               child: SingleChildScrollView(
@@ -506,14 +522,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                             },
                           ),
                           const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.history),
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const MealHistoryScreen()),
-                            ),
-                            tooltip: 'View meal history',
-                          ),
                         ],
                       ),
                     ),

@@ -12,6 +12,7 @@ class AuthProvider extends ChangeNotifier {
   String? _verificationId;
   String? _phoneNumber;
   StreamSubscription? _authSubscription;
+  VoidCallback? onLogout;
 
   int _failedAttempts = 0;
   DateTime? _lockoutUntil;
@@ -244,6 +245,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     await _authService.signOut();
     _user = null;
+    onLogout?.call();
     notifyListeners();
   }
 

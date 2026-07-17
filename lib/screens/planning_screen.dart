@@ -593,7 +593,21 @@ class _PlanningScreenState extends State<PlanningScreen> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            final planning = context.read<PlanningProvider>();
+            final activePlan = planning.activePlan;
+            if (activePlan != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PlanDetailScreen(plan: activePlan),
+                ),
+              );
+            }
+          },
+          child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -714,6 +728,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 }),
             ],
           ),
+        ),
         ),
       ),
     );

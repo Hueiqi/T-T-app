@@ -12,7 +12,7 @@
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
 
     <application
-        android:label="TT AI"
+        android:label="T&amp;T Fitness"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         
@@ -62,9 +62,5 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- Required for Spotify Remote SDK -->
-        <receiver
-            android:name="com.spotify.android.app.remote.notification.SpotifyNotificationReceiver"
-            android:exported="true" />
     </application>
 </manifest>

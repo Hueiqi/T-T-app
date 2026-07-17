@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
 class QuickTourStep {
-  final GlobalKey targetKey;
+  final GlobalKey? targetKey;
   final String title;
   final String description;
   final IconData icon;
   final VoidCallback? onActionTap;
 
   const QuickTourStep({
-    required this.targetKey,
+    this.targetKey,
     required this.title,
     required this.description,
     required this.icon,
@@ -25,38 +25,58 @@ class QuickTour extends StatefulWidget {
   const QuickTour({
     super.key,
     required this.steps,
+    required this.child,
     this.onFinished,
     this.onSkipped,
-    required this.child,
   });
 
   @override
-  State<QuickTour> createState() => QuickTourState();
+  QuickTourState createState() => QuickTourState();
 }
 
 class QuickTourState extends State<QuickTour> {
-  int _currentStep = -1;
   OverlayEntry? _overlayEntry;
+  int _currentStep = 0;
+  bool _isRunning = false;
 
-  bool get isActive => _currentStep >= 0;
+  bool get isRunning => _isRunning;
 
   void start() {
-    if (widget.steps.isEmpty) return;
-    setState(() => _currentStep = 0);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showOverlay());
+    if (widget.steps.isEmpty || _isRunning) return;
+    _currentStep = 0;
+    _isRunning = true;
+    _showStep();
   }
 
-  void _showOverlay() {
-    _removeOverlay();
+  void _showStep() {
+    _overlayEntry?.remove();
+    if (_currentStep >= widget.steps.length) {
+      _finish();
+      return;
+    }
+
+    final step = widget.steps[_currentStep];
+    final targetKey = step.targetKey;
+    Rect? targetRect;
+
+    if (targetKey != null && targetKey.currentContext != null) {
+      final box = targetKey.currentContext!.findRenderObject() as RenderBox?;
+      if (box != null) {
+        final pos = box.localToGlobal(Offset.zero);
+        targetRect = Rect.fromLTWH(pos.dx, pos.dy, box.size.width, box.size.height);
+      }
+    }
+
     _overlayEntry = OverlayEntry(
-      builder: (_) => _QuickTourOverlayContent(
-        step: widget.steps[_currentStep],
-        currentIndex: _currentStep,
+      builder: (context) => _TourOverlay(
+        step: step,
+        targetRect: targetRect,
+        currentStep: _currentStep,
         totalSteps: widget.steps.length,
         onNext: _next,
         onPrevious: _previous,
         onSkip: _skip,
-        onFinish: _finish,
+        onAction: _handleAction,
       ),
     );
     Overlay.of(context).insert(_overlayEntry!);
@@ -64,8 +84,8 @@ class QuickTourState extends State<QuickTour> {
 
   void _next() {
     if (_currentStep < widget.steps.length - 1) {
-      setState(() => _currentStep++);
-      _refreshOverlay();
+      _currentStep++;
+      _showStep();
     } else {
       _finish();
     }
@@ -73,35 +93,38 @@ class QuickTourState extends State<QuickTour> {
 
   void _previous() {
     if (_currentStep > 0) {
-      setState(() => _currentStep--);
-      _refreshOverlay();
+      _currentStep--;
+      _showStep();
     }
   }
 
   void _skip() {
-    _removeOverlay();
-    setState(() => _currentStep = -1);
+    _finish();
     widget.onSkipped?.call();
   }
 
   void _finish() {
-    _removeOverlay();
-    setState(() => _currentStep = -1);
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _isRunning = false;
     widget.onFinished?.call();
   }
 
-  void _refreshOverlay() {
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showOverlay());
-  }
-
-  void _removeOverlay() {
+  void _handleAction() {
+    final step = widget.steps[_currentStep];
     _overlayEntry?.remove();
     _overlayEntry = null;
+    _isRunning = false;
+    if (step.onActionTap != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        step.onActionTap!();
+      });
+    }
   }
 
   @override
   void dispose() {
-    _removeOverlay();
+    _overlayEntry?.remove();
     super.dispose();
   }
 
@@ -109,296 +132,178 @@ class QuickTourState extends State<QuickTour> {
   Widget build(BuildContext context) => widget.child;
 }
 
-class _QuickTourOverlayContent extends StatefulWidget {
+class _TourOverlay extends StatelessWidget {
   final QuickTourStep step;
-  final int currentIndex;
+  final Rect? targetRect;
+  final int currentStep;
   final int totalSteps;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
   final VoidCallback onSkip;
-  final VoidCallback onFinish;
+  final VoidCallback onAction;
 
-  const _QuickTourOverlayContent({
+  const _TourOverlay({
     required this.step,
-    required this.currentIndex,
+    this.targetRect,
+    required this.currentStep,
     required this.totalSteps,
     required this.onNext,
     required this.onPrevious,
     required this.onSkip,
-    required this.onFinish,
+    required this.onAction,
   });
 
   @override
-  State<_QuickTourOverlayContent> createState() =>
-      _QuickTourOverlayContentState();
-}
-
-class _QuickTourOverlayContentState extends State<_QuickTourOverlayContent> {
-  Rect? _targetRect;
-  bool _isReady = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _locateTarget());
-  }
-
-  @override
-  void didUpdateWidget(covariant _QuickTourOverlayContent oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _isReady = false;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _locateTarget());
-  }
-
-  void _locateTarget() {
-    final key = widget.step.targetKey;
-    final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox != null && renderBox.hasSize) {
-      final position = renderBox.localToGlobal(Offset.zero);
-      final size = renderBox.size;
-      if (mounted) {
-        setState(() {
-          _targetRect = Rect.fromLTWH(
-            position.dx, position.dy, size.width, size.height,
-          );
-          _isReady = true;
-        });
-      }
-    }
-  }
-
-  void _handleActionTap() {
-    if (widget.step.onActionTap != null) {
-      widget.onFinish();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        widget.step.onActionTap!();
-      });
-    } else {
-      widget.onNext();
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
+    final isFirst = currentStep == 0;
+    final isLast = currentStep == totalSteps - 1;
+    final hasAction = step.onActionTap != null;
 
     return Stack(
       children: [
-        GestureDetector(
-          onTap: _isReady ? widget.onNext : null,
-          child: RepaintBoundary(
+        // Dim background with cutout
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: onSkip,
             child: CustomPaint(
-              size: screenSize,
-              painter: _HolePainter(
-                holeRect: _targetRect,
-                screenSize: screenSize,
-              ),
+              painter: _SpotlightPainter(targetRect: targetRect),
             ),
           ),
         ),
-        if (_isReady && _targetRect != null)
+
+        // Tooltip card
+        if (targetRect != null)
           Positioned(
-            left: _targetRect!.left - 4,
-            top: _targetRect!.top - 4,
-            width: _targetRect!.width + 8,
-            height: _targetRect!.height + 8,
-            child: GestureDetector(
-              onTap: _handleActionTap,
-              child: const SizedBox.expand(),
-            ),
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.of(context).size.height - targetRect!.bottom - 16,
+            child: _buildTooltip(context, isFirst, isLast, hasAction),
+          )
+        else
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.of(context).size.height * 0.3,
+            child: _buildTooltip(context, isFirst, isLast, hasAction),
           ),
-        if (_isReady && _targetRect != null)
-          _buildTooltipCard(screenSize),
-        if (_isReady)
-          _buildBottomBar(screenSize),
       ],
     );
   }
 
-  Widget _buildTooltipCard(Size screenSize) {
-    final rect = _targetRect!;
-    final tooltipTop = rect.bottom + 16;
-    final cardHeight = widget.step.onActionTap != null ? 280.0 : 200.0;
-    final fitsBelow = tooltipTop + cardHeight < screenSize.height;
-
-    final double top;
-    if (fitsBelow) {
-      top = tooltipTop;
-    } else {
-      top = (rect.top - cardHeight - 16).clamp(16.0, screenSize.height - cardHeight - 80);
-    }
-
-    return Positioned(
-      left: 16,
-      right: 16,
-      top: top,
-      child: Material(
-        elevation: 12,
-        borderRadius: BorderRadius.circular(20),
-        color: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      widget.step.icon,
-                      color: const Color(0xFF6366F1),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      widget.step.title,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E1B4B),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${widget.currentIndex + 1}/${widget.totalSteps}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF6366F1),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                widget.step.description,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF4F46E5),
-                  height: 1.4,
-                ),
-              ),
-              if (widget.step.onActionTap != null) ...[
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _handleActionTap,
-                    icon: const Icon(Icons.touch_app, size: 20),
-                    label: const Text('Try It Now'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6366F1),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomBar(Size screenSize) {
-    return Positioned(
-      left: 16,
-      right: 16,
-      bottom: 16,
+  Widget _buildTooltip(BuildContext context, bool isFirst, bool isLast, bool hasAction) {
+    return Material(
+      color: Colors.transparent,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            TextButton(
-              onPressed: widget.onSkip,
-              child: const Text(
-                'Skip Tour',
-                style: TextStyle(color: Color(0xFF6366F1)),
-              ),
-            ),
-            const Spacer(),
             Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                if (widget.currentIndex > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: OutlinedButton(
-                        onPressed: widget.onPrevious,
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Icon(Icons.arrow_back, size: 20),
-                      ),
-                    ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                SizedBox(
-                  height: 44,
-                  child: ElevatedButton(
-                    onPressed:
-                        widget.currentIndex < widget.totalSteps - 1
-                            ? widget.onNext
-                            : widget.onFinish,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6366F1),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      widget.currentIndex < widget.totalSteps - 1
-                          ? 'Next'
-                          : 'Done',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                  child: Icon(step.icon, color: const Color(0xFF6366F1), size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    step.title,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E1B4B),
                     ),
                   ),
                 ),
+                // Step indicator
+                Text(
+                  '${currentStep + 1}/$totalSteps',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              step.description,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF6B7280),
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: onSkip,
+                  child: const Text('Skip', style: TextStyle(color: Color(0xFF6366F1))),
+                ),
+                const Spacer(),
+                if (!isFirst)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: SizedBox(
+                      height: 40,
+                      child: OutlinedButton(
+                        onPressed: onPrevious,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text('Back'),
+                      ),
+                    ),
+                  ),
+                if (hasAction)
+                  SizedBox(
+                    height: 40,
+                    child: ElevatedButton(
+                      onPressed: onAction,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6366F1),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text('Try It'),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: 40,
+                    child: ElevatedButton(
+                      onPressed: isLast ? onSkip : onNext,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6366F1),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(isLast ? 'Done' : 'Next',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
               ],
             ),
           ],
@@ -408,45 +313,42 @@ class _QuickTourOverlayContentState extends State<_QuickTourOverlayContent> {
   }
 }
 
-class _HolePainter extends CustomPainter {
-  final Rect? holeRect;
-  final Size screenSize;
+class _SpotlightPainter extends CustomPainter {
+  final Rect? targetRect;
 
-  _HolePainter({required this.holeRect, required this.screenSize});
+  _SpotlightPainter({this.targetRect});
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (holeRect == null) {
-      canvas.drawRect(
-        Offset.zero & size,
-        Paint()..color = Colors.black.withValues(alpha: 0.55),
+    final paint = Paint()..color = Colors.black54;
+
+    final path = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    if (targetRect != null) {
+      final gap = targetRect!.inflate(8);
+      path.addRRect(
+        RRect.fromRectAndRadius(gap, const Radius.circular(12)),
       );
-      return;
+      path.fillType = PathFillType.evenOdd;
     }
 
-    final hole = holeRect!.inflate(8);
-    final path = Path()
-      ..fillType = PathFillType.evenOdd
-      ..addRect(Rect.fromLTWH(0, 0, screenSize.width, screenSize.height))
-      ..addRRect(RRect.fromRectAndRadius(hole, const Radius.circular(16)));
+    canvas.drawPath(path, paint);
 
-    canvas.drawPath(
-      path,
-      Paint()..color = Colors.black.withValues(alpha: 0.55),
-    );
-
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(hole, const Radius.circular(16)),
-      borderPaint,
-    );
+    if (targetRect != null) {
+      final borderPaint = Paint()
+        ..color = const Color(0xFF6366F1)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(targetRect!.inflate(8), const Radius.circular(12)),
+        borderPaint,
+      );
+    }
   }
 
   @override
-  bool shouldRepaint(covariant _HolePainter oldDelegate) =>
-      oldDelegate.holeRect != holeRect || oldDelegate.screenSize != screenSize;
+  bool shouldRepaint(covariant _SpotlightPainter old) => targetRect != old.targetRect;
 }
+
+

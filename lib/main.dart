@@ -19,24 +19,15 @@ import 'providers/user_progress_provider.dart';
 import 'providers/exercise_favorites_provider.dart';
 
 import 'services/exercise_db.dart';
-import 'services/ai_service.dart';
 import 'app.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Ensure system UI overlays (status bar + nav bar) are visible
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  try {
-    await AIService().initialize(model: 'gemini-3.1-flash-lite');
-    debugPrint('✅ Gemini init successful');
-  } catch (e) {
-    debugPrint('❌ Gemini init failed: $e');
-  }
 
   await ExerciseDatabase.load();
 

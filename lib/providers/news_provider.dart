@@ -32,4 +32,11 @@ class NewsProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
   }
+
+  void clear() {
+    _articles = [];
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
 }

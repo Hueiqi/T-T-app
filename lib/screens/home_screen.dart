@@ -21,14 +21,11 @@ import '../services/firebase_service.dart';
 import '../services/health_connect_service.dart';
 import '../widgets/quick_tour.dart';
 import '../widgets/news_carousel.dart';
-import '../widgets/map_preview_card.dart';
 import '../utils/shimmer.dart';
 import 'workout_screen.dart';
 import 'nutrition_screen.dart';
 import 'profile_screen.dart';
 import 'planning_screen.dart';
-import 'body_statistics_screen.dart';
-import 'run_tracking_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -70,7 +67,6 @@ class _HomeScreenState extends State<HomeScreen> {
       const _WorkoutTab(),
       const _NutritionTab(),
       const _ProfileTab(),
-      const _StatisticsTab(),
     ];
   }
 
@@ -105,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
         targetKey: _heartRateKey,
         title: 'Heart Rate Monitor',
         description:
-            'Toggle heart rate monitoring on/off. Works with your smartwatch for real-time tracking.',
+            'Toggle heart rate monitoring on/off. Uses Health Connect for real-time tracking.',
         icon: Icons.favorite,
       ),
       QuickTourStep(
@@ -136,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
         targetKey: _navProfileKey,
         title: 'Your Profile',
         description:
-            'Edit your fitness goals, connect Spotify and smartwatch, view body stats, and manage settings.',
+            'Edit your fitness goals, connect Spotify, view body stats, and manage settings.',
         icon: Icons.person,
         onActionTap: () => setState(() => _currentIndex = 4),
       ),
@@ -182,16 +178,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icon(Icons.person),
                 label: 'Profile',
               ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.bar_chart),
-                label: 'Stats',
-              ),
-            ],
+                    ],
           ),
-          _NavBarMarker(key: _navPlanningKey, index: 1, totalItems: 6),
-          _NavBarMarker(key: _navWorkoutKey, index: 2, totalItems: 6),
-          _NavBarMarker(key: _navDietKey, index: 3, totalItems: 6),
-          _NavBarMarker(key: _navProfileKey, index: 4, totalItems: 6),
+          _NavBarMarker(key: _navPlanningKey, index: 1, totalItems: 5),
+          _NavBarMarker(key: _navWorkoutKey, index: 2, totalItems: 5),
+          _NavBarMarker(key: _navDietKey, index: 3, totalItems: 5),
+          _NavBarMarker(key: _navProfileKey, index: 4, totalItems: 5),
         ],
       ),
     );
@@ -219,12 +211,6 @@ class _NavBarMarker extends StatelessWidget {
       child: const SizedBox.expand(),
     );
   }
-}
-
-class _StatisticsTab extends StatelessWidget {
-  const _StatisticsTab();
-  @override
-  Widget build(BuildContext context) => const BodyStatisticsScreen();
 }
 
 class _PlanningTab extends StatelessWidget {
@@ -339,14 +325,6 @@ class _DashboardTabState extends State<_DashboardTab>
       );
 
       await health.initializeHealthAccess();
-
-      // No real heart-rate reading yet (e.g. Health Connect has no HR data,
-      // or no BLE watch connected) — auto-start the simulated heart rate as
-      // soon as the user enters the app, so the dashboard and workout screen
-      // show a live BPM instead of "--". Real data always wins if present.
-      if (health.currentHeartRate == 0 && !health.isSimulating) {
-        health.startHeartRateSimulation();
-      }
 
       if (!mounted) return;
 
@@ -1220,14 +1198,6 @@ class _DashboardTabState extends State<_DashboardTab>
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Run Tracker ──
-                  const _RunTrackerCard(),
-                  const SizedBox(height: 16),
-
-                  // ── Map Preview ──
-                  const MapPreviewCard(),
-                  const SizedBox(height: 16),
-
                   // ── Active Plan ──
                   _buildPlanningSection(selectedPlan),
                   const SizedBox(height: 16),
@@ -1795,67 +1765,4 @@ class _SparklinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SparklinePainter old) =>
       data != old.data || color != old.color;
-}
-
-// ── Run Tracker Card ──
-class _RunTrackerCard extends StatelessWidget {
-  const _RunTrackerCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.directions_run,
-                color: Colors.green,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Run & Walk Tracker',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Track your runs and walks with distance, time & calories',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const RunTrackingScreen()),
-                );
-              },
-              icon: const Icon(Icons.play_arrow, size: 18),
-              label: const Text('Start'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

@@ -3,20 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/music_provider.dart';
-import '../providers/health_provider.dart';
 import '../providers/nutrition_provider.dart';
 import '../providers/workout_provider.dart';
 import '../providers/sleep_provider.dart';
 import '../providers/notification_provider.dart';
 import '../widgets/bottom_nav_shell.dart';
 import '../providers/planning_provider.dart';
-import '../services/bluetooth_service.dart';
 import '../services/tdee_calculator.dart';
 import '../config/theme.dart';
 import '../config/routes.dart';
 import '../models/user_model.dart';
 import '../models/workout_model.dart';
 import 'nutrition_reports_screen.dart';
+import 'body_statistics_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -28,61 +27,26 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  late TextEditingController _nameController;
-  late TextEditingController _weightController;
-  late TextEditingController _heightController;
-  late TextEditingController _ageController;
-  late TextEditingController _goalWeightController;
-
-  String _workoutGoal = 'general_fitness';
-  String _activityLevel = 'moderate';
-  bool _hasUnsavedChanges = false;
-  bool _isEditing = false;
-
-  final List<Map<String, String>> _workoutGoals = [
-    {'value': 'general_fitness', 'label': 'Build Confidence'},
-    {'value': 'lose_weight', 'label': 'Lose Weight'},
-    {'value': 'build_muscle', 'label': 'Build Muscle'},
-    {'value': 'endurance', 'label': 'Increase Endurance'},
-    {'value': 'strength', 'label': 'Get Stronger'},
-  ];
-
-  final List<Map<String, String>> _activityLevels = [
-    {'value': 'sedentary', 'label': 'Little or no exercise'},
-    {'value': 'light', 'label': 'Light exercise 1-3 days/week'},
-    {'value': 'moderate', 'label': 'Moderate exercise 3-5 days/week'},
-    {'value': 'very_active', 'label': 'Hard exercise 6-7 days/week'},
-    {'value': 'extremely_active', 'label': 'Very hard exercise / athlete'},
-  ];
-
   @override
   void initState() {
     super.initState();
-    final user = context.read<AuthProvider>().user;
-    _nameController = TextEditingController(text: user?.displayName ?? '');
-    _weightController = TextEditingController(
-      text: user?.weight.toString() ?? '65',
-    );
-    _heightController = TextEditingController(
-      text: user?.height.toString() ?? '170',
-    );
-    _ageController = TextEditingController(text: user?.age.toString() ?? '25');
-    _goalWeightController = TextEditingController(
-      text: user?.targetWeightKg?.toString() ?? '',
-    );
-    _workoutGoal = user?.workoutGoal ?? user?.fitnessGoal ?? 'general_fitness';
-    _activityLevel = context.read<NutritionProvider>().activityLevel;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDashboard());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initProfile());
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _weightController.dispose();
-    _heightController.dispose();
-    _ageController.dispose();
-    _goalWeightController.dispose();
-    super.dispose();
+  Future<void> _initProfile() async {
+    final auth = context.read<AuthProvider>();
+    if (auth.user == null) return;
+
+    if (auth.user!.spotifyConnected == 'connected') {
+      final music = context.read<MusicProvider>();
+      final restored = await music.restoreSession();
+      if (!restored && mounted) {
+        final updatedUser = auth.user!.copyWith(spotifyConnected: 'disconnected');
+        await auth.updateProfile(updatedUser);
+      }
+    }
+
+    _loadDashboard();
   }
 
   Future<void> _loadDashboard() async {
@@ -94,41 +58,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     context.read<PlanningProvider>().loadBookmarks(auth.user!.uid);
   }
 
-  Future<void> _saveProfile() async {
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
-    final updatedUser = auth.user!.copyWith(
-      displayName: _nameController.text,
-      weight: double.tryParse(_weightController.text) ?? auth.user!.weight,
-      height: double.tryParse(_heightController.text) ?? auth.user!.height,
-      age: int.tryParse(_ageController.text) ?? auth.user!.age,
-      fitnessGoal: _workoutGoal,
-      workoutGoal: _workoutGoal,
-      activityLevel: _activityLevel,
-      targetWeightKg: _goalWeightController.text.isNotEmpty
-          ? double.tryParse(_goalWeightController.text.trim())
-          : null,
-    );
-    await auth.updateProfile(updatedUser);
-    final nutrition = context.read<NutritionProvider>();
-    await nutrition.calculateAndSetTDEE(
-      user: updatedUser,
-      activityLevel: _activityLevel,
-      onSave: (goal) async {
-        final saved = updatedUser.copyWith(dailyCalorieTarget: goal);
-        await auth.updateProfile(saved);
-      },
-    );
-    if (!mounted) return;
-    setState(() {
-      _hasUnsavedChanges = false;
-      _isEditing = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profile updated')),
-    );
-  }
-
   Future<void> _connectSpotify() async {
     final auth = context.read<AuthProvider>();
     if (auth.user == null) return;
@@ -138,7 +67,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _onSpotifyConnected();
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Spotify connection failed')),
+        SnackBar(content: Text(music.error ?? 'Spotify connection failed. Make sure you have a Spotify account.')),
       );
     }
   }
@@ -158,77 +87,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     final updatedUser = auth.user!.copyWith(spotifyConnected: 'disconnected');
     await auth.updateProfile(updatedUser);
-  }
-
-  Future<void> _toggleSmartwatch(BuildContext context) async {
-    final health = context.read<HealthProvider>();
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
-
-    if (health.smartwatchConnected) {
-      health.disconnectSmartwatch();
-      final updatedUser = auth.user!.copyWith(smartwatchConnected: 'disconnected');
-      await auth.updateProfile(updatedUser);
-    } else {
-      _showBleScannerSheet(context);
-    }
-  }
-
-  void _showBleScannerSheet(BuildContext context) {
-    final health = context.read<HealthProvider>();
-    health.startScan();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => _BleDeviceScannerSheet(
-        onDeviceSelected: (deviceId) async {
-          Navigator.pop(ctx);
-          final auth = context.read<AuthProvider>();
-          final health = context.read<HealthProvider>();
-          final success = await health.connectToDevice(deviceId);
-          if (success && mounted) {
-            final updatedUser = auth.user!.copyWith(smartwatchConnected: 'connected');
-            await auth.updateProfile(updatedUser);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Connected to ${health.connectedDeviceName ?? "Smartwatch"}'),
-              ),
-            );
-          } else if (mounted) {
-            _tryHealthConnect(context);
-          }
-        },
-        onUseHealthConnect: () {
-          Navigator.pop(ctx);
-          _tryHealthConnect(context);
-        },
-      ),
-    ).then((_) {
-      if (health.isScanning) health.stopScan();
-    });
-  }
-
-  Future<void> _tryHealthConnect(BuildContext context) async {
-    final health = context.read<HealthProvider>();
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
-
-    final success = await health.connectSmartwatch();
-    if (success && mounted) {
-      final updatedUser = auth.user!.copyWith(smartwatchConnected: 'connected');
-      await auth.updateProfile(updatedUser);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connected via Health Connect')),
-      );
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(health.error ?? 'Smartwatch connection failed')),
-      );
-    }
   }
 
   Future<void> _toggleSpotify() async {
@@ -273,9 +131,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 16),
                 _buildQuickActions(),
                 const SizedBox(height: 20),
-                if (_isEditing) _buildEditForm(),
-                if (!_isEditing) _buildViewSections(user, sleep, nutrition, workout),
-                if (!_isEditing) _buildSignOutButton(auth),
+                _buildViewSections(user, sleep, nutrition, workout),
+                _buildSignOutButton(auth),
                 const SizedBox(height: 32),
               ],
             ),
@@ -296,24 +153,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
             CircleAvatar(
               radius: 50,
               backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.2),
-              child: Icon(
-                Icons.person,
-                size: 50,
-                color: AppTheme.primaryColor,
-              ),
+              backgroundImage: (user?.photoUrl != null && user!.photoUrl!.isNotEmpty)
+                  ? NetworkImage(user.photoUrl!)
+                  : null,
+              child: (user?.photoUrl == null || user!.photoUrl!.isEmpty)
+                  ? Icon(
+                      Icons.person,
+                      size: 50,
+                      color: AppTheme.primaryColor,
+                    )
+                  : null,
             ),
             Positioned(
               bottom: -4,
               right: -4,
               child: GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _isEditing = !_isEditing;
-                    if (!_isEditing && _hasUnsavedChanges) {
-                      _showDiscardDialog();
-                    }
-                  });
-                },
+                onTap: () => Navigator.pushNamed(context, AppRoutes.editProfile),
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -323,8 +178,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: CircleAvatar(
                     radius: 16,
                     backgroundColor: AppTheme.primaryColor,
-                    child: Icon(
-                      _isEditing ? Icons.close : Icons.edit,
+                    child: const Icon(
+                      Icons.edit,
                       size: 16,
                       color: Colors.white,
                     ),
@@ -336,11 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 12),
         GestureDetector(
-          onTap: () {
-            if (!_isEditing) {
-              setState(() => _isEditing = true);
-            }
-          },
+          onTap: () => Navigator.pushNamed(context, AppRoutes.editProfile),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
@@ -356,8 +207,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(
-                _isEditing ? Icons.edit_off : Icons.edit,
+              const Icon(
+                Icons.edit,
                 size: 20,
                 color: AppTheme.primaryColor,
               ),
@@ -376,7 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final actions = [
       _QuickActionItem(Icons.restaurant, 'Log Meal', () => Navigator.pushNamed(context, AppRoutes.foodCapture), const Color(0xFF059669)),
       _QuickActionItem(Icons.fitness_center, 'Workout', () => Navigator.pushNamed(context, AppRoutes.activity), AppTheme.primaryColor),
-      _QuickActionItem(Icons.bar_chart, 'Statistics', () => Navigator.pushNamed(context, AppRoutes.statistics), const Color(0xFF7C3AED)),
+      _QuickActionItem(Icons.bar_chart, 'Statistics', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BodyStatisticsScreen())), const Color(0xFF7C3AED)),
       _QuickActionItem(Icons.notifications, 'Alerts', () => Navigator.pushNamed(context, AppRoutes.notificationSettings), const Color(0xFFF59E0B)),
     ];
 
@@ -409,152 +260,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildEditForm() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _sectionHeader(Icons.edit, 'Edit Profile'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person)),
-              onChanged: (_) => _hasUnsavedChanges = true,
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _ageController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Age', prefixIcon: Icon(Icons.cake)),
-                    onChanged: (_) => _hasUnsavedChanges = true,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _weightController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Weight (kg)', prefixIcon: Icon(Icons.monitor_weight)),
-                    onChanged: (_) => _hasUnsavedChanges = true,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _heightController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Height (cm)', prefixIcon: Icon(Icons.height)),
-              onChanged: (_) => _hasUnsavedChanges = true,
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _workoutGoal,
-              decoration: const InputDecoration(labelText: 'Workout Goal', prefixIcon: Icon(Icons.flag_outlined)),
-              items: _workoutGoals.map((g) => DropdownMenuItem(value: g['value'], child: Text(g['label']!))).toList(),
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() => _workoutGoal = v);
-                  _hasUnsavedChanges = true;
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _activityLevel,
-              decoration: const InputDecoration(labelText: 'Activity Level', prefixIcon: Icon(Icons.directions_run)),
-              items: _activityLevels.map((a) => DropdownMenuItem(value: a['value'], child: Text(a['label']!))).toList(),
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() => _activityLevel = v);
-                  _hasUnsavedChanges = true;
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _goalWeightController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Target Weight (kg)', hintText: 'e.g. 70', prefixIcon: Icon(Icons.track_changes)),
-              onChanged: (_) => _hasUnsavedChanges = true,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      if (_hasUnsavedChanges) {
-                        _showDiscardDialog();
-                      } else {
-                        setState(() => _isEditing = false);
-                      }
-                    },
-                    child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _hasUnsavedChanges ? _saveProfile : null,
-                    icon: const Icon(Icons.save),
-                    label: const Text('Save Profile'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showDiscardDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Discard Changes?'),
-        content: const Text('You have unsaved changes. Discard them?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              setState(() {
-                _isEditing = false;
-                _hasUnsavedChanges = false;
-                final user = context.read<AuthProvider>().user;
-                if (user != null) {
-                  _nameController.text = user.displayName ?? '';
-                  _weightController.text = user.weight.toString();
-                  _heightController.text = user.height.toString();
-                  _ageController.text = user.age.toString();
-                  _goalWeightController.text = user.targetWeightKg?.toString() ?? '';
-                  _workoutGoal = user.fitnessGoal ?? 'general_fitness';
-                  _activityLevel = context.read<NutritionProvider>().activityLevel;
-                }
-              });
-            },
-            style: TextButton.styleFrom(foregroundColor: AppTheme.errorColor),
-            child: const Text('Discard'),
-          ),
-        ],
       ),
     );
   }
@@ -1046,23 +751,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             );
             if (confirm != true) return;
 
-            if (_hasUnsavedChanges) {
-              final action = await showDialog<String>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Unsaved Changes'),
-                  content: const Text('Do you want to save changes before logging out?'),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: const Text('Cancel')),
-                    TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: const Text('Discard')),
-                    ElevatedButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('Save')),
-                  ],
-                ),
-              );
-              if (action == 'save') await _saveProfile();
-              if (action == 'cancel') return;
-            }
-
             await auth.logout();
             if (mounted) Navigator.pushReplacementNamed(context, '/login');
           },
@@ -1080,7 +768,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ─── Connections & Settings ──
   Widget _buildConnectionsSettings(dynamic user, dynamic workout) {
-    final health = context.watch<HealthProvider>();
     final notifications = context.watch<NotificationProvider>();
 
     return Card(
@@ -1090,28 +777,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _ServiceSwitchTile(
-                    icon: Icons.music_note,
-                    iconColor: const Color(0xFF1DB954),
-                    label: 'Spotify',
-                    connected: user?.spotifyConnected == 'connected',
-                    onToggle: (_) => _toggleSpotify(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ServiceSwitchTile(
-                    icon: Icons.watch,
-                    iconColor: AppTheme.primaryColor,
-                    label: 'Smartwatch',
-                    connected: health.smartwatchConnected,
-                    onToggle: (_) => _toggleSmartwatch(context),
-                  ),
-                ),
-              ],
+            _ServiceSwitchTile(
+              icon: Icons.music_note,
+              iconColor: const Color(0xFF1DB954),
+              label: 'Spotify',
+              connected: user?.spotifyConnected == 'connected',
+              onToggle: (_) => _toggleSpotify(),
             ),
             const SizedBox(height: 12),
             Row(
@@ -1299,190 +970,6 @@ class _ActionChipButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-// ── BLE Scanner Sheet ──────────────────────────────────────────
-
-class _BleDeviceScannerSheet extends StatefulWidget {
-  final void Function(String deviceId) onDeviceSelected;
-  final VoidCallback onUseHealthConnect;
-
-  const _BleDeviceScannerSheet({
-    required this.onDeviceSelected,
-    required this.onUseHealthConnect,
-  });
-
-  @override
-  State<_BleDeviceScannerSheet> createState() => _BleDeviceScannerSheetState();
-}
-
-class _BleDeviceScannerSheetState extends State<_BleDeviceScannerSheet> {
-  @override
-  Widget build(BuildContext context) {
-    final health = context.watch<HealthProvider>();
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.65,
-      minChildSize: 0.5,
-      maxChildSize: 0.85,
-      expand: false,
-      builder: (ctx, scrollController) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          child: ListView(
-            controller: scrollController,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Icon(Icons.bluetooth_searching, color: AppTheme.primaryColor, size: 24),
-                  const SizedBox(width: 12),
-                  const Text('Scan for Smartwatches', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
-                  const Spacer(),
-                  if (health.isScanning) SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryColor)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              const Text('Devices advertising Heart Rate service will appear below', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-              const SizedBox(height: 16),
-              if (health.isScanning && health.discoveredDevices.isEmpty) _scanningIndicator(),
-              if (health.discoveredDevices.isNotEmpty) ...health.discoveredDevices.map((d) => _deviceCard(d)),
-              if (!health.isScanning && health.discoveredDevices.isEmpty) _noDevicesFound(),
-              const SizedBox(height: 16),
-              _dividerWithText('or'),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: widget.onUseHealthConnect,
-                  icon: const Icon(Icons.phone_android),
-                  label: const Text('Use Health Connect'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Center(child: Text('For Android smartwatches without BLE support', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary))),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _scanningIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(color: AppTheme.indigo50, borderRadius: BorderRadius.circular(16)),
-      child: const Column(
-        children: [
-          Icon(Icons.bluetooth_searching, size: 48, color: AppTheme.primaryColor),
-          SizedBox(height: 16),
-          Text('Searching for devices...', style: TextStyle(fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-          SizedBox(height: 4),
-          Text('Make sure your smartwatch is discoverable', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-        ],
-      ),
-    );
-  }
-
-  Widget _noDevicesFound() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          const Icon(Icons.bluetooth_disabled, size: 40, color: AppTheme.textSecondary),
-          const SizedBox(height: 12),
-          const Text('No devices found', style: TextStyle(fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-          const SizedBox(height: 4),
-          const Text('Try turning Bluetooth off/on or use Health Connect', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-          const SizedBox(height: 12),
-          TextButton.icon(
-            onPressed: () { context.read<HealthProvider>().startScan(); },
-            icon: const Icon(Icons.refresh),
-            label: const Text('Scan Again'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _deviceCard(BluetoothDeviceInfo device) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => widget.onDeviceSelected(device.deviceId),
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: AppTheme.primaryColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.watch, color: AppTheme.primaryColor, size: 24),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(device.name, style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
-                      const SizedBox(height: 2),
-                      Text(device.deviceId, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: device.rssi > -60
-                        ? AppTheme.successColor.withValues(alpha: 0.1)
-                        : AppTheme.warningColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${device.rssi} dBm',
-                    style: TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w600,
-                      color: device.rssi > -60 ? AppTheme.successColor : AppTheme.warningColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(Icons.chevron_right, color: AppTheme.textSecondary, size: 20),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _dividerWithText(String text) {
-    return Row(
-      children: [
-        Expanded(child: Divider(color: Colors.grey.shade300)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(text, style: TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
-        ),
-        Expanded(child: Divider(color: Colors.grey.shade300)),
-      ],
     );
   }
 }

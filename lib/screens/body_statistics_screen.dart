@@ -13,7 +13,8 @@ import '../models/user_model.dart';
 import '../models/workout_model.dart';
 
 class BodyStatisticsScreen extends StatefulWidget {
-  const BodyStatisticsScreen({super.key});
+  final bool showAppBar;
+  const BodyStatisticsScreen({super.key, this.showAppBar = true});
 
   @override
   State<BodyStatisticsScreen> createState() => _BodyStatisticsScreenState();
@@ -40,6 +41,8 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
       await Future.wait([
         context.read<WorkoutProvider>().loadDashboardData(auth.user!.uid),
         context.read<NutritionProvider>().loadTodayMeals(auth.user!.uid),
+        context.read<NutritionProvider>().loadWeightHistory(auth.user!.uid),
+        context.read<NutritionProvider>().loadTodayWeight(auth.user!.uid),
         context.read<SleepProvider>().loadSleepData(auth.user!.uid),
       ]);
     } catch (e) {
@@ -53,6 +56,10 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final body = _buildBody();
+
+    if (!widget.showAppBar) return body;
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -71,7 +78,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: body,
     );
   }
 
@@ -120,14 +127,22 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ─── BMI CARD ────────────────────────────────────
-            if (user != null && user.height > 0)
-              _buildMetricCard(
-                title: 'Body Mass Index (BMI)',
-                value: user.bmi.toStringAsFixed(1),
-                subtitle: _getBmiCategory(user.bmi),
-                icon: Icons.monitor_heart,
-                color: _getBmiColor(user.bmi),
+            if (user != null && user.height > 0) ...[
+              Builder(
+                builder: (context) {
+                  final nutrition = context.watch<NutritionProvider>();
+                  final latestWt = nutrition.latestWeight ?? user.weight;
+                  final latestBmi = latestWt / ((user.height / 100) * (user.height / 100));
+                  return _buildMetricCard(
+                    title: 'Body Mass Index (BMI)',
+                    value: latestBmi.toStringAsFixed(1),
+                    subtitle: _getBmiCategory(latestBmi),
+                    icon: Icons.monitor_heart,
+                    color: _getBmiColor(latestBmi),
+                  );
+                },
               ),
+            ],
             const SizedBox(height: 16),
 
             // ─── TABS ────────────────────────────────────────
@@ -346,19 +361,35 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Body Stats Summary',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                _buildRow('Weight', '${user?.weight.toStringAsFixed(1) ?? '--'} kg'),
-                _buildRow('Height', '${user?.height.toStringAsFixed(0) ?? '--'} cm'),
-                _buildRow('BMI', user != null ? user.bmi.toStringAsFixed(1) : '--'),
-                _buildRow('Target Weight', user?.targetWeightKg != null ? '${user!.targetWeightKg!.toStringAsFixed(1)} kg' : 'Not set'),
-              ],
+            child: Builder(
+              builder: (context) {
+                final nutrition = context.watch<NutritionProvider>();
+                final latestWt = nutrition.latestWeight ?? user?.weight;
+                final heightM = user != null ? user.height / 100.0 : 0;
+                final latestBmi = (latestWt != null && heightM > 0)
+                    ? latestWt / (heightM * heightM)
+                    : null;
+                final goalProgress = _calculateWeightGoalProgress(user, nutrition);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Body Stats Summary',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildRow('Weight', latestWt != null ? '${latestWt.toStringAsFixed(1)} kg' : '-- kg'),
+                    _buildRow('Height', '${user?.height.toStringAsFixed(0) ?? '--'} cm'),
+                    _buildRow('BMI', latestBmi != null ? latestBmi.toStringAsFixed(1) : '--'),
+                    _buildRow('Target Weight', user?.targetWeightKg != null ? '${user!.targetWeightKg!.toStringAsFixed(1)} kg' : 'Not set'),
+                    if (goalProgress != null) ...[
+                      const SizedBox(height: 8),
+                      _buildWeightGoalProgressIndicator(goalProgress, user),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -1045,6 +1076,58 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
+  // ─── WEIGHT GOAL PROGRESS ─────────────────────────────────────
+  double? _calculateWeightGoalProgress(AppUser? user, NutritionProvider nutrition) {
+    if (user == null || user.targetWeightKg == null || user.targetWeightKg == 0) return null;
+    final currentWeight = nutrition.latestWeight ?? user.weight;
+    if (currentWeight == 0) return null;
+
+    final startWeight = user.weight;
+    final target = user.targetWeightKg!;
+    final totalDiff = (startWeight - target).abs();
+    if (totalDiff == 0) return 1.0;
+
+    final currentDiff = (startWeight - currentWeight).abs();
+    final progress = (currentDiff / totalDiff).clamp(0.0, 1.0);
+    return progress;
+  }
+
+  Widget _buildWeightGoalProgressIndicator(double progress, AppUser? user) {
+    final startWeight = user?.weight ?? 0;
+    final target = user?.targetWeightKg ?? 0;
+    final lost = (startWeight - (user != null ? (context.read<NutritionProvider>().latestWeight ?? startWeight) : startWeight));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Goal Progress', style: TextStyle(fontSize: 13)),
+            Text('${(progress * 100).toStringAsFixed(0)}%', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey.shade200,
+            color: AppTheme.successColor,
+            minHeight: 8,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          lost >= 0
+              ? '${lost.toStringAsFixed(1)} kg lost of ${(startWeight - target).toStringAsFixed(1)} kg goal'
+              : '${(-lost).toStringAsFixed(1)} kg gained, goal: ${target.toStringAsFixed(1)} kg',
+          style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+        ),
+      ],
+    );
+  }
+
   // ─── HELPER: Row Builder ──────────────────────────────────────
   Widget _buildRow(String label, String value) {
     return Padding(
@@ -1109,27 +1192,24 @@ class _StatCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(icon, color: color),
             const SizedBox(height: 4),
-            Flexible(
-              child: Text(
-                value,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
-              ),
+            Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
             ),
-            Flexible(
-              child: Text(
-                label,
-                style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
-              ),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
             ),
           ],
         ),

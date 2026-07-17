@@ -134,4 +134,15 @@ class SleepProvider extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  void clear() {
+    _lastNightSleep = null;
+    _sleepHistory = [];
+    _allRecords = [];
+    _isLoading = false;
+    _syncMessage = null;
+    _selectedDate = null;
+    _selectedDateSleep = null;
+    notifyListeners();
+  }
 }

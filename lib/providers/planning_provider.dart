@@ -130,6 +130,18 @@ class PlanningProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clear() {
+    _plans = [];
+    _selectedPlan = null;
+    _activePlan = null;
+    _isGenerating = false;
+    _isLoading = false;
+    _error = null;
+    _bookmarkedWorkouts = [];
+    _planStartDate = null;
+    notifyListeners();
+  }
+
   Future<void> generatePlans(AppUser user, {double? averageSleepHours}) async {
     _isGenerating = true;
     _error = null;

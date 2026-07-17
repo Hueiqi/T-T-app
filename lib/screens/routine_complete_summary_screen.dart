@@ -495,12 +495,14 @@ class _RoutineCompleteSummaryScreenState
   }
 }
 
-// ─── FIXED Progress Circle ─────────────────────────────────────
+// ─── Progress Circle with Custom Painter ──────────────────────
+
 class ProgressCircle extends StatelessWidget {
   final double percentage;
   final double size;
   final String? subtitle;
   final Color color;
+  final Color backgroundColor;
 
   const ProgressCircle({
     super.key,
@@ -508,22 +510,28 @@ class ProgressCircle extends StatelessWidget {
     this.size = 80,
     this.subtitle,
     this.color = AppTheme.primaryColor,
+    this.backgroundColor =  const Color(0xFFE0E0E0), // ✅ fixed – now works
   });
 
   @override
   Widget build(BuildContext context) {
     final clamped = percentage.clamp(0.0, 1.0);
+    final strokeWidth = size * 0.12;
+
     return SizedBox(
       width: size,
       height: size,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          CircularProgressIndicator(
-            value: clamped,
-            strokeWidth: 10,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+          CustomPaint(
+            size: Size(size, size),
+            painter: _RingPainter(
+              progress: clamped,
+              color: color,
+              backgroundColor: backgroundColor,
+              strokeWidth: strokeWidth,
+            ),
           ),
           SizedBox(
             width: size * 0.75,
@@ -570,7 +578,59 @@ class ProgressCircle extends StatelessWidget {
   }
 }
 
-// ─── Helper widget ─────────────────────────────────────────────
+// ─── Ring Painter ──────────────────────────────────────────────
+
+class _RingPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  final Color backgroundColor;
+  final double strokeWidth;
+
+  const _RingPainter({
+    required this.progress,
+    required this.color,
+    required this.backgroundColor,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    final bgPaint = Paint()
+      ..color = backgroundColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, bgPaint);
+
+    final fgPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final sweepAngle = 2 * 3.1415927 * progress;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -3.1415927 / 2,
+      sweepAngle,
+      false,
+      fgPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.color != color ||
+      oldDelegate.backgroundColor != backgroundColor ||
+      oldDelegate.strokeWidth != strokeWidth;
+}
+
+// ─── Stat Card ──────────────────────────────────────────────────
+
 class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;

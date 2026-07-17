@@ -1,4 +1,5 @@
 class AppRoutes {
+  static const String splash = '/';
   static const String login = '/login';
   static const String register = '/register';
   static const String home = '/home';
@@ -18,7 +19,6 @@ class AppRoutes {
   static const String onboardingDuration = '/onboarding-duration';
   static const String welcome = '/welcome';
   static const String forgotPassword = '/forgot-password';
-  static const String phoneLogin = '/phone-login';
   static const String otpVerify = '/otp-verify';
   static const String notificationSettings = '/notification-settings';
   static const String notificationHistory = '/notification-history';
@@ -36,4 +36,7 @@ class AppRoutes {
   static const String routineHistory = '/routineHistory';  // <-- add this
   static const String routine = '/routine';  
   static const String exerciseLibrary = '/exercise-library';
+  static const String editProfile = '/edit-profile';
+  static const String weightProgress = '/weight-progress';
+  static const String workoutComplete = '/workout-complete';
 }

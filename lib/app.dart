@@ -23,7 +23,6 @@ import 'screens/onboarding_plan_screen.dart';
 import 'screens/onboarding_duration_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/forgot_password_screen.dart';
-import 'screens/phone_login_screen.dart';
 import 'screens/otp_verification_screen.dart';
 import 'screens/notification_settings_screen.dart';
 import 'screens/notification_history_screen.dart';
@@ -35,6 +34,10 @@ import 'screens/popular_exersive_screen.dart';
 import 'screens/routine_detail_screen.dart';
 import 'screens/follow_routine_screen.dart';
 import 'screens/exercise_library_screen.dart';
+import 'screens/edit_profile_screen.dart';
+import 'screens/weight_progress_screen.dart';
+import 'screens/workout_complete_screen.dart';
+import 'screens/splash_screen.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -58,13 +61,14 @@ class FitSyncApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'T&T AI',
+      title: 'T&T Fitness',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.light,
-      home: const AuthWrapper(),
+      home: const SplashScreen(),
       routes: {
+       
         AppRoutes.login: (_) => const LoginScreen(),
         AppRoutes.register: (_) => const RegisterScreen(),
         AppRoutes.home: (_) => const HomeScreen(),
@@ -78,6 +82,7 @@ class FitSyncApp extends StatelessWidget {
           return FoodSearchScreen(mealType: mealType);
         },
         AppRoutes.foodCapture: (_) => const FoodCaptureScreen(),
+        AppRoutes.weightProgress: (_) => const WeightProgressScreen(),
         AppRoutes.statistics: (_) => const BodyStatisticsScreen(),
         '/music-recommendations': (_) => const MusicRecommendationScreen(),
         AppRoutes.onboardingGoal: (_) => const OnboardingGoalScreen(),
@@ -88,7 +93,6 @@ class FitSyncApp extends StatelessWidget {
         AppRoutes.onboardingDuration: (_) => const OnboardingDurationScreen(),
         AppRoutes.welcome: (_) => const WelcomeScreen(),
         AppRoutes.forgotPassword: (_) => const ForgotPasswordScreen(),
-        AppRoutes.phoneLogin: (_) => const PhoneLoginScreen(),
         AppRoutes.otpVerify: (_) => const OtpVerificationScreen(),
         AppRoutes.notificationSettings: (_) =>
             const NotificationSettingsScreen(),
@@ -110,6 +114,13 @@ class FitSyncApp extends StatelessWidget {
         AppRoutes.exerciseLibrary: (_) => const ExerciseLibraryScreen(),
         AppRoutes.activity: (_) => const RoutineHistoryScreen(),
         AppRoutes.workoutDetail: (_) => const RoutineHistoryScreen(),
+        AppRoutes.editProfile: (_) => const EditProfileScreen(),
+        AppRoutes.workoutComplete: (ctx) {
+          final args = ModalRoute.of(ctx)?.settings.arguments
+                  as Map<String, dynamic>? ??
+              {};
+          return WorkoutCompleteScreen(result: args);
+        },
       },
     );
   }

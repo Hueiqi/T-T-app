@@ -47,16 +47,16 @@ class NutritionProvider extends ChangeNotifier {
   String get activityLevel => _activityLevel;
   bool get tdeeCalculated => _tdeeCalculated;
   double get totalCaloriesToday =>
-      _todayMeals.fold(0, (total, meal) => total + meal.calories);
+      _todayMeals.fold(0.0, (total, meal) => total + meal.calories);
   double get totalProtein =>
-      _todayMeals.fold(0, (total, meal) => total + meal.protein);
-  double get totalCarbs => _todayMeals.fold(0, (total, meal) => total + meal.carbs);
-  double get totalFat => _todayMeals.fold(0, (total, meal) => total + meal.fat);
+      _todayMeals.fold(0.0, (total, meal) => total + meal.protein);
+  double get totalCarbs => _todayMeals.fold(0.0, (total, meal) => total + meal.carbs);
+  double get totalFat => _todayMeals.fold(0.0, (total, meal) => total + meal.fat);
 
   Map<String, double> _weeklyCalories = {};
   Map<String, double> get weeklyCalories => _weeklyCalories;
   double get weeklyAverage {
-    if (_weeklyCalories.isEmpty) return 0;
+    if (_weeklyCalories.isEmpty) return 0.0;
     return _weeklyCalories.values.fold(0.0, (a, b) => a + b) / _weeklyCalories.length;
   }
 
@@ -378,6 +378,32 @@ class NutritionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> deleteWeightEntry(String userId, String entryId) async {
+    await _firebaseService.deleteWeightEntry(userId, entryId);
+    _weightHistory.removeWhere((e) => e.id == entryId);
+    notifyListeners();
+  }
+
   double? get latestWeight =>
       _todayWeight?.weight ?? (_weightHistory.isNotEmpty ? _weightHistory.first.weight : null);
+
+  void clear() {
+    _todayMeals = [];
+    _selectedDateMeals = [];
+    _mealsCache.clear();
+    _detectedFood = null;
+    _isAnalyzing = false;
+    _error = null;
+    _dailyCalorieGoal = 2000;
+    _bmr = 0;
+    _tdee = 0;
+    _macroGoals = {};
+    _activityLevel = 'moderate';
+    _tdeeCalculated = false;
+    _todayWeight = null;
+    _weightHistory = [];
+    _dateRangeMeals = [];
+    _weeklyCalories = {};
+    notifyListeners();
+  }
 }

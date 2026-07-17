@@ -21,6 +21,7 @@ class AppUser {
   final DateTime createdAt;
   final DateTime lastActive;
   final String? selectedPlanId;
+  final String? photoUrl;
 
   AppUser({
     required this.uid,
@@ -45,6 +46,7 @@ class AppUser {
     DateTime? createdAt,
     DateTime? lastActive,
     this.selectedPlanId,
+    this.photoUrl,
   })  : createdAt = createdAt ?? DateTime.now(),
         lastActive = lastActive ?? DateTime.now();
 
@@ -67,9 +69,12 @@ class AppUser {
         'spotifyConnected': spotifyConnected,
         'smartwatchConnected': smartwatchConnected,
         'hasSeenQuickTour': hasSeenQuickTour,
+        'themeMode': themeMode,
+        'accentColor': accentColor,
         'createdAt': createdAt.toIso8601String(),
         'lastActive': lastActive.toIso8601String(),
         'selectedPlanId': selectedPlanId,
+        if (photoUrl != null) 'photoUrl': photoUrl,
       };
 
   factory AppUser.fromMap(Map<String, dynamic> map) => AppUser(
@@ -93,6 +98,8 @@ class AppUser {
         smartwatchConnected:
             map['smartwatchConnected'] as String? ?? 'disconnected',
         hasSeenQuickTour: map['hasSeenQuickTour'] as bool? ?? false,
+        themeMode: map['themeMode'] as String? ?? 'light',
+        accentColor: map['accentColor'] as int? ?? 0xFF6366F1,
         createdAt: map['createdAt'] != null
             ? DateTime.parse(map['createdAt'] as String)
             : null,
@@ -100,6 +107,7 @@ class AppUser {
             ? DateTime.parse(map['lastActive'] as String)
             : null,
         selectedPlanId: map['selectedPlanId'] as String?,
+        photoUrl: map['photoUrl'] as String?,
       );
 
   double get bmi => height > 0 ? weight / ((height / 100) * (height / 100)) : 0;
@@ -121,6 +129,7 @@ class AppUser {
     String? smartwatchConnected,
     bool? hasSeenQuickTour,
     String? selectedPlanId,
+    String? photoUrl,
   }) =>
       AppUser(
         uid: uid,
@@ -143,5 +152,6 @@ class AppUser {
         createdAt: createdAt,
         lastActive: lastActive,
         selectedPlanId: selectedPlanId ?? this.selectedPlanId,
+        photoUrl: photoUrl ?? this.photoUrl,
       );
 }

@@ -34,11 +34,8 @@ dependencies:
   pedometer: ^4.0.0
   geolocator: ^13.0.2
   location: ^7.0.1
-  flutter_blue_plus: ^2.3.9
   maplibre_gl: ^0.26.2
   flutter_web_auth_2: ^5.0.0
-
-  spotify_sdk: ^3.0.2
 
   fl_chart: ^0.70.2
   intl: ^0.20.2
@@ -54,6 +51,7 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   timezone: ^0.9.4
   workmanager: ^0.9.0
+  share_plus: ^10.1.4
 
 
 dev_dependencies:
@@ -74,4 +72,5 @@ flutter:
     - assets/exercises.json
     - lib/assets/achievement/
     - lib/assets/diet/
+    - lib/assets/icon/
     - assets/images/Planning/

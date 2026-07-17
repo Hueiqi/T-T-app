@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
-import 'package:maplibre_gl/maplibre_gl.dart';
-import 'package:location/location.dart' as loc;
 import 'package:provider/provider.dart';
 import '../providers/workout_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/health_provider.dart';
 import '../config/theme.dart';
+import '../config/routes.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../widgets/bottom_nav_shell.dart';
 
@@ -35,17 +34,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Smartwatch disconnected warning
-                if (!workout.smartwatchConnected && workout.isWorkoutActive)
-                  _WarningBanner(
-                    icon: Icons.watch_off,
-                    message:
-                        'Smartwatch not connected. HR tracking unavailable. '
-                        'Log calories manually after workout.',
-                    color: AppTheme.warningColor,
-                  ),
-
-                // Spotify error banner
                 if (workout.spotifyError != null && workout.isWorkoutActive)
                   _WarningBanner(
                     icon: Icons.error_outline,
@@ -56,17 +44,16 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                 _HeartRateMonitor(workout: workout),
                 const SizedBox(height: 20),
                 if (workout.isWorkoutActive)
-                  _ActiveWorkoutPanel(workout: workout)
+                  _ActiveWorkoutPanel(
+                    workout: workout,
+                    spotifyConnected: spotifyConnected,
+                  )
                 else
                   _WorkoutStartPanel(
                     workout: workout,
                     spotifyConnected: spotifyConnected,
                   ),
                 const SizedBox(height: 20),
-                if (workout.isWorkoutActive) ...[
-                  const _WorkoutMapCard(),
-                  const SizedBox(height: 20),
-                ],
                 _HeartRateChart(heartRates: workout.heartRateHistory),
               ],
             ),
@@ -192,34 +179,6 @@ class _HeartRateMonitor extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  workout.isWorkoutActive
-                      ? (workout.smartwatchConnected
-                            ? Icons.watch
-                            : Icons.watch_off)
-                      : Icons.watch,
-                  size: 14,
-                  color: workout.isWorkoutActive && workout.smartwatchConnected
-                      ? AppTheme.successColor
-                      : AppTheme.textSecondary,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  workout.smartwatchConnected
-                      ? 'Smartwatch active'
-                      : 'No smartwatch',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: workout.smartwatchConnected
-                        ? AppTheme.successColor
-                        : AppTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 12),
             if (workout.lastNightSleep != null)
               Text(
@@ -240,7 +199,7 @@ class _HeartRateMonitor extends StatelessWidget {
   }
 }
 
-class _WorkoutStartPanel extends StatelessWidget {
+class _WorkoutStartPanel extends StatefulWidget {
   final WorkoutProvider workout;
   final bool spotifyConnected;
 
@@ -248,6 +207,35 @@ class _WorkoutStartPanel extends StatelessWidget {
     required this.workout,
     required this.spotifyConnected,
   });
+
+  @override
+  State<_WorkoutStartPanel> createState() => _WorkoutStartPanelState();
+}
+
+class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
+  String _selectedType = 'cardio';
+
+  IconData _iconForType(String type) {
+    switch (type) {
+      case 'running':
+        return Icons.directions_run;
+      case 'walking':
+        return Icons.directions_walk;
+      default:
+        return Icons.fitness_center;
+    }
+  }
+
+  String _labelForType(String type) {
+    switch (type) {
+      case 'running':
+        return 'Run';
+      case 'walking':
+        return 'Walk';
+      default:
+        return 'General';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -274,7 +262,66 @@ class _WorkoutStartPanel extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(color: AppTheme.textSecondary),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
+            Text(
+              'Workout Type',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                for (final type in ['running', 'walking', 'cardio']) ...[
+                  if (type != 'running') const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedType = type),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: _selectedType == type
+                              ? AppTheme.primaryColor
+                              : AppTheme.primaryColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _selectedType == type
+                                ? AppTheme.primaryColor
+                                : AppTheme.primaryColor.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              _iconForType(type),
+                              size: 24,
+                              color: _selectedType == type
+                                  ? Colors.white
+                                  : AppTheme.primaryColor,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _labelForType(type),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: _selectedType == type
+                                    ? Colors.white
+                                    : AppTheme.primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -286,20 +333,20 @@ class _WorkoutStartPanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 Icon(
-                  spotifyConnected
+                  widget.spotifyConnected
                       ? Icons.music_note
                       : Icons.music_note_outlined,
                   size: 16,
-                  color: spotifyConnected
+                  color: widget.spotifyConnected
                       ? const Color(0xFF1DB954)
                       : AppTheme.textSecondary,
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  spotifyConnected ? 'Spotify ready' : 'No Spotify',
+                  widget.spotifyConnected ? 'Spotify ready' : 'No Spotify',
                   style: TextStyle(
                     fontSize: 12,
-                    color: spotifyConnected
+                    color: widget.spotifyConnected
                         ? const Color(0xFF1DB954)
                         : AppTheme.textSecondary,
                   ),
@@ -348,22 +395,9 @@ class _WorkoutStartPanel extends StatelessWidget {
                   }
 
                   try {
-                    // Auto-simulate whenever there's no real HR reading yet
-                    // and no simulation is already running (the home
-                    // dashboard starts one automatically on app entry) — real
-                    // data always wins once a watch genuinely shares it.
-                    if (!healthProvider.isSimulating &&
-                        healthProvider.currentHeartRate == 0) {
-                      healthProvider.startHeartRateSimulation();
-                    }
-                    final useSimulation = healthProvider.isSimulating;
                     await workout.startWorkout(
                       auth.user!.uid,
                       spotifyConnected: spotifyConnected,
-                      simulateHeartRate: useSimulation,
-                      simulatedStream: useSimulation
-                          ? healthProvider.simulatedHeartRateStream
-                          : null,
                     );
                   } catch (e) {
                     if (context.mounted) {
@@ -389,8 +423,12 @@ class _WorkoutStartPanel extends StatelessWidget {
 
 class _ActiveWorkoutPanel extends StatefulWidget {
   final WorkoutProvider workout;
+  final bool spotifyConnected;
 
-  const _ActiveWorkoutPanel({required this.workout});
+  const _ActiveWorkoutPanel({
+    required this.workout,
+    required this.spotifyConnected,
+  });
 
   @override
   State<_ActiveWorkoutPanel> createState() => _ActiveWorkoutPanelState();
@@ -452,31 +490,11 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
 
     setState(() => _isSaving = false);
 
-    final calories = result['caloriesBurned'] as double;
-
-    if (calories > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Workout saved – you burned ${calories.toStringAsFixed(0)} calories.',
-          ),
-          backgroundColor: AppTheme.successColor,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'No heart rate data available. Please enter calories manually.',
-          ),
-          backgroundColor: AppTheme.warningColor,
-          duration: Duration(seconds: 4),
-        ),
-      );
-    }
-
-    Navigator.pushReplacementNamed(context, '/home');
+    Navigator.pushReplacementNamed(
+      context,
+      AppRoutes.workoutComplete,
+      arguments: result,
+    );
   }
 
   void _showSongPicker(BuildContext context) {
@@ -578,11 +596,14 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
                   label: 'Zone',
                   value: widget.workout.currentHrZone,
                 ),
+                _MetricColumn(
+                  label: 'Distance',
+                  value: widget.workout.distance.toStringAsFixed(2) + ' km',
+                ),
               ],
             ),
             const SizedBox(height: 16),
 
-            // Current track / no music
             if (widget.workout.currentTrackName.isNotEmpty)
               Card(
                 color: AppTheme.primaryColor.withValues(alpha: 0.08),
@@ -662,9 +683,11 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        widget.workout.currentMusicZone.isNotEmpty
-                            ? widget.workout.currentMusicZone
-                            : 'No music playing',
+                        !widget.spotifyConnected
+                            ? 'Spotify not connected'
+                            : widget.workout.currentMusicZone.isNotEmpty
+                                ? widget.workout.currentMusicZone
+                                : 'No music playing',
                         style: TextStyle(
                           fontSize: 13,
                           color: AppTheme.textSecondary,
@@ -677,8 +700,7 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
 
             const SizedBox(height: 12),
 
-            // Manual song selection button
-            if (widget.workout.spotifyError == null)
+            if (widget.spotifyConnected && widget.workout.spotifyError == null)
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -699,7 +721,6 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
 
             const SizedBox(height: 12),
 
-            // End workout button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -942,91 +963,10 @@ class _MetricColumn extends StatelessWidget {
           value,
           style: Theme.of(
             context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
-        Text(label, style: TextStyle(color: AppTheme.textSecondary)),
+        Text(label, style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
       ],
-    );
-  }
-}
-
-class _WorkoutMapCard extends StatefulWidget {
-  const _WorkoutMapCard();
-
-  @override
-  State<_WorkoutMapCard> createState() => _WorkoutMapCardState();
-}
-
-class _WorkoutMapCardState extends State<_WorkoutMapCard> {
-  final loc.Location _location = loc.Location();
-  MapLibreMapController? _mapController;
-  LatLng? _currentLocation;
-  StreamSubscription<loc.LocationData>? _locationSub;
-
-  @override
-  void initState() {
-    super.initState();
-    _initLocation();
-  }
-
-  @override
-  void dispose() {
-    _locationSub?.cancel();
-    _mapController?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _initLocation() async {
-    final permission = await _location.requestPermission();
-    if (permission != loc.PermissionStatus.granted &&
-        permission != loc.PermissionStatus.grantedLimited) {
-      return;
-    }
-    final current = await _location.getLocation();
-    if (!mounted) return;
-    if (current.latitude != null && current.longitude != null) {
-      setState(() {
-        _currentLocation = LatLng(current.latitude!, current.longitude!);
-      });
-    }
-
-    _locationSub?.cancel();
-    _locationSub = _location.onLocationChanged.listen((data) {
-      if (data.latitude == null || data.longitude == null) return;
-      final pos = LatLng(data.latitude!, data.longitude!);
-      if (mounted) setState(() => _currentLocation = pos);
-      _mapController?.animateCamera(CameraUpdate.newLatLng(pos));
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: SizedBox(
-        height: 200,
-        width: double.infinity,
-        child: _currentLocation == null
-            ? const Center(child: CircularProgressIndicator())
-            : MapLibreMap(
-                onMapCreated: (controller) => _mapController = controller,
-                styleString: 'https://tiles.openfreemap.org/styles/positron',
-                initialCameraPosition: CameraPosition(
-                  target: _currentLocation!,
-                  zoom: 15,
-                ),
-                myLocationEnabled: !kIsWeb,
-                myLocationTrackingMode:
-                    !kIsWeb ? MyLocationTrackingMode.tracking : MyLocationTrackingMode.none,
-                compassEnabled: false,
-                rotateGesturesEnabled: false,
-                zoomGesturesEnabled: false,
-                dragEnabled: false,
-                scrollGesturesEnabled: false,
-                tiltGesturesEnabled: false,
-              ),
-      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import '../config/api_keys.dart';
@@ -19,6 +20,10 @@ class SpotifyService {
   static const String _clientId = ApiKeys.spotifyClientId;
   static const String _redirectUrl = ApiKeys.spotifyRedirectMobile;
 
+  static const String _prefAccessToken = 'spotify_access_token';
+  static const String _prefRefreshToken = 'spotify_refresh_token';
+  static const String _prefTokenExpiry = 'spotify_token_expiry';
+
   static const List<String> _scopes = [
     'user-modify-playback-state',
     'user-read-currently-playing',
@@ -30,8 +35,53 @@ class SpotifyService {
     'playlist-read-collaborative',
   ];
 
+  bool get isConnected => _accessToken != null;
   bool get isPlaying => _isPlaying;
   MusicTrack? get currentTrack => _currentTrack;
+
+  /// Try to restore a previously saved session from SharedPreferences.
+  Future<bool> restoreSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString(_prefAccessToken);
+      final refreshToken = prefs.getString(_prefRefreshToken);
+      final expiryStr = prefs.getString(_prefTokenExpiry);
+
+      if (accessToken == null || refreshToken == null) return false;
+
+      _accessToken = accessToken;
+      _refreshToken = refreshToken;
+      if (expiryStr != null) {
+        _tokenExpiry = DateTime.tryParse(expiryStr);
+      }
+
+      if (_tokenExpiry != null && DateTime.now().isBefore(_tokenExpiry!)) {
+        return true;
+      }
+
+      return await _refreshAccessToken();
+    } catch (e) {
+      debugPrint('Spotify restore session error: $e');
+      return false;
+    }
+  }
+
+  Future<void> _saveSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_accessToken != null) {
+        await prefs.setString(_prefAccessToken, _accessToken!);
+      }
+      if (_refreshToken != null) {
+        await prefs.setString(_prefRefreshToken, _refreshToken!);
+      }
+      if (_tokenExpiry != null) {
+        await prefs.setString(_prefTokenExpiry, _tokenExpiry!.toIso8601String());
+      }
+    } catch (e) {
+      debugPrint('Spotify save session error: $e');
+    }
+  }
 
   String _generateCodeVerifier() {
     const chars =
@@ -97,6 +147,7 @@ class SpotifyService {
         _refreshToken = data['refresh_token'];
         final expiresIn = data['expires_in'] as int;
         _tokenExpiry = DateTime.now().add(Duration(seconds: expiresIn));
+        await _saveSession();
         return true;
       }
       debugPrint('Token exchange failed: ${response.body}');
@@ -130,6 +181,7 @@ class SpotifyService {
         if (data['refresh_token'] != null) {
           _refreshToken = data['refresh_token'];
         }
+        await _saveSession();
         return true;
       }
       return false;
@@ -210,17 +262,24 @@ class SpotifyService {
     return [];
   }
 
+  static String _bpmToSearchQuery(int targetBpm) {
+    if (targetBpm < 80) return 'chill relaxing ambient';
+    if (targetBpm < 100) return 'pop indie chill';
+    if (targetBpm < 120) return 'dance pop electronic';
+    if (targetBpm < 140) return 'workout running EDM';
+    if (targetBpm < 160) return 'hiit cardio intense workout';
+    return 'hardcore intense metal workout';
+  }
+
   Future<List<MusicTrack>> getTracksByBpm(int targetBpm) async {
+    final query = _bpmToSearchQuery(targetBpm);
+    final encodedQuery = Uri.encodeQueryComponent(query);
     final headers = await _authHeaders();
     if (headers.isEmpty) return [];
     try {
-      final bpmRange = 10;
-      final minBpm = targetBpm - bpmRange;
-      final maxBpm = targetBpm + bpmRange;
-      final query = 'tempo:[${minBpm}_TO_$maxBpm]';
       final response = await http.get(
         Uri.parse(
-          'https://api.spotify.com/v1/search?q=$query&type=track&limit=20',
+          'https://api.spotify.com/v1/search?q=$encodedQuery&type=track&limit=20',
         ),
         headers: headers,
       );
@@ -269,8 +328,12 @@ class SpotifyService {
       if (response.statusCode == 204 || response.statusCode == 202) {
         _isPlaying = true;
       } else if (response.statusCode == 404) {
-        debugPrint('No active Spotify device found. Open Spotify and play a song first.');
+        throw SpotifyNoDeviceException(
+          'No active Spotify device. Open the Spotify app and start playing a song first.',
+        );
       }
+    } on SpotifyNoDeviceException {
+      rethrow;
     } catch (e) {
       debugPrint('Play error: $e');
       rethrow;
@@ -342,5 +405,18 @@ class SpotifyService {
     _tokenExpiry = null;
     _isPlaying = false;
     _currentTrack = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_prefAccessToken);
+      await prefs.remove(_prefRefreshToken);
+      await prefs.remove(_prefTokenExpiry);
+    } catch (_) {}
   }
+}
+
+class SpotifyNoDeviceException implements Exception {
+  final String message;
+  const SpotifyNoDeviceException(this.message);
+  @override
+  String toString() => message;
 }

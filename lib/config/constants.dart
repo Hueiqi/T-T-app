@@ -1,7 +1,7 @@
 import 'api_keys.dart';
 
 class AppConstants {
-  static const String appName = 'T&T AI';
+  static const String appName = 'T&T Fitness';
   static const String appVersion = '1.0.0';
 
   static const String baseUrl = 'https://api.tandt.ai/v1';

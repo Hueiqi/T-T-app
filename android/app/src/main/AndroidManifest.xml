@@ -3,12 +3,7 @@
     <!-- Basic internet permission (required for Flutter debugging) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Bluetooth permissions (Android 12+) -->
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    
-    <!-- Health Connect permissions (required to read heart rate from smartwatch) -->
+    <!-- Health Connect permissions -->
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
@@ -33,8 +28,14 @@
     <!-- Foreground service (for background location) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
+    <!-- Notification permissions (Android 13+ requires POST_NOTIFICATIONS) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
     <application
-        android:label="T&amp;T_app"
+        android:label="T&amp;T Fitness"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         
@@ -89,10 +90,20 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- Required for Spotify Remote SDK (if you use it) -->
+        <!-- Required for flutter_local_notifications to reschedule after reboot -->
         <receiver
-            android:name="com.spotify.android.app.remote.notification.SpotifyNotificationReceiver"
-            android:exported="true" />
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <meta-data
             android:name="flutterEmbedding"

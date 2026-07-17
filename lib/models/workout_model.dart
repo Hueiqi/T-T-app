@@ -13,6 +13,7 @@ class Workout {
   final String sleepReadiness;
   final String notes;
   final double distance;
+  final List<Map<String, double>> routePoints;
 
   Workout({
     required this.id,
@@ -29,7 +30,9 @@ class Workout {
     this.sleepReadiness = 'moderate',
     this.notes = '',
     this.distance = 0,
-  }) : heartRateReadings = heartRateReadings ?? [];
+    List<Map<String, double>>? routePoints,
+  })  : heartRateReadings = heartRateReadings ?? [],
+        routePoints = routePoints ?? [];
 
   Duration get duration =>
       endTime != null ? endTime!.difference(startTime) : Duration.zero;
@@ -49,6 +52,7 @@ class Workout {
         'sleepReadiness': sleepReadiness,
         'notes': notes,
         'distance': distance,
+        'routePoints': routePoints,
       };
 
   factory Workout.fromMap(Map<String, dynamic> map) => Workout(
@@ -70,5 +74,9 @@ class Workout {
         sleepReadiness: map['sleepReadiness'] as String? ?? 'moderate',
         notes: map['notes'] as String? ?? '',
         distance: (map['distance'] as num?)?.toDouble() ?? 0,
+        routePoints: (map['routePoints'] as List<dynamic>?)
+                ?.map((e) => Map<String, double>.from(e as Map))
+                .toList() ??
+            [],
       );
 }

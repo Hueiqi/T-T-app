@@ -29,12 +29,15 @@ class WorkoutProvider extends ChangeNotifier {
   SleepData? _lastNightSleep;
   Timer? _bpmAdjustTimer;
   Timer? _manualOverrideTimer;
-  StreamSubscription<int>? _extHrSub;
   bool _smartwatchConnected = false;
   String? _spotifyError;
   bool _manualOverrideActive = false;
   List<MusicTrack> _searchResults = [];
   bool _isSearching = false;
+
+  String _workoutType = 'cardio';
+  double _distance = 0.0;
+  final List<Map<String, double>> _routePoints = [];
 
   bool get isWorkoutActive => _isWorkoutActive;
   int get currentHeartRate => _currentHeartRate;
@@ -46,11 +49,13 @@ class WorkoutProvider extends ChangeNotifier {
   String get currentTrackName => _currentTrackName;
   String get currentTrackArtist => _currentTrackArtist;
   String get currentMusicZone => _currentMusicZone;
-  bool get smartwatchConnected => _smartwatchConnected;
   String? get spotifyError => _spotifyError;
   bool get manualOverrideActive => _manualOverrideActive;
   List<MusicTrack> get searchResults => _searchResults;
   bool get isSearching => _isSearching;
+  String get workoutType => _workoutType;
+  double get distance => _distance;
+  List<Map<String, double>> get routePoints => _routePoints;
 
   String _hrZoneToMusicZone(String zone) {
     switch (zone) {
@@ -75,25 +80,7 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Shared handler for every incoming HR reading (real or simulated):
-  /// updates the current value, history, and zone.
-  void _onWorkoutHeartRate(int hr) {
-    _currentHeartRate = hr;
-    _heartRateHistory.add(hr);
-    final newZone = AppConstants.getHrZone(hr);
-    if (newZone != _currentHrZone) {
-      _currentMusicZone = _hrZoneToMusicZone(newZone);
-    }
-    _currentHrZone = newZone;
-    notifyListeners();
-  }
-
-  Future<void> startWorkout(
-    String userId, {
-    bool spotifyConnected = false,
-    bool simulateHeartRate = false,
-    Stream<int>? simulatedStream,
-  }) async {
+  Future<void> startWorkout(String userId, {bool spotifyConnected = false}) async {
     // 1. Check smartwatch connection
     bool hrAvailable = false;
     if (!_isWeb) {
@@ -120,20 +107,25 @@ class WorkoutProvider extends ChangeNotifier {
       userId: userId,
       startTime: _workoutStartTime!,
       sleepReadiness: _sleepReadiness,
+      type: workoutType,
     );
 
-    // 3. Save workout session to Firebase
     try {
       await _firebaseService.saveWorkout(_currentWorkout!);
     } catch (_) {}
 
-    // 4. Start HR: simulation (demo, follows the same BPM stream as the home
-    // dashboard) if requested, else real smartwatch/Health Connect stream.
-    _extHrSub?.cancel();
-    if (simulateHeartRate && simulatedStream != null) {
-      _extHrSub = simulatedStream.listen(_onWorkoutHeartRate);
-    } else if (_smartwatchConnected) {
-      _healthService.startHeartRateMonitoring(_onWorkoutHeartRate);
+    // 4. Start HR streaming every 5 seconds (if smartwatch available)
+    if (_smartwatchConnected) {
+      _healthService.startHeartRateMonitoring((int hr) {
+        _currentHeartRate = hr;
+        _heartRateHistory.add(hr);
+        final newZone = AppConstants.getHrZone(hr);
+        if (newZone != _currentHrZone) {
+          _currentMusicZone = _hrZoneToMusicZone(newZone);
+        }
+        _currentHrZone = newZone;
+        notifyListeners();
+      });
     }
 
     // 5. Start Spotify if connected
@@ -145,23 +137,24 @@ class WorkoutProvider extends ChangeNotifier {
       }
     }
 
-    // 6. Start initial music based on current HR or default
     if (spotifyConnected && _spotifyError == null) {
       final initialHr = _currentHeartRate > 0 ? _currentHeartRate : 90;
       await _adjustMusicForHeartRate(initialHr);
     }
 
-    // 7. Start BPM matching loop every 10 seconds
     _bpmAdjustTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
       if (_heartRateHistory.isEmpty) return;
-
-      // If manual override is active, skip auto adjustments
       if (_manualOverrideActive) return;
-
       final latestHr = _heartRateHistory.last;
       await _adjustMusicForHeartRate(latestHr);
     });
 
+    notifyListeners();
+  }
+
+  void addRoutePoint(double latitude, double longitude, double distanceDelta) {
+    _routePoints.add({'lat': latitude, 'lng': longitude});
+    _distance += distanceDelta;
     notifyListeners();
   }
 
@@ -178,14 +171,6 @@ class WorkoutProvider extends ChangeNotifier {
         await _spotifyService.playTrack(tracks.first.spotifyUri);
         _currentTrackName = tracks.first.name;
         _currentTrackArtist = tracks.first.artist;
-      } else {
-        // Fallback: search by BPM range
-        final fallbackTracks = await _spotifyService.getTracksByBpm(targetBpm);
-        if (fallbackTracks.isNotEmpty) {
-          await _spotifyService.playTrack(fallbackTracks.first.spotifyUri);
-          _currentTrackName = fallbackTracks.first.name;
-          _currentTrackArtist = fallbackTracks.first.artist;
-        }
       }
     } catch (e) {
       _spotifyError = 'Music unavailable. Workout continues without music.';
@@ -194,7 +179,6 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// User manually selects a song — overrides auto-selection for 30 seconds
   Future<void> playSelectedTrack(MusicTrack track) async {
     if (_spotifyError != null) return;
 
@@ -205,10 +189,7 @@ class WorkoutProvider extends ChangeNotifier {
       _manualOverrideActive = true;
       notifyListeners();
 
-      // Cancel existing override timer
       _manualOverrideTimer?.cancel();
-
-      // Resume auto-adjustment after 30 seconds
       _manualOverrideTimer = Timer(const Duration(seconds: 30), () {
         _manualOverrideActive = false;
         notifyListeners();
@@ -219,8 +200,13 @@ class WorkoutProvider extends ChangeNotifier {
     }
   }
 
-  /// Search Spotify for songs by query
   Future<void> searchSongs(String query) async {
+    if (query.trim().isEmpty) {
+      _searchResults = [];
+      _isSearching = false;
+      notifyListeners();
+      return;
+    }
     _isSearching = true;
     notifyListeners();
     try {
@@ -232,9 +218,6 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// End workout and save results using batched Firestore writes.
-  /// Returns a map with workout summary (caloriesBurned, avgHr, maxHr, durationMinutes).
-  /// When [manualCalories] is provided, uses that value instead of calculated (for no-HR case).
   Future<Map<String, dynamic>> endWorkout({
     required String gender,
     double? manualCalories,
@@ -261,6 +244,7 @@ class WorkoutProvider extends ChangeNotifier {
 
     final endTime = DateTime.now();
     final durationMinutes = endTime.difference(_currentWorkout!.startTime).inMinutes;
+    final durationSeconds = endTime.difference(_currentWorkout!.startTime).inSeconds;
 
     final hasHrData = _heartRateHistory.isNotEmpty;
     final avgHr = hasHrData
@@ -292,7 +276,7 @@ class WorkoutProvider extends ChangeNotifier {
       userId: _currentWorkout!.userId,
       startTime: _currentWorkout!.startTime,
       endTime: endTime,
-      type: _currentWorkout!.type,
+      type: _workoutType,
       heartRateReadings: sampledReadings,
       avgHeartRate: avgHr,
       maxHeartRate: maxHr,
@@ -301,7 +285,8 @@ class WorkoutProvider extends ChangeNotifier {
       musicPlaylistId: '',
       sleepReadiness: _sleepReadiness,
       notes: '',
-      distance: _currentWorkout!.distance,
+      distance: _distance,
+      routePoints: List<Map<String, double>>.from(_routePoints),
     );
 
     await _firebaseService.saveWorkoutEndData(_currentWorkout!, caloriesBurned);
@@ -313,7 +298,11 @@ class WorkoutProvider extends ChangeNotifier {
       'maxHr': maxHr,
       'minHr': minHr,
       'durationMinutes': durationMinutes,
+      'durationSeconds': durationSeconds,
       'hasHrData': hasHrData,
+      'distance': _distance,
+      'routePoints': List<Map<String, double>>.from(_routePoints),
+      'workout': _currentWorkout!,
     };
   }
 
@@ -378,6 +367,36 @@ class WorkoutProvider extends ChangeNotifier {
             w.endTime != null &&
             w.endTime!.isAfter(todayStart))
         .fold<double>(0, (sum, w) => sum + w.caloriesBurned);
+    notifyListeners();
+  }
+
+  void clear() {
+    _isWorkoutActive = false;
+    _currentHeartRate = 0;
+    _heartRateHistory = [];
+    _workoutStartTime = null;
+    _currentWorkout = null;
+    _currentHrZone = 'Warm up';
+    _currentTrackName = '';
+    _currentTrackArtist = '';
+    _currentMusicZone = '';
+    _sleepReadiness = 'moderate';
+    _lastNightSleep = null;
+    _bpmAdjustTimer?.cancel();
+    _manualOverrideTimer?.cancel();
+    _extHrSub?.cancel();
+    _spotifyError = null;
+    _manualOverrideActive = false;
+    _searchResults = [];
+    _isSearching = false;
+    _workoutType = 'cardio';
+    _distance = 0.0;
+    _routePoints.clear();
+    _osWorkouts = [];
+    _recentWorkout = null;
+    _todayCaloriesBurned = 0;
+    _workouts = [];
+    _healthService.stopHeartRateMonitoring();
     notifyListeners();
   }
 

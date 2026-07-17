@@ -551,6 +551,20 @@ class FirebaseService {
     }
   }
 
+  Future<void> deleteWeightEntry(String userId, String entryId) async {
+    if (_demoMode) return;
+    try {
+      await _firestore!
+          .collection('users')
+          .doc(userId)
+          .collection('weightHistory')
+          .doc(entryId)
+          .delete();
+    } catch (e) {
+      debugPrint('deleteWeightEntry error: $e');
+    }
+  }
+
   Future<WeightEntry?> getWeightForDate(String userId, DateTime date) async {
     if (_demoMode) return null;
     try {
