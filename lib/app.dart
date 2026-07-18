@@ -34,10 +34,21 @@ import 'screens/popular_exersive_screen.dart';
 import 'screens/routine_detail_screen.dart';
 import 'screens/follow_routine_screen.dart';
 import 'screens/exercise_library_screen.dart';
+<<<<<<< HEAD
 import 'screens/edit_profile_screen.dart';
 import 'screens/weight_progress_screen.dart';
 import 'screens/workout_complete_screen.dart';
 import 'screens/splash_screen.dart';
+=======
+import 'spotify/spotify_section.dart';
+import 'spotify/services/auth/auth.dart';
+import 'spotify/services/playback/playback.dart';
+import 'spotify/services/spotify_api.dart';
+import 'spotify/state/player_provider.dart';
+import 'spotify/widgets/global_mini_player.dart';
+import 'screens/workout_music_screen.dart';
+import 'screens/watch_heart_rate_screen.dart';
+>>>>>>> 7712fa4da3fa3c8b14fc5c8e6f8ca44ab0edcef1
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -55,14 +66,66 @@ class AuthWrapper extends StatelessWidget {
   }
 }
 
-class FitSyncApp extends StatelessWidget {
+class FitSyncApp extends StatefulWidget {
   const FitSyncApp({super.key});
 
   @override
+  State<FitSyncApp> createState() => _FitSyncAppState();
+}
+
+class _FitSyncAppState extends State<FitSyncApp> {
+  // App-root Spotify services so playback survives across every screen and
+  // the floating mini-player can hover over the fitness parts of the app.
+  // Separate from the existing SpotifyService/MusicProvider BPM-matching
+  // flow — this powers the standalone Spotify browsing/playback feature
+  // (Profile > Spotify, playlist customization) and doesn't touch the
+  // existing auto-BPM music during an active workout.
+  late final AuthController _spotifyAuth;
+  late final SpotifyApi _spotifyApi;
+  late final PlayerProvider _spotifyPlayer;
+
+  // Root navigator so the floating player can open the full player screen
+  // over whatever route is currently showing.
+  final _navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _spotifyAuth = createAuthController();
+    _spotifyApi = SpotifyApi(_spotifyAuth);
+    _spotifyPlayer = PlayerProvider(createPlaybackEngine(_spotifyApi, _spotifyAuth));
+    _spotifyAuth.init();
+  }
+
+  @override
+  void dispose() {
+    _spotifyPlayer.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+<<<<<<< HEAD
     return MaterialApp(
       title: 'T&T Fitness',
+=======
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthController>.value(value: _spotifyAuth),
+        Provider<SpotifyApi>.value(value: _spotifyApi),
+        ChangeNotifierProvider<PlayerProvider>.value(value: _spotifyPlayer),
+      ],
+      child: MaterialApp(
+      title: 'T&T AI',
+>>>>>>> 7712fa4da3fa3c8b14fc5c8e6f8ca44ab0edcef1
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navigatorKey,
+      builder: (context, child) => Stack(
+        children: [
+          ?child,
+          GlobalMiniPlayer(navigatorKey: _navigatorKey),
+        ],
+      ),
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.light,
@@ -114,6 +177,7 @@ class FitSyncApp extends StatelessWidget {
         AppRoutes.exerciseLibrary: (_) => const ExerciseLibraryScreen(),
         AppRoutes.activity: (_) => const RoutineHistoryScreen(),
         AppRoutes.workoutDetail: (_) => const RoutineHistoryScreen(),
+<<<<<<< HEAD
         AppRoutes.editProfile: (_) => const EditProfileScreen(),
         AppRoutes.workoutComplete: (ctx) {
           final args = ModalRoute.of(ctx)?.settings.arguments
@@ -121,7 +185,13 @@ class FitSyncApp extends StatelessWidget {
               {};
           return WorkoutCompleteScreen(result: args);
         },
+=======
+        AppRoutes.spotify: (_) => const SpotifySection(),
+        AppRoutes.workoutMusic: (_) => const WorkoutMusicScreen(),
+        AppRoutes.watchHeartRate: (_) => const WatchHeartRateScreen(),
+>>>>>>> 7712fa4da3fa3c8b14fc5c8e6f8ca44ab0edcef1
       },
+      ),
     );
   }
 }
