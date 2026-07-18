@@ -338,6 +338,27 @@ Keep it concise but complete.
 ''';
     return await chat(prompt);
   }
+    // ──────────────────────────────────────────────────────────────
+  // 8. AUTO‑FILL NUTRITION FROM FOOD NAME
+  // ──────────────────────────────────────────────────────────────
+  Future<Map<String, dynamic>> autoFillNutritionFromName(String foodName) async {
+    if (_model == null) throw Exception('AI not initialized.');
+    final prompt = '''
+  You are a nutrition expert. Given the food name "$foodName", return a JSON object with the following fields:
+  - calories (per 100g, number)
+  - protein (g per 100g, number)
+  - carbs (g per 100g, number)
+  - fat (g per 100g, number)
+  - fiber (g per 100g, number)
+  - sugar (g per 100g, number)
+  - sodium (mg per 100g, number)
+  - servingSize (common serving description, string)
+  Only return the JSON object, no extra text.
+  ''';
+    final response = await chat(prompt);
+    final clean = response.replaceAll(RegExp(r'```json|```'), '').trim();
+    return jsonDecode(clean) as Map<String, dynamic>;
+  }
 
   // ──────────────────────────────────────────────────────────────
   // PRIVATE HELPERS

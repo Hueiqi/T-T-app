@@ -9,6 +9,7 @@ import '../models/meal_model.dart';
 import '../widgets/bottom_nav_shell.dart';
 import 'meal_history_screen.dart';
 import 'food_capture_screen.dart';
+import 'manual_food_entry_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class NutritionScreen extends StatefulWidget {
@@ -103,35 +104,23 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 ),
                 const SizedBox(height: 16),
                 _QuickActionTile(
-                  imagePath: 'lib/assets/diet/breakfast.png',
-                  label: 'Add Breakfast',
+                  icon: Icons.edit_note,
+                  color: const Color(0xFF4CAF50),
+                  label: 'Add Food Manual',
                   onTap: () {
                     Navigator.pop(ctx);
-                    Navigator.pushNamed(context, AppRoutes.foodSearch,
-                        arguments: 'breakfast');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ManualFoodEntryScreen(mealType: 'snack'),
+                      ),
+                    );
                   },
                 ),
                 _QuickActionTile(
-                  imagePath: 'lib/assets/diet/lunch.png',
-                  label: 'Add Lunch',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.pushNamed(context, AppRoutes.foodSearch,
-                        arguments: 'lunch');
-                  },
-                ),
-                _QuickActionTile(
-                  imagePath: 'lib/assets/diet/dinner.png',
-                  label: 'Add Dinner',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.pushNamed(context, AppRoutes.foodSearch,
-                        arguments: 'dinner');
-                  },
-                ),
-                _QuickActionTile(
-                  imagePath: 'lib/assets/diet/snack.png',
-                  label: 'Add Snack',
+                  icon: Icons.library_books,
+                  color: const Color(0xFF2196F3),
+                  label: 'Food Library',
                   onTap: () {
                     Navigator.pop(ctx);
                     Navigator.pushNamed(context, AppRoutes.foodSearch,
@@ -139,17 +128,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   },
                 ),
                 _QuickActionTile(
-                  imagePath: 'lib/assets/diet/camera.png',
-                  label: 'Scan Food',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.pushNamed(context, AppRoutes.foodCapture);
-                  },
-                ),
-                _QuickActionTile(
                   icon: Icons.monitor_weight,
                   color: AppTheme.textSecondary,
-                  label: 'Log Weight',
+                  label: 'Add Weight',
                   onTap: () {
                     Navigator.pop(ctx);
                     _showWeightDialog();
@@ -208,6 +189,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   .read<NutritionProvider>()
                   .saveWeight(userId: auth.user!.uid, weight: w);
               if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                Navigator.pushNamed(context, AppRoutes.weightProgress);
+              }
             },
             child: const Text('Save'),
           ),

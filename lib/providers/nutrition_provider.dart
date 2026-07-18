@@ -9,6 +9,7 @@ import '../models/food_item_model.dart';
 import '../models/user_model.dart';
 import '../models/weight_entry_model.dart';
 import 'package:uuid/uuid.dart';
+import '../models/saved_food_model.dart';
 
 class NutritionProvider extends ChangeNotifier {
   final AIService _aiService = AIService();
@@ -404,6 +405,76 @@ class NutritionProvider extends ChangeNotifier {
     _weightHistory = [];
     _dateRangeMeals = [];
     _weeklyCalories = {};
+    notifyListeners();
+  }
+  // ── Saved Foods (User Food Library) ──
+
+  List<SavedFood> _savedFoods = [];
+  List<SavedFood> get savedFoods => _savedFoods;
+
+  Future<void> loadSavedFoods(String userId) async {
+    try {
+      _savedFoods = await _firebaseService.getSavedFoods(userId);
+    } catch (e) {
+      debugPrint('NutritionProvider.loadSavedFoods error: $e');
+      _savedFoods = [];
+    }
+    notifyListeners();
+  }
+
+  Future<void> saveFoodToLibrary({
+    required String userId,
+    required String foodName,
+    String servingSize = '1 serving',
+    double calories = 0,
+    double protein = 0,
+    double carbs = 0,
+    double fat = 0,
+    double fiber = 0,
+    double sugar = 0,
+    double sodium = 0,
+    double vitaminA = 0,
+    double vitaminB = 0,
+    double vitaminC = 0,
+    double vitaminD = 0,
+    double vitaminE = 0,
+    double vitaminK = 0,
+    double calcium = 0,
+    double iron = 0,
+    double magnesium = 0,
+    double potassium = 0,
+  }) async {
+    final food = SavedFood(
+      id: _uuid.v4(),
+      userId: userId,
+      foodName: foodName,
+      servingSize: servingSize,
+      calories: calories,
+      protein: protein,
+      carbs: carbs,
+      fat: fat,
+      fiber: fiber,
+      sugar: sugar,
+      sodium: sodium,
+      vitaminA: vitaminA,
+      vitaminB: vitaminB,
+      vitaminC: vitaminC,
+      vitaminD: vitaminD,
+      vitaminE: vitaminE,
+      vitaminK: vitaminK,
+      calcium: calcium,
+      iron: iron,
+      magnesium: magnesium,
+      potassium: potassium,
+    );
+    await _firebaseService.saveSavedFood(food);
+    _savedFoods.insert(0, food);
+    notifyListeners();
+  }
+
+  Future<void> deleteSavedFood(String userId, String foodId) async {
+    await _firebaseService.deleteSavedFood(userId, foodId);
+    _savedFoods.removeWhere((f) => f.id == foodId);
     notifyListeners();
   }
 }

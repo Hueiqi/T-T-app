@@ -76,6 +76,12 @@ class MobileAuthController extends AuthController {
     notifyListeners();
   }
 
+  /// Clears cached token and re-authenticates. Call this after scope changes.
+  Future<void> forceReauthorize() async {
+    await logout();
+    await login();
+  }
+
   @override
   Future<String?> getValidAccessToken({bool forceRefresh = false}) async {
     final valid = _accessToken != null &&

@@ -1,15 +1,19 @@
 package com.fyp.fitness_app
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.annotation.NonNull
 import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
@@ -21,41 +25,73 @@ import java.time.Instant
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 
-class HealthConnectPlugin: FlutterPlugin, MethodCallHandler {
+class HealthConnectPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private lateinit var channel: MethodChannel
     private lateinit var context: Context
     private var healthConnectClient: HealthConnectClient? = null
     private val coroutineScope = CoroutineScope(Dispatchers.Main)
+    private var activity: android.app.Activity? = null
+
+    // Permissions as strings (no internal constants)
+    private val requiredPermissions = setOf(
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.READ_TOTAL_CALORIES_BURNED",
+        "android.permission.health.READ_EXERCISE"
+    )
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-        // IMPORTANT: Ensure this string matches the channel name in your Flutter Dart code.
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, "health_connect_plugin")
         channel.setMethodCallHandler(this)
         context = flutterPluginBinding.applicationContext
     }
 
-    override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        activity = binding.activity
+    }
+
+    override fun onDetachedFromActivityForConfigChanges() { activity = null }
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) { activity = binding.activity }
+    override fun onDetachedFromActivity() { activity = null }
+
+    private fun getClient(): HealthConnectClient? {
         if (healthConnectClient == null) {
             try {
                 healthConnectClient = HealthConnectClient.getOrCreate(context)
             } catch (e: Exception) {
-                // Handle cases where Health Connect is not installed
+                return null
             }
         }
+        return healthConnectClient
+    }
 
+    override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
         when (call.method) {
             "checkAvailability" -> checkAvailability(result)
+            "requestPermissions" -> requestPermissions(result)
+            "hasPermissions" -> hasPermissions(result)
             "getSteps" -> coroutineScope.launch { getSteps(result) }
+            "getStepsBetween" -> {
+                val startMs = call.argument<Long>("startMs")!!
+                val endMs = call.argument<Long>("endMs")!!
+                coroutineScope.launch { getStepsBetween(startMs, endMs, result) }
+            }
             "getHeartRate" -> coroutineScope.launch { getHeartRate(result) }
+            "getHeartRateBetween" -> {
+                val startMs = call.argument<Long>("startMs")!!
+                val endMs = call.argument<Long>("endMs")!!
+                coroutineScope.launch { getHeartRateBetween(startMs, endMs, result) }
+            }
             "getSleep" -> coroutineScope.launch { getSleep(result) }
             "getCalories" -> coroutineScope.launch { getCalories(result) }
+            // ── Write methods removed to avoid compilation issues ──
             else -> result.notImplemented()
         }
     }
 
-    // ==========================================
-    // 1. FIXED SDK STATUS CHECKS
-    // ==========================================
+    // ── Availability ──
     private fun checkAvailability(result: Result) {
         val status = HealthConnectClient.getSdkStatus(context)
         when (status) {
@@ -66,48 +102,93 @@ class HealthConnectPlugin: FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ==========================================
-    // 2. FIXED TIME RANGE & READ RECORDS REQUEST (STEPS)
-    // ==========================================
-    private suspend fun getSteps(result: Result) {
+    // ── Permissions ──
+    private fun hasPermissions(result: Result) {
+        val client = getClient() ?: return result.error("UNAVAILABLE", "Health Connect not available", null)
+        coroutineScope.launch {
+            try {
+                val granted = client.permissionController.getGrantedPermissions()
+                result.success(granted.containsAll(requiredPermissions))
+            } catch (e: Exception) {
+                result.success(false)
+            }
+        }
+    }
+
+    private fun requestPermissions(result: Result) {
+        val currentActivity = activity
+            ?: return result.error("NO_ACTIVITY", "No activity available for permission request", null)
+
+        coroutineScope.launch {
+            val client = getClient() ?: return@launch result.error("UNAVAILABLE", "Health Connect not available", null)
+            try {
+                val granted = client.permissionController.getGrantedPermissions()
+                if (granted.containsAll(requiredPermissions)) {
+                    result.success(true)
+                    return@launch
+                }
+            } catch (_: Exception) {}
+        }
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse("package:${context.packageName}")
+            setClassName(
+                "com.google.android.apps.healthdata",
+                "com.google.android.healthconnect.controller.permissions.api.HealthConnectPermissionsActivity"
+            )
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
         try {
-            val client = healthConnectClient ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
-            val todayStart = ZonedDateTime.now().truncatedTo(ChronoUnit.DAYS).toInstant()
-            val now = Instant.now()
+            currentActivity.startActivity(intent)
+        } catch (e: Exception) {
+            result.error("PERMISSION_ERROR", "Could not open Health Connect permissions: ${e.message}", null)
+        }
+    }
+
+    // ── Read: Steps ──
+    private suspend fun getSteps(result: Result) {
+        val todayStart = ZonedDateTime.now().truncatedTo(ChronoUnit.DAYS).toInstant()
+        getStepsBetween(todayStart.toEpochMilli(), System.currentTimeMillis(), result)
+    }
+
+    private suspend fun getStepsBetween(startMs: Long, endMs: Long, result: Result) {
+        try {
+            val client = getClient() ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
+            val start = Instant.ofEpochMilli(startMs)
+            val end = Instant.ofEpochMilli(endMs)
 
             val request = ReadRecordsRequest(
                 recordType = StepsRecord::class,
-                timeRangeFilter = TimeRangeFilter.between(todayStart, now)
+                timeRangeFilter = TimeRangeFilter.between(start, end)
             )
-
             val response = client.readRecords(request)
             var totalSteps = 0L
             for (record in response.records) {
                 totalSteps += record.count
             }
-            result.success(totalSteps)
+            result.success(totalSteps.toInt())
         } catch (e: Exception) {
             result.error("ERROR", e.localizedMessage, null)
         }
     }
 
-    // ==========================================
-    // 3. FIXED LAMBDA SCOPE & HEART RATE SAMPLES
-    // ==========================================
+    // ── Read: Heart Rate ──
     private suspend fun getHeartRate(result: Result) {
+        val todayStart = ZonedDateTime.now().truncatedTo(ChronoUnit.DAYS).toInstant()
+        getHeartRateBetween(todayStart.toEpochMilli(), System.currentTimeMillis(), result)
+    }
+
+    private suspend fun getHeartRateBetween(startMs: Long, endMs: Long, result: Result) {
         try {
-            val client = healthConnectClient ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
-            val todayStart = ZonedDateTime.now().truncatedTo(ChronoUnit.DAYS).toInstant()
-            val now = Instant.now()
+            val client = getClient() ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
+            val start = Instant.ofEpochMilli(startMs)
+            val end = Instant.ofEpochMilli(endMs)
 
             val request = ReadRecordsRequest(
                 recordType = HeartRateRecord::class,
-                timeRangeFilter = TimeRangeFilter.between(todayStart, now)
+                timeRangeFilter = TimeRangeFilter.between(start, end)
             )
-
             val response = client.readRecords(request)
-            
-            // Fixed the implicit "it" errors by explicitly naming variables
             val heartRateData = response.records.flatMap { record ->
                 record.samples.map { sample ->
                     mapOf(
@@ -122,12 +203,10 @@ class HealthConnectPlugin: FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ==========================================
-    // 4. FIXED SLEEP SESSION RECORDS
-    // ==========================================
+    // ── Read: Sleep ──
     private suspend fun getSleep(result: Result) {
         try {
-            val client = healthConnectClient ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
+            val client = getClient() ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
             val todayStart = ZonedDateTime.now().truncatedTo(ChronoUnit.DAYS).toInstant()
             val now = Instant.now()
 
@@ -135,7 +214,6 @@ class HealthConnectPlugin: FlutterPlugin, MethodCallHandler {
                 recordType = SleepSessionRecord::class,
                 timeRangeFilter = TimeRangeFilter.between(todayStart, now)
             )
-
             val response = client.readRecords(request)
             val sleepData = response.records.map { record ->
                 mapOf(
@@ -149,12 +227,10 @@ class HealthConnectPlugin: FlutterPlugin, MethodCallHandler {
         }
     }
 
-    // ==========================================
-    // 5. FIXED ACTIVE CALORIES RECORDS
-    // ==========================================
+    // ── Read: Calories ──
     private suspend fun getCalories(result: Result) {
         try {
-            val client = healthConnectClient ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
+            val client = getClient() ?: return result.error("UNAVAILABLE", "Health Connect Client is null", null)
             val todayStart = ZonedDateTime.now().truncatedTo(ChronoUnit.DAYS).toInstant()
             val now = Instant.now()
 
@@ -162,7 +238,6 @@ class HealthConnectPlugin: FlutterPlugin, MethodCallHandler {
                 recordType = ActiveCaloriesBurnedRecord::class,
                 timeRangeFilter = TimeRangeFilter.between(todayStart, now)
             )
-
             val response = client.readRecords(request)
             var totalCalories = 0.0
             for (record in response.records) {

@@ -15,7 +15,7 @@ class PopularWorkoutsScreen extends StatefulWidget {
 
 class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<ActivityRoutine> _filtered = ActivityRepository.allRoutines; // ✅ class
+  List<ActivityRoutine> _filtered = ActivityRepository.allRoutines;
   final Set<String> _completedIds = {'abs_10min', 'beginner_abs_10min'};
   final Map<String, int> _completionCount = {
     'abs_10min': 3,
@@ -73,94 +73,88 @@ class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
       ),
       body: SafeArea(
         child: Column(
-        children: [
-
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Text(
-                  '${_filtered.length} routine${_filtered.length == 1 ? '' : 's'}',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: _filtered.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 48,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No routines found',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.78,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                        ),
-                    itemCount: _filtered.length,
-                    itemBuilder: (context, index) {
-                      final routine = _filtered[index];
-                      final isDone = _completedIds.contains(routine.id);
-                      final doneCount = _completionCount[routine.id] ?? 0;
-                      return _RoutineGridCard(
-                        routine: routine,
-                        isDone: isDone,
-                        doneCount: doneCount,
-                        difficultyColor: _difficultyColor(routine.difficulty),
-                        estimatedCalories: _estimateCalories(routine),
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.routineDetail,
-                          arguments: routine.id,
-                        ),
-                        onQuickStart: () {
-                          final nowCount =
-                              (_completionCount[routine.id] ?? 0) + 1;
-                          setState(() {
-                            _completedIds.add(routine.id);
-                            _completionCount[routine.id] = nowCount;
-                          });
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  FollowRoutineScreen(routineId: routine.id),
-                            ),
-                          );
-                        },
-                      );
-                    },
+          children: [
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Text(
+                    '${_filtered.length} routine${_filtered.length == 1 ? '' : 's'}',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                   ),
-          ),
-        ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _filtered.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.search_off,
+                            size: 48,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No routines found',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      itemCount: _filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final routine = _filtered[index];
+                        final isDone = _completedIds.contains(routine.id);
+                        final doneCount = _completionCount[routine.id] ?? 0;
+                        return _RoutineRowCard(
+                          routine: routine,
+                          isDone: isDone,
+                          doneCount: doneCount,
+                          difficultyColor: _difficultyColor(routine.difficulty),
+                          estimatedCalories: _estimateCalories(routine),
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.routineDetail,
+                            arguments: routine.id,
+                          ),
+                          onQuickStart: () {
+                            final nowCount =
+                                (_completionCount[routine.id] ?? 0) + 1;
+                            setState(() {
+                              _completedIds.add(routine.id);
+                              _completionCount[routine.id] = nowCount;
+                            });
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    FollowRoutineScreen(routineId: routine.id),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
-class _RoutineGridCard extends StatelessWidget {
+
+class _RoutineRowCard extends StatelessWidget {
   final ActivityRoutine routine;
   final bool isDone;
   final int doneCount;
@@ -169,7 +163,7 @@ class _RoutineGridCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onQuickStart;
 
-  const _RoutineGridCard({
+  const _RoutineRowCard({
     required this.routine,
     required this.isDone,
     required this.doneCount,
@@ -186,6 +180,7 @@ class _RoutineGridCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        height: 130,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           border: isDone
@@ -212,170 +207,185 @@ class _RoutineGridCard extends StatelessWidget {
               Container(
                 color: Colors.black.withValues(alpha: 0.45),
               ),
-              // ─── Content ────────────────────────────────────
+              // ─── Row Content ───────────────────────────────
               Padding(
                 padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    // ─── Top row: difficulty badge only ────────
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: difficultyColor.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            routine.difficulty,
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                    // ─── Left: Thumbnail ────────────────────
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        imageAsset,
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 72,
+                          height: 72,
+                          color: Color(routine.colorValue).withValues(alpha: 0.3),
+                          child: const Icon(Icons.fitness_center, color: Colors.white, size: 28),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // ─── Middle: Info ───────────────────────
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Difficulty badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: difficultyColor.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              routine.difficulty,
+                              style: const TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ),
-                        const Spacer(),
-                      ],
-                    ),
-                    const Spacer(),
-                    // ─── Bottom section ──────────────────────
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          routine.title,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                offset: Offset(0, 1),
-                                blurRadius: 4,
-                                color: Colors.black38,
+                          const SizedBox(height: 6),
+                          // Title
+                          Text(
+                            routine.title,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(0, 1),
+                                  blurRadius: 4,
+                                  color: Colors.black38,
+                                ),
+                              ],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 6),
+                          // Duration + Calories row
+                          Row(
+                            children: [
+                              Icon(Icons.timer_outlined, size: 13, color: Colors.white70),
+                              const SizedBox(width: 3),
+                              Text(
+                                routine.duration,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Icon(Icons.local_fire_department, size: 13, color: Colors.white70),
+                              const SizedBox(width: 2),
+                              Text(
+                                '~$estimatedCalories cal',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Icon(Icons.fitness_center, size: 13, color: Colors.white70),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${routine.exercises.length} exercises',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ],
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.timer_outlined,
-                              size: 12,
-                              color: Colors.white70,
+                          const SizedBox(height: 8),
+                          // Description
+                          Text(
+                            routine.description ?? '',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white.withValues(alpha: 0.7),
                             ),
-                            const SizedBox(width: 3),
-                            Text(
-                              routine.duration,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    // ─── Right: Button + Badge ──────────────
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          height: 34,
+                          child: ElevatedButton.icon(
+                            onPressed: onQuickStart,
+                            icon: Icon(
+                              isDone ? Icons.replay : Icons.play_arrow,
+                              size: 16,
+                            ),
+                            label: Text(
+                              isDone ? 'Again' : 'Start',
                               style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.white,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                shadows: [
-                                  Shadow(
-                                    offset: Offset(0, 1),
-                                    blurRadius: 4,
-                                    color: Colors.black38,
-                                  ),
-                                ],
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.local_fire_department,
-                              size: 12,
-                              color: Colors.white70,
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              '~$estimatedCalories',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                                shadows: [
-                                  Shadow(
-                                    offset: Offset(0, 1),
-                                    blurRadius: 4,
-                                    color: Colors.black38,
-                                  ),
-                                ],
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SizedBox(
-                                height: 28,
-                                child: ElevatedButton.icon(
-                                  onPressed: onQuickStart,
-                                  icon: const Icon(Icons.play_arrow, size: 14),
-                                  label: Text(
-                                    isDone ? 'Again' : 'Start',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                ),
-                              ),
+                        if (isDone) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
                             ),
-                            if (isDone) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.check_circle,
+                                  size: 11,
+                                  color: Colors.white,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.check_circle,
-                                      size: 11,
+                                if (doneCount > 1) ...[
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '${doneCount}x',
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
                                       color: Colors.white,
                                     ),
-                                    if (doneCount > 1) ...[
-                                      const SizedBox(width: 2),
-                                      Text(
-                                        '${doneCount}x',
-                                        style: const TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],

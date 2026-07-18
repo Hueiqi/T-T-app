@@ -4,6 +4,7 @@ import '../providers/nutrition_provider.dart';
 import '../providers/auth_provider.dart';
 import '../config/theme.dart';
 import '../data/food_database.dart';
+import '../services/food_library.dart';
 import '../models/meal_model.dart';
 import '../services/food_api_service.dart';
 import 'nutrition_success_screen.dart';
@@ -22,12 +23,32 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   String _query = '';
   bool _isLoading = false;
   String? _onlineError;
+  bool _libraryLoaded = false;
 
   static const List<String> _filters = ['All', 'My Foods', 'Meals', 'Recipes', 'Online'];
 
-  // ─── Local data ───────────────────────────────────────────────
+  @override
+  void initState() {
+    super.initState();
+    _loadLibrary();
+  }
+
+  Future<void> _loadLibrary() async {
+    await FoodLibrary.load();
+    if (mounted) setState(() => _libraryLoaded = true);
+  }
+
+  // ─── Local data (full library) ─────────────────────────────
   List<FoodItemDisplay> get _allFoods =>
-      commonFoods.map((f) => FoodItemDisplay(f.name, f.calories.toDouble(), f.servingSize, f.protein, f.carbs, f.fat)).toList();
+      FoodLibrary.all.map((f) => FoodItemDisplay(
+            f.name, f.calories, f.servingSize,
+            f.protein, f.carbs, f.fat,
+            fiber: f.fiber, sugar: f.sugar, sodium: f.sodium,
+            vitaminA: f.vitaminA, vitaminB: f.vitaminB, vitaminC: f.vitaminC,
+            vitaminD: f.vitaminD, vitaminE: f.vitaminE, vitaminK: f.vitaminK,
+            calcium: f.calcium, iron: f.iron, magnesium: f.magnesium,
+            potassium: f.potassium, water: f.water,
+          )).toList();
 
   List<FoodItemDisplay> get _myFoods {
     final nutrition = context.read<NutritionProvider>();
@@ -94,13 +115,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
         if (q.isNotEmpty) items = items.where((r) => r.name.toLowerCase().contains(q)).toList();
         return items;
       case 'Online':
-        if (q.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!_isLoading) _searchOnline(q);
-          });
-        } else {
-          setState(() { _onlineResults = []; });
-        }
         return _onlineResults;
       default: // All
         var items = _allFoods;
@@ -116,7 +130,22 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   }
 
   // ─── Add meal (general) ───────────────────────────────────────
-  Future<Meal> _addMeal(String name, double calories, double protein, double carbs, double fat, {String? imageUrl}) async {
+  Future<Meal> _addMeal(String name, double calories, double protein, double carbs, double fat, {
+    String? imageUrl,
+    double fiber = 0,
+    double sodium = 0,
+    double vitaminA = 0,
+    double vitaminB = 0,
+    double vitaminC = 0,
+    double vitaminD = 0,
+    double vitaminE = 0,
+    double vitaminK = 0,
+    double calcium = 0,
+    double iron = 0,
+    double magnesium = 0,
+    double potassium = 0,
+    double water = 0,
+  }) async {
     final nutrition = context.read<NutritionProvider>();
     final auth = context.read<AuthProvider>();
     if (auth.user == null) throw Exception('Not authenticated');
@@ -129,12 +158,39 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       carbs: carbs,
       fat: fat,
       imageUrl: imageUrl,
+      fiber: fiber,
+      sodium: sodium,
+      vitaminA: vitaminA,
+      vitaminB: vitaminB,
+      vitaminC: vitaminC,
+      vitaminD: vitaminD,
+      vitaminE: vitaminE,
+      vitaminK: vitaminK,
+      calcium: calcium,
+      iron: iron,
+      magnesium: magnesium,
+      potassium: potassium,
+      water: water,
     );
   }
 
   // ─── Add local food ──────────────────────────────────────────
   Future<void> _selectFood(FoodItemDisplay food) async {
-    final meal = await _addMeal(food.name, food.calories, food.protein, food.carbs, food.fat);
+    final meal = await _addMeal(food.name, food.calories, food.protein, food.carbs, food.fat,
+      fiber: food.fiber,
+      sodium: food.sodium,
+      vitaminA: food.vitaminA,
+      vitaminB: food.vitaminB,
+      vitaminC: food.vitaminC,
+      vitaminD: food.vitaminD,
+      vitaminE: food.vitaminE,
+      vitaminK: food.vitaminK,
+      calcium: food.calcium,
+      iron: food.iron,
+      magnesium: food.magnesium,
+      potassium: food.potassium,
+      water: food.water,
+    );
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -202,7 +258,16 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: TextField(
                 controller: _searchController,
-                onChanged: (v) => setState(() => _query = v),
+                onChanged: (v) {
+                  setState(() => _query = v);
+                  if (_selectedFilter == 'Online') {
+                    if (v.trim().isEmpty) {
+                      setState(() { _onlineResults = []; _onlineError = null; });
+                    } else {
+                      _searchOnline(v);
+                    }
+                  }
+                },
                 decoration: InputDecoration(
                   hintText: 'Search foods...',
                   prefixIcon: const Icon(Icons.search, color: AppTheme.textSecondary),
@@ -244,6 +309,10 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                           if (filter != 'Online') {
                             _onlineResults = [];
                             _onlineError = null;
+                          } else if (_query.trim().isNotEmpty) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              _searchOnline(_query);
+                            });
                           }
                         }),
                         selectedColor: AppTheme.primaryColor.withValues(alpha: 0.15),
@@ -363,6 +432,20 @@ class FoodItemDisplay {
   final double fat;
   final String? imageUrl;   // for online items
   final String? barcode;    // for online items
+  final double fiber;
+  final double sugar;
+  final double sodium;
+  final double vitaminA;
+  final double vitaminB;
+  final double vitaminC;
+  final double vitaminD;
+  final double vitaminE;
+  final double vitaminK;
+  final double calcium;
+  final double iron;
+  final double magnesium;
+  final double potassium;
+  final double water;
 
   FoodItemDisplay(
     this.name,
@@ -373,6 +456,20 @@ class FoodItemDisplay {
     this.fat, {
     this.imageUrl,
     this.barcode,
+    this.fiber = 0,
+    this.sugar = 0,
+    this.sodium = 0,
+    this.vitaminA = 0,
+    this.vitaminB = 0,
+    this.vitaminC = 0,
+    this.vitaminD = 0,
+    this.vitaminE = 0,
+    this.vitaminK = 0,
+    this.calcium = 0,
+    this.iron = 0,
+    this.magnesium = 0,
+    this.potassium = 0,
+    this.water = 0,
   });
 }
 

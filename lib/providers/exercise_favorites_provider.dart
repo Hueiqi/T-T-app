@@ -4,19 +4,28 @@ import '../services/exercise_db.dart';
 import '../models/exercise_model.dart';
 
 class ExerciseFavoritesProvider extends ChangeNotifier {
+  String? _userId;
   Set<String> _favoriteIds = {};
 
   Set<String> get favoriteIds => _favoriteIds;
 
   bool isFavorite(String id) => _favoriteIds.contains(id);
 
-  ExerciseFavoritesProvider() {
+  ExerciseFavoritesProvider();
+
+  void setUserId(String? uid) {
+    if (_userId == uid) return;
+    _userId = uid;
+    _favoriteIds = {};
+    notifyListeners();
     _loadFavorites();
   }
 
+  String get _storageKey => 'exercise_favorites_${_userId ?? 'guest'}';
+
   Future<void> _loadFavorites() async {
     final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('exercise_favorites') ?? [];
+    final list = prefs.getStringList(_storageKey) ?? [];
     _favoriteIds = list.toSet();
     notifyListeners();
   }
@@ -28,7 +37,7 @@ class ExerciseFavoritesProvider extends ChangeNotifier {
       _favoriteIds.add(id);
     }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('exercise_favorites', _favoriteIds.toList());
+    await prefs.setStringList(_storageKey, _favoriteIds.toList());
     notifyListeners();
   }
 

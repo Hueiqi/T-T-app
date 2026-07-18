@@ -233,6 +233,23 @@ class HealthService {
     return total;
   }
 
+  /// Returns steps recorded between [start] and [end] from Health Connect.
+  Future<int> getStepsBetween(DateTime start, DateTime end) async {
+    if (!_isAuthorized) return 0;
+    try {
+      final data = await _health.getHealthDataFromTypes(
+        types: [HealthDataType.STEPS],
+        startTime: start,
+        endTime: end,
+      );
+      return data
+          .where(_fromMiFitness)
+          .fold<int>(0, (sum, p) => sum + (p.value.numericValue?.toInt() ?? 0));
+    } catch (_) {
+      return 0;
+    }
+  }
+
   Future<int> getStepsToday() async {
     if (!_isAuthorized) return 0;
     final now = DateTime.now();

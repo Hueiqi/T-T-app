@@ -12,6 +12,7 @@ import '../models/place_model.dart';
 import '../models/planning_model.dart';
 import '../models/user_model.dart';
 import 'package:intl/intl.dart';
+import '../models/saved_food_model.dart'; 
 
 
 bool _firestoreAvailable() {
@@ -326,6 +327,53 @@ class FirebaseService {
           .update(meal.toMap());
     } catch (e) {
       debugPrint('updateMeal error: $e');
+    }
+  }
+  // ── Saved Foods ──
+
+Future<void> saveSavedFood(SavedFood food) async {
+  if (_demoMode) return;
+  try {
+    await _firestore!
+        .collection('users')
+        .doc(food.userId)
+        .collection('savedFoods')
+        .doc(food.id)
+        .set(food.toMap());
+  } catch (e) {
+    debugPrint('saveSavedFood error: $e');
+  }
+}
+
+Future<List<SavedFood>> getSavedFoods(String userId) async {
+  if (_demoMode) return [];
+  try {
+    final snapshot = await _firestore!
+        .collection('users')
+        .doc(userId)
+        .collection('savedFoods')
+        .orderBy('createdAt', descending: true)
+        .get();
+    return snapshot.docs
+        .map((doc) => SavedFood.fromMap(Map<String, dynamic>.from(doc.data() as Map), doc.id))
+        .toList();
+  } catch (e) {
+    debugPrint('getSavedFoods error: $e');
+    return [];
+  }
+}
+
+  Future<void> deleteSavedFood(String userId, String foodId) async {
+    if (_demoMode) return;
+    try {
+      await _firestore!
+          .collection('users')
+          .doc(userId)
+          .collection('savedFoods')
+          .doc(foodId)
+          .delete();
+    } catch (e) {
+      debugPrint('deleteSavedFood error: $e');
     }
   }
 

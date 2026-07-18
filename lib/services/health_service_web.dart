@@ -53,6 +53,10 @@ class HealthService {
     return 0;
   }
 
+  Future<int> getStepsBetween(DateTime start, DateTime end) async {
+    return 0;
+  }
+
   Future<Map<String, int>> getStepsHistory({int days = 7}) async {
     return {};
   }

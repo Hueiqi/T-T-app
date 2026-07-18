@@ -32,12 +32,24 @@
             </intent-filter>
             
             <!-- Spotify OAuth redirect intent-filter -->
-            <!-- The scheme "fitsync" must match your Spotify app's Redirect URI -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="myfitnessTTapp" android:host="callback" />
+                <data android:scheme="myfitnessttapp" android:host="callback" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="watchspotify" android:host="callback" />
+            </intent-filter>
+            <!-- Spotify SDK native auth redirect -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="spotify-sdk" android:host="auth" />
             </intent-filter>
         </activity>
 
@@ -48,7 +60,13 @@
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />
         <category android:name="android.intent.category.BROWSABLE" />
-        <data android:scheme="myfitnessTTapp" android:host="callback" />
+        <data android:scheme="myfitnessttapp" android:host="callback" />
+        </intent-filter>
+        <intent-filter android:label="flutter_web_auth">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="watchspotify" android:host="callback" />
         </intent-filter>
         </activity>
         <!-- Required for Health Connect permission rationale screen -->

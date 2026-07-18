@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 import 'package:provider/provider.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import '../providers/workout_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/health_provider.dart';
@@ -28,44 +29,45 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       appBar: null,
       body: SafeArea(
         child: Consumer<WorkoutProvider>(
-        builder: (context, workout, _) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (workout.spotifyError != null && workout.isWorkoutActive)
-                  _WarningBanner(
-                    icon: Icons.error_outline,
-                    message: workout.spotifyError!,
-                    color: AppTheme.errorColor,
-                  ),
+          builder: (context, workout, _) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (workout.spotifyError != null && workout.isWorkoutActive)
+                    _WarningBanner(
+                      icon: Icons.error_outline,
+                      message: workout.spotifyError!,
+                      color: AppTheme.errorColor,
+                    ),
 
-                _HeartRateMonitor(workout: workout),
-                const SizedBox(height: 20),
-                if (workout.isWorkoutActive)
-                  _ActiveWorkoutPanel(
-                    workout: workout,
-                    spotifyConnected: spotifyConnected,
-                  )
-                else
-                  _WorkoutStartPanel(
-                    workout: workout,
-                    spotifyConnected: spotifyConnected,
-                  ),
-                const SizedBox(height: 20),
-                _HeartRateChart(heartRates: workout.heartRateHistory),
-              ],
-            ),
-          );
-        },
-      ),
+                  _HeartRateMonitor(workout: workout),
+                  const SizedBox(height: 20),
+                  if (workout.isWorkoutActive)
+                    _ActiveWorkoutPanel(
+                      workout: workout,
+                      spotifyConnected: spotifyConnected,
+                    )
+                  else
+                    _WorkoutStartPanel(
+                      workout: workout,
+                      spotifyConnected: spotifyConnected,
+                    ),
+                  const SizedBox(height: 20),
+                  _HeartRateChart(heartRates: workout.heartRateHistory),
+                ],
+              ),
+            );
+          },
+        ),
       ),
       bottomNavigationBar: widget.showBottomNav ? buildBottomNavBar(context) : null,
     );
   }
 }
 
+// ─── Warning Banner ─────────────────────────────────────────────
 class _WarningBanner extends StatelessWidget {
   final IconData icon;
   final String message;
@@ -106,6 +108,7 @@ class _WarningBanner extends StatelessWidget {
   }
 }
 
+// ─── Heart Rate Monitor ──────────────────────────────────────────
 class _HeartRateMonitor extends StatelessWidget {
   final WorkoutProvider workout;
 
@@ -142,9 +145,9 @@ class _HeartRateMonitor extends StatelessWidget {
                 Text(
                   '$hr',
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: zoneColors[zone] ?? AppTheme.primaryColor,
-                  ),
+                        fontWeight: FontWeight.bold,
+                        color: zoneColors[zone] ?? AppTheme.primaryColor,
+                      ),
                 ),
                 const Padding(
                   padding: EdgeInsets.only(bottom: 16, left: 4),
@@ -187,8 +190,8 @@ class _HeartRateMonitor extends StatelessWidget {
                   color: workout.sleepReadiness == 'high'
                       ? AppTheme.successColor
                       : workout.sleepReadiness == 'moderate'
-                      ? AppTheme.warningColor
-                      : AppTheme.errorColor,
+                          ? AppTheme.warningColor
+                          : AppTheme.errorColor,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -199,6 +202,7 @@ class _HeartRateMonitor extends StatelessWidget {
   }
 }
 
+// ─── Workout Start Panel ─────────────────────────────────────────
 class _WorkoutStartPanel extends StatefulWidget {
   final WorkoutProvider workout;
   final bool spotifyConnected;
@@ -395,9 +399,10 @@ class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
                   }
 
                   try {
-                    await workout.startWorkout(
+                    // ✅ Fix: use widget.workout and widget.spotifyConnected
+                    await widget.workout.startWorkout(
                       auth.user!.uid,
-                      spotifyConnected: spotifyConnected,
+                      spotifyConnected: widget.spotifyConnected,
                     );
                   } catch (e) {
                     if (context.mounted) {
@@ -421,6 +426,7 @@ class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
   }
 }
 
+// ─── Active Workout Panel ────────────────────────────────────────
 class _ActiveWorkoutPanel extends StatefulWidget {
   final WorkoutProvider workout;
   final bool spotifyConnected;
@@ -438,6 +444,8 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
   Timer? _elapsedTimer;
   Duration _elapsed = Duration.zero;
   bool _isSaving = false;
+  MapLibreMapController? _mapController;
+  int _lastRouteCount = 0;
 
   @override
   void initState() {
@@ -454,9 +462,112 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
   }
 
   @override
+  void didUpdateWidget(covariant _ActiveWorkoutPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final newCount = widget.workout.routePoints.length;
+    if (newCount != _lastRouteCount && _mapController != null) {
+      _lastRouteCount = newCount;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateMapRoute());
+    }
+  }
+
+  @override
   void dispose() {
     _elapsedTimer?.cancel();
+    _mapController?.dispose();
     super.dispose();
+  }
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _mapController = controller;
+    _lastRouteCount = widget.workout.routePoints.length;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateMapRoute());
+  }
+
+  Future<void> _updateMapRoute() async {
+    if (_mapController == null) return;
+    final routePoints = widget.workout.routePoints;
+    if (routePoints.isEmpty) return;
+
+    final coordinates = routePoints
+        .map((p) => LatLng(p['lat']!, p['lng']!))
+        .toList();
+
+    // Clear previous annotations
+    await _mapController!.clearSymbols();
+    await _mapController!.clearLines();
+    await _mapController!.clearCircles();
+
+    // Draw route polyline
+    if (coordinates.length >= 2) {
+      await _mapController!.addLine(
+        LineOptions(
+          geometry: coordinates,
+          lineColor: '#6366F1',
+          lineWidth: 4.0,
+        ),
+      );
+
+      // Start marker (green)
+      await _mapController!.addCircle(
+        CircleOptions(
+          geometry: coordinates.first,
+          circleRadius: 8,
+          circleColor: '#22C55E',
+          circleStrokeColor: '#FFFFFF',
+          circleStrokeWidth: 2,
+        ),
+      );
+    }
+
+    // Current position marker (red)
+    final currentPos = widget.workout.currentPosition;
+    if (currentPos != null) {
+      await _mapController!.addCircle(
+        CircleOptions(
+          geometry: LatLng(currentPos.latitude, currentPos.longitude),
+          circleRadius: 10,
+          circleColor: '#EF4444',
+          circleStrokeColor: '#FFFFFF',
+          circleStrokeWidth: 3,
+        ),
+      );
+    }
+
+    // Animate camera to show full route
+    if (coordinates.length >= 2) {
+      var minLat = coordinates.first.latitude;
+      var maxLat = coordinates.first.latitude;
+      var minLng = coordinates.first.longitude;
+      var maxLng = coordinates.first.longitude;
+      for (final c in coordinates) {
+        if (c.latitude < minLat) minLat = c.latitude;
+        if (c.latitude > maxLat) maxLat = c.latitude;
+        if (c.longitude < minLng) minLng = c.longitude;
+        if (c.longitude > maxLng) maxLng = c.longitude;
+      }
+      final bounds = LatLngBounds(
+        southwest: LatLng(minLat, minLng),
+        northeast: LatLng(maxLat, maxLng),
+      );
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, left: 60, top: 60, right: 60, bottom: 60),
+      );
+    } else if (coordinates.length == 1) {
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(coordinates.first, 15),
+      );
+    }
+  }
+
+  String get _pace {
+    final dist = widget.workout.distance;
+    final secs = _elapsed.inSeconds;
+    if (dist <= 0 || secs <= 0) return '--';
+    final paceSeconds = (secs / dist).round();
+    final pMin = paceSeconds ~/ 60;
+    final pSec = paceSeconds % 60;
+    return '$pMin:${pSec.toString().padLeft(2, '0')}/km';
   }
 
   Future<void> _endWorkout(BuildContext context) async {
@@ -511,12 +622,13 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final avgHr = widget.workout.heartRateHistory.isNotEmpty
-        ? widget.workout.heartRateHistory.reduce((a, b) => a + b) ~/
-              widget.workout.heartRateHistory.length
+    final workout = widget.workout;
+    final avgHr = workout.heartRateHistory.isNotEmpty
+        ? workout.heartRateHistory.reduce((a, b) => a + b) ~/
+            workout.heartRateHistory.length
         : 0;
-    final maxHr = widget.workout.heartRateHistory.isNotEmpty
-        ? widget.workout.heartRateHistory.reduce((a, b) => a > b ? a : b)
+    final maxHr = workout.heartRateHistory.isNotEmpty
+        ? workout.heartRateHistory.reduce((a, b) => a > b ? a : b)
         : 0;
 
     if (_isSaving) {
@@ -532,215 +644,266 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
       );
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(
-                  Icons.fitness_center,
-                  color: AppTheme.primaryColor,
-                  size: 32,
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.successColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.fiber_manual_record,
-                        color: AppTheme.successColor,
-                        size: 12,
-                      ),
-                      SizedBox(width: 6),
-                      Text(
-                        'LIVE',
-                        style: TextStyle(
-                          color: AppTheme.successColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    return Column(
+      children: [
+        // Live Map
+        if (!kIsWeb)
+          Card(
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(height: 20),
-            Text(
-              '${_elapsed.inMinutes.toString().padLeft(2, '0')}:${(_elapsed.inSeconds % 60).toString().padLeft(2, '0')}',
-              style: Theme.of(
-                context,
-              ).textTheme.displayMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Elapsed Time',
-              style: TextStyle(color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _MetricColumn(label: 'Avg HR', value: '$avgHr'),
-                _MetricColumn(label: 'Max HR', value: '$maxHr'),
-                _MetricColumn(
-                  label: 'Zone',
-                  value: widget.workout.currentHrZone,
-                ),
-                _MetricColumn(
-                  label: 'Distance',
-                  value: widget.workout.distance.toStringAsFixed(2) + ' km',
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            if (widget.workout.currentTrackName.isNotEmpty)
-              Card(
-                color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1DB954).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.music_note,
-                          color: Color(0xFF1DB954),
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.workout.currentTrackName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              widget.workout.currentTrackArtist,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppTheme.textSecondary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.skip_next, size: 20),
-                        tooltip: 'Skip track',
-                        color: const Color(0xFF1DB954),
-                        onPressed: () => widget.workout.skipToNextMusic(),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Card(
-                color: AppTheme.textSecondary.withValues(alpha: 0.05),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: AppTheme.textSecondary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.music_note_outlined,
-                          color: AppTheme.textSecondary,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        !widget.spotifyConnected
-                            ? 'Spotify not connected'
-                            : widget.workout.currentMusicZone.isNotEmpty
-                                ? widget.workout.currentMusicZone
-                                : 'No music playing',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-            const SizedBox(height: 12),
-
-            if (widget.spotifyConnected && widget.workout.spotifyError == null)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _showSongPicker(context),
-                  icon: const Icon(Icons.library_music, size: 20),
-                  label: Text(
-                    widget.workout.manualOverrideActive
-                        ? 'Manual override active (30s)'
-                        : 'Choose Song',
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    foregroundColor: const Color(0xFF1DB954),
-                    side: const BorderSide(color: Color(0xFF1DB954)),
-                  ),
-                ),
-              ),
-
-            const SizedBox(height: 12),
-
-            SizedBox(
+            child: SizedBox(
+              height: 220,
               width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSaving ? null : () => _endWorkout(context),
-                icon: const Icon(Icons.stop),
-                label: Text(_isSaving ? 'Saving...' : 'End Workout'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.errorColor,
-                  disabledBackgroundColor: AppTheme.errorColor.withValues(alpha: 0.5),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              child: MapLibreMap(
+                onMapCreated: _onMapCreated,
+                styleString: 'https://tiles.openfreemap.org/styles/positron',
+                initialCameraPosition: CameraPosition(
+                  target: workout.currentPosition != null
+                      ? LatLng(
+                          workout.currentPosition!.latitude,
+                          workout.currentPosition!.longitude,
+                        )
+                      : const LatLng(0, 0),
+                  zoom: 15,
                 ),
+                compassEnabled: false,
+                rotateGesturesEnabled: false,
+                myLocationEnabled: false,
+                myLocationTrackingMode: MyLocationTrackingMode.none,
               ),
             ),
-          ],
+          ),
+        const SizedBox(height: 12),
+
+        // Stats Card
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Icon(
+                      Icons.fitness_center,
+                      color: AppTheme.primaryColor,
+                      size: 32,
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.successColor.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.fiber_manual_record,
+                            color: AppTheme.successColor,
+                            size: 12,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: AppTheme.successColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  '${_elapsed.inMinutes.toString().padLeft(2, '0')}:${(_elapsed.inSeconds % 60).toString().padLeft(2, '0')}',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.displayMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Elapsed Time',
+                  style: TextStyle(color: AppTheme.textSecondary),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _MetricColumn(label: 'Avg HR', value: '$avgHr'),
+                    _MetricColumn(label: 'Max HR', value: '$maxHr'),
+                    _MetricColumn(
+                      label: 'Zone',
+                      value: workout.currentHrZone,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _MetricColumn(
+                      label: 'Distance',
+                      value: workout.distance.toStringAsFixed(2) + ' km',
+                    ),
+                    _MetricColumn(
+                      label: 'Steps',
+                      value: workout.workoutSteps.toString(),
+                    ),
+                    _MetricColumn(
+                      label: 'Pace',
+                      value: _pace,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                if (workout.currentTrackName.isNotEmpty)
+                  Card(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1DB954).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.music_note,
+                              color: Color(0xFF1DB954),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  workout.currentTrackName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  workout.currentTrackArtist,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.skip_next, size: 20),
+                            tooltip: 'Skip track',
+                            color: const Color(0xFF1DB954),
+                            onPressed: () => workout.skipToNextMusic(),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Card(
+                    color: AppTheme.textSecondary.withValues(alpha: 0.05),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AppTheme.textSecondary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.music_note_outlined,
+                              color: AppTheme.textSecondary,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            !widget.spotifyConnected
+                                ? 'Spotify not connected'
+                                : workout.currentMusicZone.isNotEmpty
+                                    ? workout.currentMusicZone
+                                    : 'No music playing',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(height: 12),
+
+                if (widget.spotifyConnected && workout.spotifyError == null)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showSongPicker(context),
+                      icon: const Icon(Icons.library_music, size: 20),
+                      label: Text(
+                        workout.manualOverrideActive
+                            ? 'Manual override active (30s)'
+                            : 'Choose Song',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        foregroundColor: const Color(0xFF1DB954),
+                        side: const BorderSide(color: Color(0xFF1DB954)),
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving ? null : () => _endWorkout(context),
+                    icon: const Icon(Icons.stop),
+                    label: Text(_isSaving ? 'Saving...' : 'End Workout'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.errorColor,
+                      disabledBackgroundColor: AppTheme.errorColor.withValues(alpha: 0.5),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
 
+// ─── Song Picker Sheet ──────────────────────────────────────────
 class _SongPickerSheet extends StatefulWidget {
   final WorkoutProvider workout;
 
@@ -892,6 +1055,7 @@ class _SongPickerSheetState extends State<_SongPickerSheet> {
   }
 }
 
+// ─── Manual Calorie Dialog ──────────────────────────────────────
 class _ManualCalorieDialog extends StatefulWidget {
   @override
   State<_ManualCalorieDialog> createState() => _ManualCalorieDialogState();
@@ -949,6 +1113,7 @@ class _ManualCalorieDialogState extends State<_ManualCalorieDialog> {
   }
 }
 
+// ─── Metric Column ──────────────────────────────────────────────
 class _MetricColumn extends StatelessWidget {
   final String label;
   final String value;
@@ -971,6 +1136,7 @@ class _MetricColumn extends StatelessWidget {
   }
 }
 
+// ─── Heart Rate Chart ───────────────────────────────────────────
 class _HeartRateChart extends StatelessWidget {
   final List<int> heartRates;
 

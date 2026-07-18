@@ -33,7 +33,9 @@
 			<string>com.example.fitnessapp.spotify</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>myfitnessTTapp</string>
+				<string>myfitnessttapp</string>
+				<string>watchspotify</string>
+				<string>spotify-sdk</string>
 			</array>
 		</dict>
 	</array>

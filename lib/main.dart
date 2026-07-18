@@ -52,7 +52,10 @@ void main() async {
         ChangeNotifierProvider(
           create: (_) => UserProgressProvider()..init(FirebaseAuth.instance),
         ),
-        ChangeNotifierProvider(create: (_) => ExerciseFavoritesProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, ExerciseFavoritesProvider>(
+          create: (_) => ExerciseFavoritesProvider(),
+          update: (_, auth, fav) => fav!..setUserId(auth.user?.uid),
+        ),
         ChangeNotifierProvider(create: (_) => WorkoutMusicProvider()),
       ],
       child: const FitSyncApp(),

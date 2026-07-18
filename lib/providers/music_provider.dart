@@ -36,22 +36,32 @@ class MusicProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> connect() async {
+  /// Authenticate via the native Spotify SDK.
+  /// Opens the Spotify app's login flow and returns an access token.
+  Future<bool> authenticate() async {
     try {
       final success = await _spotifyService.authenticate();
       if (success) {
         _isConnected = true;
         _error = null;
       } else {
-        _error = 'Failed to connect to Spotify';
+        _error = 'Spotify authentication failed. Make sure the Spotify app is installed.';
       }
       notifyListeners();
       return success;
     } catch (e) {
-      _error = 'Failed to connect to Spotify';
+      _error = 'Spotify authentication error: $e';
       notifyListeners();
       return false;
     }
+  }
+
+  /// Set the access token obtained externally (e.g. from the Spotify module's AuthController).
+  void setAccessToken(String token) {
+    _spotifyService.setAccessToken(token);
+    _isConnected = true;
+    _error = null;
+    notifyListeners();
   }
 
   Future<void> search(String query) async {

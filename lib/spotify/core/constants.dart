@@ -8,17 +8,18 @@ class SpotifyConfig {
   SpotifyConfig._();
 
   /// Spotify application client id (from the Spotify Developer Dashboard).
-  static const String clientId = '78d1c8f053e74d7a9b91d584373874e5';
+  static const String clientId = '29085e1330524952b1d60fc3aa09eeb0';
 
   /// Must exactly match a Redirect URI registered in the Spotify Dashboard.
   /// The web app must therefore be served on 127.0.0.1:8888.
-  static const String redirectUri = 'http://127.0.0.1:8888/callback';
+  static const String redirectUri = 'http://127.0.0.1:8080/callback';
 
   /// Redirect URI used by the native Android SDK (custom scheme). This must ALSO
   /// be added to the Spotify Dashboard's Redirect URIs, and is wired into the
   /// Android manifest. Keep the scheme in sync with android/.../AndroidManifest.xml.
-  static const String mobileRedirectUri = 'watchspotify://callback';
-
+  static const String mobileRedirectUri = 'myfitnessttapp://callback';
+  static const String sdkRedirectUri = 'spotify-sdk://auth';
+  static const String watchRedirectUri = 'watchspotify://callback';
   static const String authorizeUrl = 'https://accounts.spotify.com/authorize';
   static const String tokenUrl = 'https://accounts.spotify.com/api/token';
   static const String apiBase = 'https://api.spotify.com/v1';

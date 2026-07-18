@@ -144,9 +144,16 @@ class SpotifyApi {
   }
 
   Future<List<Album>> getNewReleases({int limit = 20}) async {
-    final res = await _get('/browse/new-releases', query: {'limit': limit});
-    final albums = res['albums'] as Map<String, dynamic>?;
-    return Album.listFrom(albums?['items']);
+    try {
+      final res = await _get('/browse/new-releases', query: {'limit': limit});
+      final albums = res['albums'] as Map<String, dynamic>?;
+      return Album.listFrom(albums?['items']);
+    } on SpotifyApiException catch (e) {
+      // /browse/new-releases is restricted for newly-created Spotify apps.
+      // Return empty rather than crashing the Home screen.
+      if (e.isForbidden) return [];
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------

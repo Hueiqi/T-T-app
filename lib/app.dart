@@ -34,12 +34,10 @@ import 'screens/popular_exersive_screen.dart';
 import 'screens/routine_detail_screen.dart';
 import 'screens/follow_routine_screen.dart';
 import 'screens/exercise_library_screen.dart';
-<<<<<<< HEAD
 import 'screens/edit_profile_screen.dart';
 import 'screens/weight_progress_screen.dart';
 import 'screens/workout_complete_screen.dart';
 import 'screens/splash_screen.dart';
-=======
 import 'spotify/spotify_section.dart';
 import 'spotify/services/auth/auth.dart';
 import 'spotify/services/playback/playback.dart';
@@ -48,7 +46,6 @@ import 'spotify/state/player_provider.dart';
 import 'spotify/widgets/global_mini_player.dart';
 import 'screens/workout_music_screen.dart';
 import 'screens/watch_heart_rate_screen.dart';
->>>>>>> 7712fa4da3fa3c8b14fc5c8e6f8ca44ab0edcef1
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -105,10 +102,6 @@ class _FitSyncAppState extends State<FitSyncApp> {
 
   @override
   Widget build(BuildContext context) {
-<<<<<<< HEAD
-    return MaterialApp(
-      title: 'T&T Fitness',
-=======
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthController>.value(value: _spotifyAuth),
@@ -116,81 +109,74 @@ class _FitSyncAppState extends State<FitSyncApp> {
         ChangeNotifierProvider<PlayerProvider>.value(value: _spotifyPlayer),
       ],
       child: MaterialApp(
-      title: 'T&T AI',
->>>>>>> 7712fa4da3fa3c8b14fc5c8e6f8ca44ab0edcef1
-      debugShowCheckedModeBanner: false,
-      navigatorKey: _navigatorKey,
-      builder: (context, child) => Stack(
-        children: [
-          ?child,
-          GlobalMiniPlayer(navigatorKey: _navigatorKey),
-        ],
-      ),
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.light,
-      home: const SplashScreen(),
-      routes: {
-       
-        AppRoutes.login: (_) => const LoginScreen(),
-        AppRoutes.register: (_) => const RegisterScreen(),
-        AppRoutes.home: (_) => const HomeScreen(),
-        AppRoutes.workout: (_) => const WorkoutScreen(),
-        AppRoutes.nutrition: (_) => const NutritionScreen(showBottomNav: true),
-        AppRoutes.sleep: (_) => const SleepScreen(),
-        AppRoutes.profile: (_) => const ProfileScreen(),
-        AppRoutes.foodSearch: (ctx) {
-          final mealType =
-              ModalRoute.of(ctx)?.settings.arguments as String? ?? 'snack';
-          return FoodSearchScreen(mealType: mealType);
+        title: 'T&T Fitness',
+        debugShowCheckedModeBanner: false,
+        navigatorKey: _navigatorKey,
+        builder: (context, child) => Stack(
+          children: [
+            child ?? const SizedBox.shrink(),
+            GlobalMiniPlayer(navigatorKey: _navigatorKey),
+          ],
+        ),
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.light,
+        home: const SplashScreen(),
+        routes: {
+          AppRoutes.login: (_) => const LoginScreen(),
+          AppRoutes.register: (_) => const RegisterScreen(),
+          AppRoutes.home: (_) => const HomeScreen(),
+          AppRoutes.workout: (_) => const WorkoutScreen(),
+          AppRoutes.nutrition: (_) => const NutritionScreen(showBottomNav: true),
+          AppRoutes.sleep: (_) => const SleepScreen(),
+          AppRoutes.profile: (_) => const ProfileScreen(),
+          AppRoutes.foodSearch: (ctx) {
+            final mealType = ModalRoute.of(ctx)?.settings.arguments as String? ?? 'snack';
+            return FoodSearchScreen(mealType: mealType);
+          },
+          AppRoutes.foodCapture: (_) => const FoodCaptureScreen(),
+          AppRoutes.weightProgress: (_) => const WeightProgressScreen(),
+          AppRoutes.statistics: (_) => const BodyStatisticsScreen(),
+          '/music-recommendations': (_) => const MusicRecommendationScreen(),
+          AppRoutes.onboardingGoal: (_) => const OnboardingGoalScreen(),
+          AppRoutes.onboardingAge: (_) => const OnboardingAgeScreen(),
+          AppRoutes.onboardingBody: (_) => const OnboardingBodyScreen(),
+          AppRoutes.onboardingTarget: (_) => const OnboardingTargetScreen(),
+          AppRoutes.onboardingPlan: (_) => const OnboardingPlanScreen(),
+          AppRoutes.onboardingDuration: (_) => const OnboardingDurationScreen(),
+          AppRoutes.welcome: (_) => const WelcomeScreen(),
+          AppRoutes.forgotPassword: (_) => const ForgotPasswordScreen(),
+          AppRoutes.otpVerify: (_) => const OtpVerificationScreen(),
+          AppRoutes.notificationSettings: (_) => const NotificationSettingsScreen(),
+          AppRoutes.notificationHistory: (_) => const NotificationHistoryScreen(),
+          AppRoutes.planning: (_) => const PlanningScreen(),
+          AppRoutes.popularWorkouts: (_) => PopularWorkoutsScreen(),
+          AppRoutes.movement: (_) => const MovementScreen(),
+          AppRoutes.places: (_) => const PlacesScreen(),
+          AppRoutes.routineHistory: (_) => const RoutineHistoryScreen(),
+          AppRoutes.routineDetail: (ctx) {
+            final id = ModalRoute.of(ctx)?.settings.arguments as String? ?? '';
+            return RoutineDetailScreen(routineId: id);
+          },
+          AppRoutes.followRoutine: (ctx) {
+            final id = ModalRoute.of(ctx)?.settings.arguments as String? ?? '';
+            return FollowRoutineScreen(routineId: id);
+          },
+          AppRoutes.aiChat: (_) => const AiChatScreen(),
+          AppRoutes.exerciseLibrary: (_) => const ExerciseLibraryScreen(),
+          AppRoutes.activity: (_) => const RoutineHistoryScreen(),
+          AppRoutes.workoutDetail: (_) => const RoutineHistoryScreen(),
+          // ✅ Your routes
+          AppRoutes.editProfile: (_) => const EditProfileScreen(),
+          AppRoutes.workoutComplete: (ctx) {
+            final args = ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>? ?? {};
+            return WorkoutCompleteScreen(result: args);
+          },
+          // ✅ Partner's routes
+          AppRoutes.spotify: (_) => const SpotifySection(),
+          AppRoutes.workoutMusic: (_) => const WorkoutMusicScreen(),
+          AppRoutes.watchHeartRate: (_) => const WatchHeartRateScreen(),
         },
-        AppRoutes.foodCapture: (_) => const FoodCaptureScreen(),
-        AppRoutes.weightProgress: (_) => const WeightProgressScreen(),
-        AppRoutes.statistics: (_) => const BodyStatisticsScreen(),
-        '/music-recommendations': (_) => const MusicRecommendationScreen(),
-        AppRoutes.onboardingGoal: (_) => const OnboardingGoalScreen(),
-        AppRoutes.onboardingAge: (_) => const OnboardingAgeScreen(),
-        AppRoutes.onboardingBody: (_) => const OnboardingBodyScreen(),
-        AppRoutes.onboardingTarget: (_) => const OnboardingTargetScreen(),
-        AppRoutes.onboardingPlan: (_) => const OnboardingPlanScreen(),
-        AppRoutes.onboardingDuration: (_) => const OnboardingDurationScreen(),
-        AppRoutes.welcome: (_) => const WelcomeScreen(),
-        AppRoutes.forgotPassword: (_) => const ForgotPasswordScreen(),
-        AppRoutes.otpVerify: (_) => const OtpVerificationScreen(),
-        AppRoutes.notificationSettings: (_) =>
-            const NotificationSettingsScreen(),
-        AppRoutes.notificationHistory: (_) => const NotificationHistoryScreen(),
-        AppRoutes.planning: (_) => const PlanningScreen(),
-        AppRoutes.popularWorkouts: (_) => PopularWorkoutsScreen(),
-        AppRoutes.movement: (_) => const MovementScreen(),
-        AppRoutes.places: (_) => const PlacesScreen(),
-        AppRoutes.routineHistory: (_) => const RoutineHistoryScreen(),
-        AppRoutes.routineDetail: (ctx) {
-          final id = ModalRoute.of(ctx)?.settings.arguments as String? ?? '';
-          return RoutineDetailScreen(routineId: id);
-        },
-        AppRoutes.followRoutine: (ctx) {
-          final id = ModalRoute.of(ctx)?.settings.arguments as String? ?? '';
-          return FollowRoutineScreen(routineId: id);
-        },
-        AppRoutes.aiChat: (_) => const AiChatScreen(),
-        AppRoutes.exerciseLibrary: (_) => const ExerciseLibraryScreen(),
-        AppRoutes.activity: (_) => const RoutineHistoryScreen(),
-        AppRoutes.workoutDetail: (_) => const RoutineHistoryScreen(),
-<<<<<<< HEAD
-        AppRoutes.editProfile: (_) => const EditProfileScreen(),
-        AppRoutes.workoutComplete: (ctx) {
-          final args = ModalRoute.of(ctx)?.settings.arguments
-                  as Map<String, dynamic>? ??
-              {};
-          return WorkoutCompleteScreen(result: args);
-        },
-=======
-        AppRoutes.spotify: (_) => const SpotifySection(),
-        AppRoutes.workoutMusic: (_) => const WorkoutMusicScreen(),
-        AppRoutes.watchHeartRate: (_) => const WatchHeartRateScreen(),
->>>>>>> 7712fa4da3fa3c8b14fc5c8e6f8ca44ab0edcef1
-      },
       ),
     );
   }

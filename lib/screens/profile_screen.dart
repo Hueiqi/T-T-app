@@ -7,6 +7,7 @@ import '../providers/nutrition_provider.dart';
 import '../providers/workout_provider.dart';
 import '../providers/sleep_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/health_provider.dart';
 import '../widgets/bottom_nav_shell.dart';
 import '../providers/planning_provider.dart';
 import '../services/tdee_calculator.dart';
@@ -62,7 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final auth = context.read<AuthProvider>();
     if (auth.user == null) return;
     final music = context.read<MusicProvider>();
-    final success = await music.connect();
+    final success = await music.authenticate();
     if (success && mounted) {
       await _onSpotifyConnected();
     } else if (mounted) {
@@ -766,9 +767,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── Connections & Settings ──
+  // ─── Connections & Settings (with Health Connect) ──
   Widget _buildConnectionsSettings(dynamic user, dynamic workout) {
     final notifications = context.watch<NotificationProvider>();
+    final health = context.watch<HealthProvider>();
 
     return Card(
       elevation: 2,
@@ -777,6 +779,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // ── Spotify ──
             _ServiceSwitchTile(
               icon: Icons.music_note,
               iconColor: const Color(0xFF1DB954),
@@ -785,6 +788,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onToggle: (_) => _toggleSpotify(),
             ),
             const SizedBox(height: 12),
+
+            // ── Health Connect ── NEW ──
+            _ServiceSwitchTile(
+              icon: Icons.health_and_safety,
+              iconColor: AppTheme.primaryColor,
+              label: 'Health Connect',
+              connected: health.isHealthConnectAuthorized,
+              onToggle: (_) async {
+                if (health.isHealthConnectAuthorized) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Disconnect from Health Connect settings on your device.')),
+                  );
+                } else {
+                  final available = await health.checkAvailability();
+                  if (!available) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Health Connect not installed.')),
+                    );
+                    return;
+                  }
+                  final authorized = await health.authorizeHealthConnect();
+                  if (authorized) {
+                    await health.syncHealthData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Health Connect connected!')),
+                    );
+                  }
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // ── Action chips ──
             Row(
               children: [
                 Expanded(
