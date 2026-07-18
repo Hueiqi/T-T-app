@@ -1142,6 +1142,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionChipButton(
+                    icon: Icons.library_music,
+                    label: 'Spotify Library',
+                    subtitle: 'Browse playlists & albums',
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.spotify),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ActionChipButton(
+                    icon: Icons.queue_music,
+                    label: 'Workout Playlists',
+                    subtitle: 'Set music per run status',
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.workoutMusic),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

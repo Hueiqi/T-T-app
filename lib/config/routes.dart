@@ -34,6 +34,9 @@ class AppRoutes {
   static const String routineDetail = '/routineDetail';     // add
   static const String followRoutine = '/followRoutine';     // add
   static const String routineHistory = '/routineHistory';  // <-- add this
-  static const String routine = '/routine';  
+  static const String routine = '/routine';
   static const String exerciseLibrary = '/exercise-library';
+  static const String spotify = '/spotify';
+  static const String workoutMusic = '/workout-music';
+  static const String watchHeartRate = '/watch-heart-rate';
 }
