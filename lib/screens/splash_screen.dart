@@ -11,6 +11,7 @@ import '../providers/user_progress_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/notification_service.dart';
 import '../services/ai_service.dart';
+import '../services/health_connect_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 
@@ -77,6 +78,25 @@ class _SplashScreenState extends State<SplashScreen>
       debugPrint('AIService initialized');
     } catch (e) {
       debugPrint('AIService init failed: $e');
+    }
+
+    try {
+      final healthConnect = HealthConnectService();
+      final available = await healthConnect.isAvailable;
+      if (available) {
+        final hasPerms = await healthConnect.hasPermissions();
+        if (!hasPerms) {
+          debugPrint('Health Connect: requesting permissions...');
+          final granted = await healthConnect.requestPermissions();
+          debugPrint('Health Connect: permissions granted = $granted');
+        } else {
+          debugPrint('Health Connect: permissions already granted');
+        }
+      } else {
+        debugPrint('Health Connect: not available on this device');
+      }
+    } catch (e) {
+      debugPrint('Health Connect: auto-request failed: $e');
     }
   }
 

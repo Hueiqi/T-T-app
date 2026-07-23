@@ -8,6 +8,7 @@ import '../providers/nutrition_provider.dart';
 import '../providers/auth_provider.dart';
 import '../config/theme.dart';
 import '../models/food_item_model.dart';
+import 'nutrition_success_screen.dart';
 
 final _uuid = Uuid();
 
@@ -35,11 +36,24 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
   final _proteinController = TextEditingController();
   final _carbsController = TextEditingController();
   final _fatController = TextEditingController();
-  final _servingController = TextEditingController();
-  final _vitaminsController = TextEditingController();
-  final _mineralsController = TextEditingController();
-  final _waterController = TextEditingController();
+  final _servingAmountController = TextEditingController(text: '1');
   final _fiberController = TextEditingController();
+  final _sugarController = TextEditingController();
+  final _sodiumController = TextEditingController();
+  final _vitaminAController = TextEditingController();
+  final _vitaminBController = TextEditingController();
+  final _vitaminCController = TextEditingController();
+  final _vitaminDController = TextEditingController();
+  final _vitaminEController = TextEditingController();
+  final _vitaminKController = TextEditingController();
+  final _calciumController = TextEditingController();
+  final _ironController = TextEditingController();
+  final _magnesiumController = TextEditingController();
+  final _potassiumController = TextEditingController();
+
+  String _servingUnit = 'g';
+  bool _showVitamins = false;
+  bool _showMinerals = false;
 
   @override
   void initState() {
@@ -54,11 +68,20 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     _proteinController.dispose();
     _carbsController.dispose();
     _fatController.dispose();
-    _servingController.dispose();
-    _vitaminsController.dispose();
-    _mineralsController.dispose();
-    _waterController.dispose();
+    _servingAmountController.dispose();
     _fiberController.dispose();
+    _sugarController.dispose();
+    _sodiumController.dispose();
+    _vitaminAController.dispose();
+    _vitaminBController.dispose();
+    _vitaminCController.dispose();
+    _vitaminDController.dispose();
+    _vitaminEController.dispose();
+    _vitaminKController.dispose();
+    _calciumController.dispose();
+    _ironController.dispose();
+    _magnesiumController.dispose();
+    _potassiumController.dispose();
     super.dispose();
   }
 
@@ -96,7 +119,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
       return;
     }
 
-    // Show loading overlay
     setState(() => _isUploading = true);
 
     String? imageUrl;
@@ -112,10 +134,10 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
       }
     }
 
-    final water = double.tryParse(_waterController.text.trim()) ?? 0;
     final fiber = double.tryParse(_fiberController.text.trim()) ?? 0;
+    final sodium = double.tryParse(_sodiumController.text.trim()) ?? 0;
 
-    await nutrition.saveMeal(
+    final meal = await nutrition.saveMeal(
       userId: auth.user!.uid,
       mealType: _selectedMealType,
       foodName: name,
@@ -123,15 +145,28 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
       protein: protein,
       carbs: carbs,
       fat: fat,
-      water: water,
       fiber: fiber,
+      sodium: sodium,
+      vitaminA: double.tryParse(_vitaminAController.text) ?? 0,
+      vitaminB: double.tryParse(_vitaminBController.text) ?? 0,
+      vitaminC: double.tryParse(_vitaminCController.text) ?? 0,
+      vitaminD: double.tryParse(_vitaminDController.text) ?? 0,
+      vitaminE: double.tryParse(_vitaminEController.text) ?? 0,
+      vitaminK: double.tryParse(_vitaminKController.text) ?? 0,
+      calcium: double.tryParse(_calciumController.text) ?? 0,
+      iron: double.tryParse(_ironController.text) ?? 0,
+      magnesium: double.tryParse(_magnesiumController.text) ?? 0,
+      potassium: double.tryParse(_potassiumController.text) ?? 0,
       dateTime: _selectedDate,
       imageUrl: imageUrl,
     );
 
     if (mounted) {
       setState(() => _isUploading = false);
-      Navigator.pop(context, true);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => NutritionSuccessScreen(meal: meal)),
+      );
     }
   }
 
@@ -172,7 +207,8 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
         _proteinController.text = detected.totalProtein.toStringAsFixed(1);
         _carbsController.text = detected.totalCarbs.toStringAsFixed(1);
         _fatController.text = detected.totalFat.toStringAsFixed(1);
-        _servingController.text = '${detected.servingSizeGrams.toInt()}g';
+        _servingAmountController.text = detected.servingSizeGrams.toInt().toString();
+        _servingUnit = 'g';
         _selectedMealType = ['breakfast', 'lunch', 'dinner', 'snack']
                 .contains(detected.category)
             ? detected.category
@@ -195,6 +231,14 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     );
   }
 
+  static const List<String> _servingUnits = [
+    'serving', 'g', 'set', 'cup', 'piece', 'ml', 'oz', 'bowl',
+    'slice', 'can', 'plate', 'stick', 'tbsp', 'tsp', 'pack', 'bag',
+    'bottle', 'litre', 'kg', 'scoop', 'wedge', 'handful', 'bunch',
+    'dash', 'pinch', 'fl oz', 'ear', 'fillet', 'drumstick', 'square',
+    'strip', 'sprig',
+  ];
+
   void _openEditSheet() {
     showModalBottomSheet(
       context: context,
@@ -207,204 +251,205 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
         initialChildSize: 0.9,
         minChildSize: 0.5,
         maxChildSize: 0.95,
-        builder: (_, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Icon(Icons.edit_note, color: AppTheme.primaryColor),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Edit Meal Details',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _buildEditField(
-                controller: _nameController,
-                label: 'Food Name',
-                icon: Icons.restaurant,
-                required: true,
-              ),
-              const SizedBox(height: 12),
-              _buildEditField(
-                controller: _caloriesController,
-                label: 'Calories (kcal)',
-                icon: Icons.local_fire_department,
-                keyboardType: TextInputType.number,
-                required: true,
-              ),
-              const SizedBox(height: 12),
-              _buildEditField(
-                controller: _servingController,
-                label: 'Serving Size',
-                icon: Icons.scale,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Meal Type',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: ['breakfast', 'lunch', 'dinner', 'snack']
-                    .map((type) => ChoiceChip(
-                          label: Text(type[0].toUpperCase() + type.substring(1)),
-                          selected: _selectedMealType == type,
-                          selectedColor: AppTheme.primaryColor.withValues(alpha: 0.15),
-                          onSelected: (_) =>
-                              setState(() => _selectedMealType = type),
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 8),
-              Text(
-                'Macronutrients (g)',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildEditField(
-                      controller: _proteinController,
-                      label: 'Protein',
-                      icon: Icons.fitness_center,
-                      keyboardType: TextInputType.number,
-                      small: true,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildEditField(
-                      controller: _carbsController,
-                      label: 'Carbs',
-                      icon: Icons.grain,
-                      keyboardType: TextInputType.number,
-                      small: true,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildEditField(
-                      controller: _fatController,
-                      label: 'Fat',
-                      icon: Icons.opacity,
-                      keyboardType: TextInputType.number,
-                      small: true,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 8),
-              Text(
-                'Additional Nutrients',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildEditField(
-                      controller: _vitaminsController,
-                      label: 'Vitamins (mg)',
-                      icon: Icons.spa,
-                      keyboardType: TextInputType.number,
-                      small: true,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildEditField(
-                      controller: _mineralsController,
-                      label: 'Minerals (mg)',
-                      icon: Icons.blur_on,
-                      keyboardType: TextInputType.number,
-                      small: true,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildEditField(
-                      controller: _fiberController,
-                      label: 'Fiber (g)',
-                      icon: Icons.linear_scale,
-                      keyboardType: TextInputType.number,
-                      small: true,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildEditField(
-                      controller: _waterController,
-                      label: 'Water (ml)',
-                      icon: Icons.water_drop,
-                      keyboardType: TextInputType.number,
-                      small: true,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _saveMeal();
-                  },
-                  icon: const Icon(Icons.check_circle),
-                  label: const Text('Save Meal'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+        builder: (_, scrollController) => StatefulBuilder(
+          builder: (context, setSheetState) => SingleChildScrollView(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-            ],
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Icon(Icons.edit_note, color: AppTheme.primaryColor),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Edit Meal Details',
+                      style: TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // ── Food name ──
+                _buildEditField(
+                  controller: _nameController,
+                  label: 'Food Name', icon: Icons.restaurant, required: true,
+                ),
+                const SizedBox(height: 12),
+
+                // ── Meal type dropdown ──
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedMealType,
+                  decoration: const InputDecoration(
+                    labelText: 'Meal Type',
+                    prefixIcon: Icon(Icons.schedule),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'breakfast', child: Text('Breakfast')),
+                    DropdownMenuItem(value: 'lunch', child: Text('Lunch')),
+                    DropdownMenuItem(value: 'dinner', child: Text('Dinner')),
+                    DropdownMenuItem(value: 'snack', child: Text('Snack')),
+                  ],
+                  onChanged: (v) => setSheetState(() => _selectedMealType = v ?? _selectedMealType),
+                ),
+                const SizedBox(height: 12),
+
+                // ── Serving amount ──
+                _buildEditField(
+                  controller: _servingAmountController,
+                  label: 'Serving Amount (e.g. 1, 100, 0.5)',
+                  icon: Icons.straighten,
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+
+                // ── Serving unit dropdown ──
+                DropdownButtonFormField<String>(
+                  initialValue: _servingUnit,
+                  decoration: const InputDecoration(
+                    labelText: 'Serving Unit',
+                    prefixIcon: Icon(Icons.straighten),
+                  ),
+                  items: _servingUnits
+                      .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                      .toList(),
+                  onChanged: (v) => setSheetState(() => _servingUnit = v ?? _servingUnit),
+                ),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+
+                // ── Macros (single row each) ──
+                Text('Macros', style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+                const SizedBox(height: 10),
+                _buildEditField(controller: _caloriesController, label: 'Calories (kcal)', icon: Icons.local_fire_department, keyboardType: TextInputType.number, required: true),
+                const SizedBox(height: 8),
+                _buildEditField(controller: _proteinController, label: 'Protein (g)', icon: Icons.fitness_center, keyboardType: TextInputType.number),
+                const SizedBox(height: 8),
+                _buildEditField(controller: _carbsController, label: 'Carbs (g)', icon: Icons.grain, keyboardType: TextInputType.number),
+                const SizedBox(height: 8),
+                _buildEditField(controller: _fatController, label: 'Fat (g)', icon: Icons.water_drop, keyboardType: TextInputType.number),
+                const SizedBox(height: 8),
+                _buildEditField(controller: _fiberController, label: 'Fiber (g)', icon: Icons.eco, keyboardType: TextInputType.number),
+                const SizedBox(height: 8),
+                _buildEditField(controller: _sugarController, label: 'Sugar (g)', icon: Icons.cookie, keyboardType: TextInputType.number),
+                const SizedBox(height: 8),
+                _buildEditField(controller: _sodiumController, label: 'Sodium (mg)', icon: Icons.science, keyboardType: TextInputType.number),
+                const SizedBox(height: 16),
+
+                // ── Vitamins (expandable) ──
+                _expandableSection(
+                  title: 'Vitamins',
+                  expanded: _showVitamins,
+                  onToggle: () => setSheetState(() => _showVitamins = !_showVitamins),
+                  child: Column(
+                    children: [
+                      _buildEditField(controller: _vitaminAController, label: 'Vitamin A (mcg)', icon: Icons.circle, keyboardType: TextInputType.number),
+                      const SizedBox(height: 8),
+                      _buildEditField(controller: _vitaminBController, label: 'Vitamin B (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+                      const SizedBox(height: 8),
+                      _buildEditField(controller: _vitaminCController, label: 'Vitamin C (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+                      const SizedBox(height: 8),
+                      _buildEditField(controller: _vitaminDController, label: 'Vitamin D (mcg)', icon: Icons.circle, keyboardType: TextInputType.number),
+                      const SizedBox(height: 8),
+                      _buildEditField(controller: _vitaminEController, label: 'Vitamin E (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+                      const SizedBox(height: 8),
+                      _buildEditField(controller: _vitaminKController, label: 'Vitamin K (mcg)', icon: Icons.circle, keyboardType: TextInputType.number),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ── Minerals (expandable) ──
+                _expandableSection(
+                  title: 'Minerals',
+                  expanded: _showMinerals,
+                  onToggle: () => setSheetState(() => _showMinerals = !_showMinerals),
+                  child: Column(
+                    children: [
+                      _buildEditField(controller: _calciumController, label: 'Calcium (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+                      const SizedBox(height: 8),
+                      _buildEditField(controller: _ironController, label: 'Iron (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+                      const SizedBox(height: 8),
+                      _buildEditField(controller: _magnesiumController, label: 'Magnesium (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+                      const SizedBox(height: 8),
+                      _buildEditField(controller: _potassiumController, label: 'Potassium (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 28),
+
+                // ── Save button ──
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _saveMeal();
+                    },
+                    icon: const Icon(Icons.check_circle),
+                    label: const Text('Save Meal'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _expandableSection({
+    required String title,
+    required bool expanded,
+    required VoidCallback onToggle,
+    required Widget child,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  const Spacer(),
+                  Icon(expanded ? Icons.expand_less : Icons.expand_more, color: AppTheme.textSecondary),
+                ],
+              ),
+            ),
+          ),
+          if (expanded) ...[
+            const Divider(height: 1),
+            Padding(padding: const EdgeInsets.all(12), child: child),
+          ],
+        ],
       ),
     );
   }
@@ -414,7 +459,6 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     required String label,
     required IconData icon,
     bool required = false,
-    bool small = false,
     TextInputType? keyboardType,
   }) {
     return TextField(
@@ -422,11 +466,9 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
       keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: required ? '$label *' : label,
-        prefixIcon: Icon(icon, size: small ? 18 : 20),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: small ? 12 : 14,
-        ),
+        prefixIcon: Icon(icon, size: 20),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       ),
     );
   }
@@ -524,13 +566,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
                   ],
                 ),
                 borderRadius: BorderRadius.circular(32),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 30,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
+               
               ),
               child: Stack(
                 alignment: Alignment.center,
@@ -582,7 +618,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        'Take a photo of your meal',
+                        'Take photo of your meal',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -591,14 +627,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        'Position your plate in the frame',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppTheme.textSecondary.withValues(alpha: 0.7),
-                          letterSpacing: 0.2,
-                        ),
-                      ),
+                 
                       const SizedBox(height: 28),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1052,168 +1081,117 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
         const SizedBox(height: 20),
         Text(
           'Enter Meal Details',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimary,
-          ),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
         ),
         const SizedBox(height: 16),
+
+        // ── Food name ──
+        _buildEditField(controller: _nameController, label: 'Food Name', icon: Icons.restaurant, required: true),
+        const SizedBox(height: 12),
+
+        // ── Meal type dropdown ──
+        DropdownButtonFormField<String>(
+          initialValue: _selectedMealType,
+          decoration: const InputDecoration(
+            labelText: 'Meal Type',
+            prefixIcon: Icon(Icons.schedule),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'breakfast', child: Text('Breakfast')),
+            DropdownMenuItem(value: 'lunch', child: Text('Lunch')),
+            DropdownMenuItem(value: 'dinner', child: Text('Dinner')),
+            DropdownMenuItem(value: 'snack', child: Text('Snack')),
+          ],
+          onChanged: (v) => setState(() => _selectedMealType = v ?? _selectedMealType),
+        ),
+        const SizedBox(height: 12),
+
+        // ── Serving amount ──
         _buildEditField(
-          controller: _nameController,
-          label: 'Food Name',
-          icon: Icons.restaurant,
-          required: true,
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildEditField(
-                controller: _caloriesController,
-                label: 'Calories (kcal)',
-                icon: Icons.local_fire_department,
-                keyboardType: TextInputType.number,
-                required: true,
-                small: true,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildEditField(
-                controller: _servingController,
-                label: 'Serving Size',
-                icon: Icons.scale,
-                small: true,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Meal Type',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
-          ),
+          controller: _servingAmountController,
+          label: 'Serving Amount (e.g. 1, 100, 0.5)',
+          icon: Icons.straighten,
+          keyboardType: TextInputType.number,
         ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: ['breakfast', 'lunch', 'dinner', 'snack']
-              .map((type) => ChoiceChip(
-                    label: Text(type[0].toUpperCase() + type.substring(1)),
-                    selected: _selectedMealType == type,
-                    selectedColor: AppTheme.primaryColor.withValues(alpha: 0.15),
-                    onSelected: (_) =>
-                        setState(() => _selectedMealType = type),
-                  ))
+
+        // ── Serving unit dropdown ──
+        DropdownButtonFormField<String>(
+          initialValue: _servingUnit,
+          decoration: const InputDecoration(
+            labelText: 'Serving Unit',
+            prefixIcon: Icon(Icons.straighten),
+          ),
+          items: _servingUnits
+              .map((u) => DropdownMenuItem(value: u, child: Text(u)))
               .toList(),
+          onChanged: (v) => setState(() => _servingUnit = v ?? _servingUnit),
         ),
         const SizedBox(height: 16),
         const Divider(),
         const SizedBox(height: 8),
-        Text(
-          'Macronutrients (g)',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildEditField(
-                controller: _proteinController,
-                label: 'Protein',
-                icon: Icons.fitness_center,
-                keyboardType: TextInputType.number,
-                small: true,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildEditField(
-                controller: _carbsController,
-                label: 'Carbs',
-                icon: Icons.grain,
-                keyboardType: TextInputType.number,
-                small: true,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildEditField(
-                controller: _fatController,
-                label: 'Fat',
-                icon: Icons.opacity,
-                keyboardType: TextInputType.number,
-                small: true,
-              ),
-            ),
-          ],
-        ),
+
+        // ── Macros (single row each) ──
+        Text('Macros', style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+        const SizedBox(height: 10),
+        _buildEditField(controller: _caloriesController, label: 'Calories (kcal)', icon: Icons.local_fire_department, keyboardType: TextInputType.number, required: true),
+        const SizedBox(height: 8),
+        _buildEditField(controller: _proteinController, label: 'Protein (g)', icon: Icons.fitness_center, keyboardType: TextInputType.number),
+        const SizedBox(height: 8),
+        _buildEditField(controller: _carbsController, label: 'Carbs (g)', icon: Icons.grain, keyboardType: TextInputType.number),
+        const SizedBox(height: 8),
+        _buildEditField(controller: _fatController, label: 'Fat (g)', icon: Icons.water_drop, keyboardType: TextInputType.number),
+        const SizedBox(height: 8),
+        _buildEditField(controller: _fiberController, label: 'Fiber (g)', icon: Icons.eco, keyboardType: TextInputType.number),
+        const SizedBox(height: 8),
+        _buildEditField(controller: _sugarController, label: 'Sugar (g)', icon: Icons.cookie, keyboardType: TextInputType.number),
+        const SizedBox(height: 8),
+        _buildEditField(controller: _sodiumController, label: 'Sodium (mg)', icon: Icons.science, keyboardType: TextInputType.number),
         const SizedBox(height: 16),
-        const Divider(),
-        const SizedBox(height: 8),
-        Text(
-          'Additional Nutrients',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
+
+        // ── Vitamins (expandable) ──
+        _expandableSection(
+          title: 'Vitamins',
+          expanded: _showVitamins,
+          onToggle: () => setState(() => _showVitamins = !_showVitamins),
+          child: Column(
+            children: [
+              _buildEditField(controller: _vitaminAController, label: 'Vitamin A (mcg)', icon: Icons.circle, keyboardType: TextInputType.number),
+              const SizedBox(height: 8),
+              _buildEditField(controller: _vitaminBController, label: 'Vitamin B (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+              const SizedBox(height: 8),
+              _buildEditField(controller: _vitaminCController, label: 'Vitamin C (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+              const SizedBox(height: 8),
+              _buildEditField(controller: _vitaminDController, label: 'Vitamin D (mcg)', icon: Icons.circle, keyboardType: TextInputType.number),
+              const SizedBox(height: 8),
+              _buildEditField(controller: _vitaminEController, label: 'Vitamin E (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+              const SizedBox(height: 8),
+              _buildEditField(controller: _vitaminKController, label: 'Vitamin K (mcg)', icon: Icons.circle, keyboardType: TextInputType.number),
+            ],
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildEditField(
-                controller: _vitaminsController,
-                label: 'Vitamins (mg)',
-                icon: Icons.spa,
-                keyboardType: TextInputType.number,
-                small: true,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildEditField(
-                controller: _mineralsController,
-                label: 'Minerals (mg)',
-                icon: Icons.blur_on,
-                keyboardType: TextInputType.number,
-                small: true,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: _buildEditField(
-                controller: _fiberController,
-                label: 'Fiber (g)',
-                icon: Icons.linear_scale,
-                keyboardType: TextInputType.number,
-                small: true,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildEditField(
-                controller: _waterController,
-                label: 'Water (ml)',
-                icon: Icons.water_drop,
-                keyboardType: TextInputType.number,
-                small: true,
-              ),
-            ),
-          ],
+
+        // ── Minerals (expandable) ──
+        _expandableSection(
+          title: 'Minerals',
+          expanded: _showMinerals,
+          onToggle: () => setState(() => _showMinerals = !_showMinerals),
+          child: Column(
+            children: [
+              _buildEditField(controller: _calciumController, label: 'Calcium (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+              const SizedBox(height: 8),
+              _buildEditField(controller: _ironController, label: 'Iron (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+              const SizedBox(height: 8),
+              _buildEditField(controller: _magnesiumController, label: 'Magnesium (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+              const SizedBox(height: 8),
+              _buildEditField(controller: _potassiumController, label: 'Potassium (mg)', icon: Icons.circle, keyboardType: TextInputType.number),
+            ],
+          ),
         ),
         const SizedBox(height: 28),
+
+        // ── Save button ──
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -1222,9 +1200,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
             label: const Text('Save Meal'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
           ),
         ),

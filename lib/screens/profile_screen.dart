@@ -63,7 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final auth = context.read<AuthProvider>();
     if (auth.user == null) return;
     final music = context.read<MusicProvider>();
-    final success = await music.authenticate();
+    final success = await music.connect();
     if (success && mounted) {
       await _onSpotifyConnected();
     } else if (mounted) {

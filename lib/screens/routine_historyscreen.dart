@@ -656,8 +656,8 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 90,
-      height: 110,
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      height: 112,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
         color: unlocked ? Colors.amber.shade50 : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(16),
@@ -666,23 +666,25 @@ class _Badge extends StatelessWidget {
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           assetPath != null
               ? Image.asset(
                   assetPath!,
-                  width: 36,
-                  height: 36,
+                  width: 34,
+                  height: 34,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Icon(icon, size: 36, color: unlocked ? AppTheme.warningColor : Colors.grey.shade400),
+                  errorBuilder: (_, __, ___) => Icon(icon, size: 34, color: unlocked ? AppTheme.warningColor : Colors.grey.shade400),
                 )
-              : Icon(icon, size: 36, color: unlocked ? AppTheme.warningColor : Colors.grey.shade400),
-          const SizedBox(height: 8),
+              : Icon(icon, size: 34, color: unlocked ? AppTheme.warningColor : Colors.grey.shade400),
+          const SizedBox(height: 6),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
               color: unlocked ? AppTheme.textPrimary : Colors.grey.shade500,
+              height: 1.2,
             ),
             textAlign: TextAlign.center,
             maxLines: 2,   

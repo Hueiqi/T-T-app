@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/nutrition_provider.dart';
 import '../providers/auth_provider.dart';
-import '../services/ai_service.dart';        // ✅ use existing Gemini AI
+import '../services/ai_service.dart';
 import '../models/saved_food_model.dart';
 import 'nutrition_success_screen.dart';
 
@@ -19,7 +19,7 @@ class ManualFoodEntryScreen extends StatefulWidget {
 class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _servingController = TextEditingController(text: '1 serving');
+  final _servingAmountController = TextEditingController(text: '1');
   final _caloriesController = TextEditingController();
   final _proteinController = TextEditingController();
   final _carbsController = TextEditingController();
@@ -39,13 +39,48 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
   final _potassiumController = TextEditingController();
 
   String _mealType = '';
+  String _servingUnit = 'serving';
   bool _isAILoading = false;
   bool _showVitamins = false;
   bool _showMinerals = false;
   bool _saveToLibrary = true;
 
-  // ─── Use the existing AI service ──────────────────────────────
   final AIService _ai = AIService();
+
+  static const List<String> _servingUnits = [
+    'serving',
+    'g',
+    'set',
+    'cup',
+    'piece',
+    'ml',
+    'oz',
+    'bowl',
+    'slice',
+    'can',
+    'plate',
+    'stick',
+    'tbsp',
+    'tsp',
+    'pack',
+    'bag',
+    'bottle',
+    'litre',
+    'kg',
+    'scoop',
+    'wedge',
+    'handful',
+    'bunch',
+    'dash',
+    'pinch',
+    'fl oz',
+    'ear',
+    'fillet',
+    'drumstick',
+    'square',
+    'strip',
+    'sprig',
+  ];
 
   @override
   void initState() {
@@ -54,7 +89,7 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
     final preset = widget.presetFood;
     if (preset != null) {
       _nameController.text = preset.foodName;
-      _servingController.text = preset.servingSize;
+      _parseServingSize(preset.servingSize);
       _caloriesController.text = _numText(preset.calories);
       _proteinController.text = _numText(preset.protein);
       _carbsController.text = _numText(preset.carbs);
@@ -77,10 +112,23 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
 
   String _numText(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
 
+  void _parseServingSize(String size) {
+    final match = RegExp(r'^([\d.]+)\s*(.*)$').firstMatch(size.trim());
+    if (match != null) {
+      _servingAmountController.text = match.group(1) ?? '1';
+      final unit = match.group(2)?.trim().toLowerCase() ?? 'serving';
+      _servingUnit = _servingUnits.contains(unit) ? unit : 'serving';
+    } else {
+      _servingAmountController.text = size;
+    }
+  }
+
+  String get _fullServingSize => '${_servingAmountController.text.trim()} $_servingUnit';
+
   @override
   void dispose() {
     _nameController.dispose();
-    _servingController.dispose();
+    _servingAmountController.dispose();
     _caloriesController.dispose();
     _proteinController.dispose();
     _carbsController.dispose();
@@ -101,7 +149,6 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
     super.dispose();
   }
 
-  // ─── NEW: AI auto‑fill using Gemini ────────────────────────────
   Future<void> _aiAssist() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
@@ -114,12 +161,10 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
     setState(() => _isAILoading = true);
 
     try {
-      // Use the auto‑fill method from AIService (needs to be added – see note below)
       final data = await _ai.autoFillNutritionFromName(name);
       if (!mounted) return;
 
       setState(() {
-        // ⚠️ DO NOT change the name – keep the user’s original input
         _caloriesController.text = _toDouble(data['calories']);
         _proteinController.text = _toDouble(data['protein']);
         _carbsController.text = _toDouble(data['carbs']);
@@ -127,9 +172,19 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
         _fiberController.text = _toDouble(data['fiber']);
         _sugarController.text = _toDouble(data['sugar']);
         _sodiumController.text = _toDouble(data['sodium']);
+        _vitaminAController.text = _toDouble(data['vitaminA']);
+        _vitaminBController.text = _toDouble(data['vitaminB']);
+        _vitaminCController.text = _toDouble(data['vitaminC']);
+        _vitaminDController.text = _toDouble(data['vitaminD']);
+        _vitaminEController.text = _toDouble(data['vitaminE']);
+        _vitaminKController.text = _toDouble(data['vitaminK']);
+        _calciumController.text = _toDouble(data['calcium']);
+        _ironController.text = _toDouble(data['iron']);
+        _magnesiumController.text = _toDouble(data['magnesium']);
+        _potassiumController.text = _toDouble(data['potassium']);
         final serving = data['servingSize'];
         if (serving != null && serving is String && serving.isNotEmpty) {
-          _servingController.text = serving;
+          _parseServingSize(serving);
         }
         _isAILoading = false;
       });
@@ -153,7 +208,6 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
     return v.toString();
   }
 
-  // ─── Save the meal ──────────────────────────────────────────────
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -188,7 +242,7 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
       await nutrition.saveFoodToLibrary(
         userId: auth.user!.uid,
         foodName: _nameController.text.trim(),
-        servingSize: _servingController.text.trim(),
+        servingSize: _fullServingSize,
         calories: double.tryParse(_caloriesController.text) ?? 0,
         protein: double.tryParse(_proteinController.text) ?? 0,
         carbs: double.tryParse(_carbsController.text) ?? 0,
@@ -216,7 +270,6 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
     );
   }
 
-  // ─── Build ──────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -277,9 +330,9 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
             ),
             const SizedBox(height: 16),
 
-            // ── Meal type ──
+            // ── Meal type dropdown ──
             DropdownButtonFormField<String>(
-              value: _mealType,
+              initialValue: _mealType.isNotEmpty ? _mealType : null,
               decoration: const InputDecoration(
                 labelText: 'Meal Type',
                 prefixIcon: Icon(Icons.schedule),
@@ -294,16 +347,21 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
             ),
             const SizedBox(height: 12),
 
-            // ── Serving size ──
-            TextFormField(
-              controller: _servingController,
+            // ── Serving size: amount + unit (stacked, full width) ──
+            _numField(_servingAmountController, 'Serving Amount (e.g. 1, 100, 0.5)', Icons.straighten),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _servingUnit,
               decoration: const InputDecoration(
-                labelText: 'Serving Size',
+                labelText: 'Serving Unit',
                 prefixIcon: Icon(Icons.straighten),
-                hintText: 'e.g. 1 cup, 100g, 1 serving',
               ),
+              items: _servingUnits
+                  .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                  .toList(),
+              onChanged: (v) => setState(() => _servingUnit = v ?? _servingUnit),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // ── Save to library toggle ──
             Container(
@@ -333,93 +391,61 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
             ),
             const SizedBox(height: 16),
 
-            // ── Core macros ──
+            // ── Core macros (single row each) ──
             Text('Macros', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(child: _numField(_caloriesController, 'Calories', Icons.local_fire_department)),
-                const SizedBox(width: 8),
-                Expanded(child: _numField(_proteinController, 'Protein (g)', Icons.fitness_center)),
-              ],
-            ),
+            _numField(_caloriesController, 'Calories (kcal)', Icons.local_fire_department),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: _numField(_carbsController, 'Carbs (g)', Icons.grain)),
-                const SizedBox(width: 8),
-                Expanded(child: _numField(_fatController, 'Fat (g)', Icons.water_drop)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: _numField(_fiberController, 'Fiber (g)', Icons.eco)),
-                const SizedBox(width: 8),
-                Expanded(child: _numField(_sugarController, 'Sugar (g)', Icons.cookie)),
-              ],
-            ),
+            _numField(_proteinController, 'Protein (g)', Icons.fitness_center),
+            const SizedBox(height: 8),
+            _numField(_carbsController, 'Carbs (g)', Icons.grain),
+            const SizedBox(height: 8),
+            _numField(_fatController, 'Fat (g)', Icons.water_drop),
+            const SizedBox(height: 8),
+            _numField(_fiberController, 'Fiber (g)', Icons.eco),
+            const SizedBox(height: 8),
+            _numField(_sugarController, 'Sugar (g)', Icons.cookie),
             const SizedBox(height: 8),
             _numField(_sodiumController, 'Sodium (mg)', Icons.science),
             const SizedBox(height: 20),
 
-            // ── Vitamins (expandable) ──
+            // ── Vitamins (expandable, single row each) ──
             _expandableSection(
               title: 'Vitamins',
               expanded: _showVitamins,
               onToggle: () => setState(() => _showVitamins = !_showVitamins),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(child: _numField(_vitaminAController, 'Vit A (mcg)', Icons.circle, color: Colors.orange)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _numField(_vitaminBController, 'Vit B (mg)', Icons.circle, color: Colors.yellow.shade700)),
-                    ],
-                  ),
+                  _numField(_vitaminAController, 'Vitamin A (mcg)', Icons.circle, color: Colors.orange),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(child: _numField(_vitaminCController, 'Vit C (mg)', Icons.circle, color: Colors.green)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _numField(_vitaminDController, 'Vit D (mcg)', Icons.circle, color: Colors.amber)),
-                    ],
-                  ),
+                  _numField(_vitaminBController, 'Vitamin B (mg)', Icons.circle, color: Colors.yellow.shade700),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(child: _numField(_vitaminEController, 'Vit E (mg)', Icons.circle, color: Colors.teal)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _numField(_vitaminKController, 'Vit K (mcg)', Icons.circle, color: Colors.brown)),
-                    ],
-                  ),
+                  _numField(_vitaminCController, 'Vitamin C (mg)', Icons.circle, color: Colors.green),
+                  const SizedBox(height: 8),
+                  _numField(_vitaminDController, 'Vitamin D (mcg)', Icons.circle, color: Colors.amber),
+                  const SizedBox(height: 8),
+                  _numField(_vitaminEController, 'Vitamin E (mg)', Icons.circle, color: Colors.teal),
+                  const SizedBox(height: 8),
+                  _numField(_vitaminKController, 'Vitamin K (mcg)', Icons.circle, color: Colors.brown),
                 ],
               ),
             ),
             const SizedBox(height: 12),
 
-            // ── Minerals (expandable) ──
+            // ── Minerals (expandable, single row each) ──
             _expandableSection(
               title: 'Minerals',
               expanded: _showMinerals,
               onToggle: () => setState(() => _showMinerals = !_showMinerals),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(child: _numField(_calciumController, 'Calcium (mg)', Icons.circle, color: Colors.white70)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _numField(_ironController, 'Iron (mg)', Icons.circle, color: Colors.red.shade700)),
-                    ],
-                  ),
+                  _numField(_calciumController, 'Calcium (mg)', Icons.circle, color: Colors.white70),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(child: _numField(_magnesiumController, 'Magnesium (mg)', Icons.circle, color: Colors.purple)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _numField(_potassiumController, 'Potassium (mg)', Icons.circle, color: Colors.blue)),
-                    ],
-                  ),
+                  _numField(_ironController, 'Iron (mg)', Icons.circle, color: Colors.red.shade700),
+                  const SizedBox(height: 8),
+                  _numField(_magnesiumController, 'Magnesium (mg)', Icons.circle, color: Colors.purple),
+                  const SizedBox(height: 8),
+                  _numField(_potassiumController, 'Potassium (mg)', Icons.circle, color: Colors.blue),
                 ],
               ),
             ),
@@ -447,7 +473,6 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
     );
   }
 
-  // ─── Helper: numeric input field ──────────────────────────────
   Widget _numField(TextEditingController ctrl, String label, IconData icon, {Color? color}) {
     return TextFormField(
       controller: ctrl,
@@ -461,7 +486,6 @@ class _ManualFoodEntryScreenState extends State<ManualFoodEntryScreen> {
     );
   }
 
-  // ─── Helper: expandable section ──────────────────────────────
   Widget _expandableSection({
     required String title,
     required bool expanded,

@@ -16,16 +16,25 @@ class WeightEntry {
   Map<String, dynamic> toMap() => {
         'id': id,
         'userId': userId,
-        'date': DateTime(date.year, date.month, date.day).toIso8601String(),
+        'date': date.toIso8601String(),
         'weight': weight,
         if (notes != null) 'notes': notes,
       };
 
-  factory WeightEntry.fromMap(Map<String, dynamic> map) => WeightEntry(
-        id: map['id'] as String,
-        userId: map['userId'] as String,
-        date: DateTime.parse(map['date'] as String),
-        weight: (map['weight'] as num?)?.toDouble() ?? 0,
-        notes: map['notes'] as String?,
-      );
+  factory WeightEntry.fromMap(Map<String, dynamic> map) {
+    final dateStr = map['date'] as String;
+    DateTime parsedDate;
+    try {
+      parsedDate = DateTime.parse(dateStr);
+    } catch (_) {
+      parsedDate = DateTime.now();
+    }
+    return WeightEntry(
+      id: map['id'] as String,
+      userId: map['userId'] as String,
+      date: parsedDate,
+      weight: (map['weight'] as num?)?.toDouble() ?? 0,
+      notes: map['notes'] as String?,
+    );
+  }
 }

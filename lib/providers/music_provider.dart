@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../services/spotify_service.dart';
 import '../models/music_track_model.dart';
 
+
 class MusicProvider extends ChangeNotifier {
   final SpotifyService _spotifyService = SpotifyService();
 
@@ -36,32 +37,25 @@ class MusicProvider extends ChangeNotifier {
     }
   }
 
-  /// Authenticate via the native Spotify SDK.
-  /// Opens the Spotify app's login flow and returns an access token.
-  Future<bool> authenticate() async {
-    try {
-      final success = await _spotifyService.authenticate();
-      if (success) {
-        _isConnected = true;
-        _error = null;
-      } else {
-        _error = 'Spotify authentication failed. Make sure the Spotify app is installed.';
-      }
-      notifyListeners();
-      return success;
-    } catch (e) {
-      _error = 'Spotify authentication error: $e';
-      notifyListeners();
-      return false;
-    }
-  }
-
-  /// Set the access token obtained externally (e.g. from the Spotify module's AuthController).
+  /// Set the access token obtained from the native SDK authentication.
+  /// This should be called after a successful login via the AuthController.
   void setAccessToken(String token) {
     _spotifyService.setAccessToken(token);
     _isConnected = true;
     _error = null;
     notifyListeners();
+  }
+
+  /// (Deprecated) Remove this method or adapt it to use the native SDK.
+  /// For now, we'll keep it but comment out or redirect.
+  @Deprecated('Use setAccessToken(token) after native login instead')
+  Future<bool> connect() async {
+    // This no longer works because authenticate() was removed.
+    // Instead, call the native SDK login and then setAccessToken.
+    // For backward compatibility, return false.
+    _error = 'Spotify authentication must be done via native SDK.';
+    notifyListeners();
+    return false;
   }
 
   Future<void> search(String query) async {

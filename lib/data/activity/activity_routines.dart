@@ -9,7 +9,7 @@ final ActivityRoutine workoutAbs10Min = ActivityRoutine(
   focus: 'Core',
   equipment: 'No equipment',
   colorValue: 0xFFE91E63,
-  imageAsset: 'assets/images/Planning/abs.png',
+  imageAsset: 'lib/assets/Planning/10min_abs.png',
   description: 'Fast-paced core burner with zero rest.',
   exercises: [
     Exercise(name: 'Crunches', reps: '30 sec', images: ['Crunches/0.jpg', 'Crunches/1.jpg']),

@@ -32,14 +32,18 @@ class HealthConnectPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private val coroutineScope = CoroutineScope(Dispatchers.Main)
     private var activity: android.app.Activity? = null
 
-    // Permissions as strings (no internal constants)
     private val requiredPermissions = setOf(
         "android.permission.health.READ_HEART_RATE",
         "android.permission.health.READ_STEPS",
         "android.permission.health.READ_SLEEP",
         "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
         "android.permission.health.READ_TOTAL_CALORIES_BURNED",
-        "android.permission.health.READ_EXERCISE"
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.WRITE_HEART_RATE",
+        "android.permission.health.WRITE_STEPS",
+        "android.permission.health.WRITE_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.WRITE_TOTAL_CALORIES_BURNED",
+        "android.permission.health.WRITE_EXERCISE"
     )
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
@@ -86,7 +90,6 @@ class HealthConnectPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             }
             "getSleep" -> coroutineScope.launch { getSleep(result) }
             "getCalories" -> coroutineScope.launch { getCalories(result) }
-            // ── Write methods removed to avoid compilation issues ──
             else -> result.notImplemented()
         }
     }
@@ -95,10 +98,10 @@ class HealthConnectPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private fun checkAvailability(result: Result) {
         val status = HealthConnectClient.getSdkStatus(context)
         when (status) {
-            HealthConnectClient.SDK_AVAILABLE -> result.success(true)
-            HealthConnectClient.SDK_UNAVAILABLE -> result.success(false)
-            HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> result.success(false)
-            else -> result.success(false)
+            HealthConnectClient.SDK_AVAILABLE -> result.success(mapOf("available" to true, "needsUpdate" to false))
+            HealthConnectClient.SDK_UNAVAILABLE -> result.success(mapOf("available" to false, "needsUpdate" to false))
+            HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> result.success(mapOf("available" to false, "needsUpdate" to true))
+            else -> result.success(mapOf("available" to false, "needsUpdate" to false))
         }
     }
 
@@ -119,29 +122,70 @@ class HealthConnectPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         val currentActivity = activity
             ?: return result.error("NO_ACTIVITY", "No activity available for permission request", null)
 
+        val sdkStatus = HealthConnectClient.getSdkStatus(context)
+        when (sdkStatus) {
+            HealthConnectClient.SDK_UNAVAILABLE -> {
+                result.success(mapOf("granted" to false, "needsInstall" to true))
+                return
+            }
+            HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        data = Uri.parse("market://details?id=com.google.android.apps.healthdata")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    currentActivity.startActivity(intent)
+                } catch (_: Exception) {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            data = Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata")
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        currentActivity.startActivity(intent)
+                    } catch (_: Exception) {}
+                }
+                result.success(mapOf("granted" to false, "needsInstall" to true))
+                return
+            }
+        }
+
+        val client = getClient()
+            ?: return result.error("UNAVAILABLE", "Health Connect not available", null)
+
         coroutineScope.launch {
-            val client = getClient() ?: return@launch result.error("UNAVAILABLE", "Health Connect not available", null)
             try {
                 val granted = client.permissionController.getGrantedPermissions()
                 if (granted.containsAll(requiredPermissions)) {
-                    result.success(true)
+                    result.success(mapOf("granted" to true, "needsInstall" to false))
                     return@launch
                 }
             } catch (_: Exception) {}
-        }
 
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse("package:${context.packageName}")
-            setClassName(
-                "com.google.android.apps.healthdata",
-                "com.google.android.healthconnect.controller.permissions.api.HealthConnectPermissionsActivity"
-            )
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        try {
-            currentActivity.startActivity(intent)
-        } catch (e: Exception) {
-            result.error("PERMISSION_ERROR", "Could not open Health Connect permissions: ${e.message}", null)
+            try {
+                val intent = Intent("androidx.health.ACTION_REQUEST_PERMISSIONS").apply {
+                    setPackage("com.google.android.apps.healthdata")
+                    putStringArrayListExtra("androidx.health.PERMISSION_LIST", ArrayList(requiredPermissions))
+                    putExtra("androidx.health.PACKAGE_NAME", context.packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                currentActivity.startActivity(intent)
+                result.success(mapOf("granted" to true, "needsInstall" to false))
+            } catch (e: Exception) {
+                val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    setClassName(
+                        "com.google.android.apps.healthdata",
+                        "com.google.android.healthconnect.controller.permissions.api.HealthConnectPermissionsActivity"
+                    )
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                try {
+                    currentActivity.startActivity(fallbackIntent)
+                    result.success(mapOf("granted" to true, "needsInstall" to false))
+                } catch (e2: Exception) {
+                    result.error("PERMISSION_ERROR", "Could not open Health Connect permissions: ${e2.message}", null)
+                }
+            }
         }
     }
 

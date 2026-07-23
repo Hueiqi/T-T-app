@@ -583,6 +583,20 @@ Future<List<SavedFood>> getSavedFoods(String userId) async {
     } catch (_) {}
   }
 
+  Future<void> deleteNotification(String userId, String logId) async {
+    if (_demoMode) return;
+    try {
+      await _firestore!
+          .collection('users')
+          .doc(userId)
+          .collection('notificationHistory')
+          .doc(logId)
+          .delete();
+    } catch (e) {
+      debugPrint('deleteNotification error: $e');
+    }
+  }
+
   // ── Weight Entries ──
 
   Future<void> saveWeightEntry(WeightEntry entry) async {

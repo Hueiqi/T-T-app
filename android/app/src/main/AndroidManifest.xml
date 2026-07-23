@@ -152,5 +152,7 @@
         </intent>
         <!-- Allow detecting/launching the Spotify app (spotify_sdk, Android 11+) -->
         <package android:name="com.spotify.music" />
+        <!-- Allow launching Health Connect permission dialog (Android 11+ package visibility) -->
+        <package android:name="com.google.android.apps.healthdata" />
     </queries>
 </manifest>

@@ -267,6 +267,7 @@ class _DashboardTabState extends State<_DashboardTab>
   String _reportPeriod = 'This Week';
   List<WeightEntry> _weightHistory = [];
   List<Meal> _reportMeals = [];
+  final Set<int> _completedScheduleItems = {};
 
   @override
   void initState() {
@@ -283,9 +284,22 @@ class _DashboardTabState extends State<_DashboardTab>
 
   Future<void> _loadData() async {
     setState(() => _isDashboardLoading = true);
+    try {
+      await _loadDataInner().timeout(const Duration(seconds: 30));
+    } catch (e) {
+      debugPrint('Dashboard loadData error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDashboardLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadDataInner() async {
     final auth = context.read<AuthProvider>();
     if (auth.user == null) {
-      setState(() => _isDashboardLoading = false);
       return;
     }
 
@@ -324,7 +338,9 @@ class _DashboardTabState extends State<_DashboardTab>
         },
       );
 
-      await health.initializeHealthAccess();
+      if (health.isHealthConnectAuthorized) {
+        await health.syncHealthData().catchError((e) => debugPrint('syncHealthData: $e'));
+      }
 
       if (!mounted) return;
 
@@ -352,12 +368,6 @@ class _DashboardTabState extends State<_DashboardTab>
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isDashboardLoading = false;
-        });
       }
     }
   }
@@ -792,7 +802,289 @@ class _DashboardTabState extends State<_DashboardTab>
     );
   }
 
-  // ─── REPORTS CARD (separate, same as image) ──────────────────
+  // ─── WEIGHT FL CHART ───────────────────────────────────────────
+  Widget _buildWeightFlChart() {
+    final filtered = _getFilteredWeights();
+    if (filtered.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final minWeight =
+        filtered.map((e) => e.weight).reduce((a, b) => a < b ? a : b);
+    final maxWeight =
+        filtered.map((e) => e.weight).reduce((a, b) => a > b ? a : b);
+    final range = maxWeight - minWeight;
+    final yMin = (minWeight - range * 0.1).clamp(0.0, minWeight);
+    final yMax = maxWeight + range * 0.1;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Weight Progress',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Row(
+                  children: ['All', '1M', '6M', '1Y'].map((filter) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ChoiceChip(
+                        label: Text(filter),
+                        selected: _weightFilter == filter,
+                        onSelected: (_) =>
+                            setState(() => _weightFilter = filter),
+                        selectedColor: AppTheme.primaryColor,
+                        labelStyle: TextStyle(
+                          color: _weightFilter == filter
+                              ? Colors.white
+                              : AppTheme.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 180,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: (range / 5).clamp(1.0, 10.0),
+                    getDrawingHorizontalLine: (value) => FlLine(
+                      color: Colors.grey.withValues(alpha: 0.2),
+                      strokeWidth: 1,
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        getTitlesWidget: (value, meta) => Text(
+                          '${value.toStringAsFixed(1)}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final idx = value.toInt();
+                          if (idx >= 0 && idx < filtered.length) {
+                            final d = filtered[idx].date;
+                            return Text(
+                              '${d.day}/${d.month}',
+                              style: const TextStyle(fontSize: 10),
+                            );
+                          }
+                          return const Text('');
+                        },
+                      ),
+                    ),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  minY: yMin,
+                  maxY: yMax,
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: filtered.asMap().entries.map((e) {
+                        return FlSpot(e.key.toDouble(), e.value.weight);
+                      }).toList(),
+                      isCurved: true,
+                      color: AppTheme.primaryColor,
+                      barWidth: 3,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: true),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── DAILY SCHEDULE ────────────────────────────────────────────
+  Widget _buildDailySchedule(FitnessPlan? plan) {
+    if (plan == null || plan.dailySchedule.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.schedule, size: 18, color: AppTheme.primaryColor),
+                const SizedBox(width: 8),
+                const Text(
+                  'Daily Schedule',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                const Spacer(),
+                Text(
+                  plan.title,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...List.generate(plan.dailySchedule.length, (i) {
+              final activity = plan.dailySchedule[i];
+              final isChecked = _completedScheduleItems.contains(i);
+              final isLast = i == plan.dailySchedule.length - 1;
+              final isNext = !isChecked &&
+                  (i == 0 || _completedScheduleItems.contains(i - 1));
+              return _buildHomeTimelineItem(activity, i, isChecked, isLast, isNext);
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeTimelineItem(
+    DailyActivity activity,
+    int index,
+    bool isChecked,
+    bool isLast,
+    bool isNext,
+  ) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 48,
+            child: Text(
+              activity.time,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isNext ? AppTheme.primaryColor : Colors.grey,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 24,
+            child: Column(
+              children: [
+                Container(
+                  width: isChecked ? 18 : 14,
+                  height: isChecked ? 18 : 14,
+                  decoration: BoxDecoration(
+                    color: isChecked
+                        ? AppTheme.successColor
+                        : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isChecked
+                          ? AppTheme.successColor
+                          : (isNext
+                              ? AppTheme.primaryColor
+                              : Colors.grey.shade300),
+                      width: isChecked ? 0 : 2,
+                    ),
+                  ),
+                  child: isChecked
+                      ? const Icon(Icons.check, size: 12, color: Colors.white)
+                      : null,
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      color: isChecked
+                          ? AppTheme.successColor.withValues(alpha: 0.3)
+                          : Colors.grey.shade200,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (isChecked) {
+                    _completedScheduleItems.remove(index);
+                  } else {
+                    _completedScheduleItems.add(index);
+                  }
+                });
+              },
+              child: Container(
+                margin: EdgeInsets.only(bottom: isLast ? 0 : 12),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isNext
+                      ? AppTheme.primaryColor.withValues(alpha: 0.05)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: isNext
+                      ? Border.all(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.2))
+                      : null,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activity.title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: isChecked
+                            ? Colors.grey
+                            : (isNext
+                                ? AppTheme.primaryColor
+                                : AppTheme.textPrimary),
+                        decoration:
+                            isChecked ? TextDecoration.lineThrough : null,
+                      ),
+                    ),
+                    Text(
+                      activity.description,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── REPORTS CARD ─────────────────────────────────────────────
   Widget _buildReportsCard() {
     final workout = context.read<WorkoutProvider>();
     final meals = _reportMeals;
@@ -855,7 +1147,6 @@ class _DashboardTabState extends State<_DashboardTab>
               ],
             ),
             const SizedBox(height: 12),
-            // ── Using Wrap to prevent overflow ──
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -875,7 +1166,7 @@ class _DashboardTabState extends State<_DashboardTab>
     );
   }
 
-  // ─── 30-DAY HISTORY CARD (separate) ──────────────────────────
+  // ─── 30-DAY HISTORY CARD ──────────────────────────────────────
   Widget _buildHistorySummary() {
     if (_calorieHistory.isEmpty) return const SizedBox.shrink();
 
@@ -1042,6 +1333,114 @@ class _DashboardTabState extends State<_DashboardTab>
     }
   }
 
+  // ─── Health Connect Button ──────────────────────────────────
+  Widget _buildHealthConnectButton() {
+    final health = context.watch<HealthProvider>();
+    final isConnected = health.isHealthConnectAuthorized;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isConnected
+            ? AppTheme.successColor.withValues(alpha: 0.08)
+            : AppTheme.primaryColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isConnected
+              ? AppTheme.successColor.withValues(alpha: 0.2)
+              : AppTheme.primaryColor.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isConnected
+                  ? AppTheme.successColor.withValues(alpha: 0.1)
+                  : AppTheme.primaryColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              isConnected ? Icons.check_circle : Icons.health_and_safety,
+              color: isConnected ? AppTheme.successColor : AppTheme.primaryColor,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isConnected ? 'Health Connect Connected' : 'Connect Health Data',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isConnected
+                      ? 'Steps: ${health.stepsToday} · HR: ${health.currentHeartRate} bpm'
+                      : 'Sync steps, heart rate & more from Health Connect',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (!isConnected)
+            ElevatedButton(
+              onPressed: () async {
+                final available = await health.checkAvailability();
+                if (!available) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Health Connect not installed. Please install it from Play Store.'),
+                    ),
+                  );
+                  return;
+                }
+                final initialized = await health.authorizeHealthConnect();
+                if (initialized) {
+                  await health.syncHealthData();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Connected! Steps: ${health.stepsToday}, HR: ${health.currentHeartRate} bpm'),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Permission denied. Please grant Health Connect permissions.')),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Connect'),
+            ),
+          if (isConnected)
+            IconButton(
+              icon: const Icon(Icons.refresh, color: AppTheme.primaryColor),
+              onPressed: () async {
+                await health.syncHealthData();
+                setState(() {});
+              },
+              tooltip: 'Refresh health data',
+            ),
+        ],
+      ),
+    );
+  }
+
   // ── Build ──
 
   @override
@@ -1131,6 +1530,10 @@ class _DashboardTabState extends State<_DashboardTab>
                   // ── Tour Prompt ──
                   if (_showTourPrompt) _buildTourPrompt(),
 
+                  // ── Health Connect Card ──
+                  _buildHealthConnectButton(),
+                  const SizedBox(height: 16),
+
                   // ── Today's Overview ──
                   const Text(
                     'Today\'s Overview',
@@ -1198,23 +1601,18 @@ class _DashboardTabState extends State<_DashboardTab>
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Active Plan ──
-                  _buildPlanningSection(selectedPlan),
+                  // ── Weight FL Chart ──
+                  if (!_isDashboardLoading)
+                    _buildWeightFlChart(),
+                  const SizedBox(height: 16),
+
+                  // ── Daily Schedule ──
+                  _buildDailySchedule(selectedPlan),
                   const SizedBox(height: 16),
 
                   // ── 7-Day Calorie Chart ──
                   if (!_isDashboardLoading)
                     _buildSevenDayChart(_getSevenDayCalorieData(nutrition, workout)),
-                  const SizedBox(height: 16),
-
-                  // ── Weight Progress ──
-                  if (!_isDashboardLoading)
-                    _buildWeightProgressCard(),
-                  const SizedBox(height: 16),
-
-                  // ── Reports (separate) ──
-                  if (!_isDashboardLoading)
-                    _buildReportsCard(),
                   const SizedBox(height: 16),
 
                   // ── 30-Day History (separate) ──
@@ -1547,7 +1945,6 @@ class _StatusCard extends StatelessWidget {
 }
 
 // ─── Calories Card ─────────────────────────────────────────────
-// ─── Calories Card ─────────────────────────────────────────────
 class _CaloriesCard extends StatelessWidget {
   final double eatenCalories;
   final double burnedCalories;
@@ -1682,7 +2079,6 @@ class _CaloriesCard extends StatelessWidget {
     );
   }
 }
-
 
 // ─── HR Sparkline ─────────────────────────────────────────────
 

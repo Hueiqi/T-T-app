@@ -73,12 +73,13 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
     final lightColor = baseColor.withValues(alpha: 0.1);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(routine.title),
-        backgroundColor: baseColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => Navigator.pop(context),
+        backgroundColor: Colors.white,
+        elevation: 2,
+        child: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startTop,
       body: SafeArea(
         child: Column(
           children: [
@@ -176,45 +177,6 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
                             _pill(routine.duration, Icons.timer_outlined),
                             _pill('~$calories kcal', Icons.local_fire_department),
                           ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Progress preview ──
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: lightColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.pie_chart_outline,
-                            color: baseColor, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            '0 / $totalExercises exercises completed',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              color: AppTheme.textPrimary,
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 80,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: 0,
-                              backgroundColor: baseColor.withValues(alpha: 0.1),
-                              color: baseColor,
-                              minHeight: 6,
-                            ),
-                          ),
                         ),
                       ],
                     ),

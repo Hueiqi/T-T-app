@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
@@ -16,13 +17,41 @@ class _LoginScreenState extends State<LoginScreen> {
   final _phoneController = TextEditingController(text: '+60');
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
+  Timer? _lockoutTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startLockoutTimerIfNeeded();
+  }
 
   @override
   void dispose() {
+    _lockoutTimer?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  void _startLockoutTimerIfNeeded() {
+    final auth = context.read<AuthProvider>();
+    if (auth.isLockedOut) {
+      _lockoutTimer?.cancel();
+      _lockoutTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) {
+          _lockoutTimer?.cancel();
+          return;
+        }
+        final auth = context.read<AuthProvider>();
+        if (!auth.isLockedOut) {
+          _lockoutTimer?.cancel();
+          setState(() {});
+        } else {
+          setState(() {});
+        }
+      });
+    }
   }
 
   Future<void> _login() async {
@@ -36,6 +65,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (success && mounted) {
       Navigator.pushReplacementNamed(context, '/home');
+    } else if (mounted) {
+      _startLockoutTimerIfNeeded();
     }
   }
 

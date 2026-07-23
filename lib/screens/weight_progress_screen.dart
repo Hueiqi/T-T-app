@@ -15,8 +15,8 @@ class WeightProgressScreen extends StatefulWidget {
 }
 
 class _WeightProgressScreenState extends State<WeightProgressScreen> {
-  String _selectedRange = 'All';
-  static const _ranges = ['All', '1M', '6M', '1Y'];
+  String _selectedRange = '1M';
+  static const _ranges = ['7D', '14D', '1M', '3M', '6M', '1Y', 'All'];
 
   @override
   void initState() {
@@ -32,8 +32,14 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
   List<WeightEntry> _filteredEntries(List<WeightEntry> all) {
     final now = DateTime.now();
     switch (_selectedRange) {
+      case '7D':
+        return all.where((e) => e.date.isAfter(now.subtract(const Duration(days: 7)))).toList();
+      case '14D':
+        return all.where((e) => e.date.isAfter(now.subtract(const Duration(days: 14)))).toList();
       case '1M':
         return all.where((e) => e.date.isAfter(now.subtract(const Duration(days: 30)))).toList();
+      case '3M':
+        return all.where((e) => e.date.isAfter(now.subtract(const Duration(days: 90)))).toList();
       case '6M':
         return all.where((e) => e.date.isAfter(now.subtract(const Duration(days: 180)))).toList();
       case '1Y':
@@ -48,13 +54,11 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Weight Progress'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Log Weight',
-            onPressed: () => _showWeightDialog(context),
-          ),
-        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showWeightDialog(context),
+        backgroundColor: AppTheme.primaryColor,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Consumer<NutritionProvider>(
         builder: (context, nutrition, _) {
@@ -67,29 +71,33 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
               children: [
                 // ── Range chips ──
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: _ranges.map((range) {
-                      final selected = _selectedRange == range;
-                      return Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: ChoiceChip(
-                          label: Text(range),
-                          selected: selected,
-                          onSelected: (_) => setState(() => _selectedRange = range),
-                          selectedColor: AppTheme.primaryColor,
-                          labelStyle: TextStyle(
-                            color: selected ? Colors.white : AppTheme.textSecondary,
-                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _ranges.map((range) {
+                        final selected = _selectedRange == range;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: ChoiceChip(
+                            label: Text(range, style: const TextStyle(fontSize: 12)),
+                            selected: selected,
+                            onSelected: (_) => setState(() => _selectedRange = range),
+                            selectedColor: AppTheme.primaryColor,
+                            labelStyle: TextStyle(
+                              color: selected ? Colors.white : AppTheme.textSecondary,
+                              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                            side: BorderSide.none,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                          side: BorderSide.none,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
 
@@ -104,13 +112,13 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
                 // ── Chart ──
                 if (filtered.isNotEmpty)
                   Container(
-                    height: 220,
-                    padding: const EdgeInsets.all(16),
+                    height: 200,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: _buildLineChart(filtered, targetWeight),
                   )
                 else
                   SizedBox(
-                    height: 220,
+                    height: 200,
                     child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -137,54 +145,12 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
                 Expanded(
                   child: filtered.isEmpty
                       ? const SizedBox.shrink()
-                      : ListView.separated(
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           itemCount: filtered.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1, indent: 72),
                           itemBuilder: (ctx, i) {
                             final entry = filtered[i];
-                            final dateStr = DateFormat('d MMM yyyy').format(entry.date);
-
-                            // Compute change from previous entry
-                            String? changeStr;
-                            Color? changeColor;
-                            if (i < filtered.length - 1) {
-                              final prev = filtered[i + 1];
-                              final change = entry.weight - prev.weight;
-                              if (change != 0) {
-                                changeStr = '${change > 0 ? '+' : ''}${change.toStringAsFixed(1)} kg';
-                                changeColor = change > 0 ? AppTheme.errorColor : AppTheme.successColor;
-                              }
-                            }
-
-                            return ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-                                child: Text(
-                                  entry.weight.toStringAsFixed(0),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                ),
-                              ),
-                              title: Text(dateStr),
-                              subtitle: entry.notes != null && entry.notes!.isNotEmpty
-                                  ? Text(entry.notes!, style: const TextStyle(fontSize: 12), maxLines: 1)
-                                  : null,
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (changeStr != null) ...[
-                                    Text(
-                                      changeStr,
-                                      style: TextStyle(fontSize: 12, color: changeColor, fontWeight: FontWeight.w600),
-                                    ),
-                                    const SizedBox(width: 8),
-                                  ],
-                                  Text(
-                                    '${entry.weight.toStringAsFixed(1)} kg',
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            );
+                            return _buildWeightCard(entry, i, filtered);
                           },
                         ),
                 ),
@@ -192,6 +158,129 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildWeightCard(WeightEntry entry, int index, List<WeightEntry> filtered) {
+    final dateStr = DateFormat('d MMM yyyy').format(entry.date);
+    final timeStr = DateFormat('h:mm a').format(entry.date);
+
+    // Compute change from previous entry
+    double? change;
+    if (index < filtered.length - 1) {
+      final prev = filtered[index + 1];
+      change = entry.weight - prev.weight;
+    }
+
+    final isIncrease = change != null && change > 0;
+    final isDecrease = change != null && change < 0;
+    final changeColor = isIncrease
+        ? AppTheme.errorColor
+        : isDecrease
+            ? AppTheme.successColor
+            : AppTheme.textSecondary;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Date column
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dateStr,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  timeStr,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Change indicator
+          if (change != null && change != 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: changeColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isIncrease ? Icons.trending_up : Icons.trending_down,
+                    color: changeColor,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${change > 0 ? '+' : ''}${change.toStringAsFixed(1)} kg',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: changeColor,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Text(
+              '--',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.textSecondary.withValues(alpha: 0.4),
+              ),
+            ),
+
+          const SizedBox(width: 12),
+
+          // Weight value
+          Text(
+            '${entry.weight.toStringAsFixed(1)}',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Text(
+            'kg',
+            style: TextStyle(
+              fontSize: 13,
+              color: AppTheme.textSecondary.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -247,7 +336,7 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
           children: [
             Text(
               value,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color),
             ),
             Text(label, style: TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
           ],
@@ -261,13 +350,11 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
     var minWeight = (weights.reduce((a, b) => a < b ? a : b) - 2).floorToDouble();
     var maxWeight = (weights.reduce((a, b) => a > b ? a : b) + 2).ceilToDouble();
 
-    // Include target weight in Y axis range
     if (targetWeight != null) {
       if (targetWeight < minWeight) minWeight = targetWeight - 2;
       if (targetWeight > maxWeight) maxWeight = targetWeight + 2;
     }
 
-    // Build horizontal interval
     final range = maxWeight - minWeight;
     final interval = range > 20 ? 5.0 : range > 10 ? 2.0 : 1.0;
 
@@ -289,7 +376,6 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
               getTitlesWidget: (value, meta) {
                 final index = value.toInt();
                 if (index < 0 || index >= entries.length) return const SizedBox.shrink();
-                // Show first, middle, and last
                 if (index == 0 || index == entries.length - 1 || index == entries.length ~/ 2) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -337,7 +423,6 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
           ),
         ),
         lineBarsData: [
-          // Target weight dashed line
           if (targetWeight != null)
             LineChartBarData(
               spots: [
@@ -351,7 +436,6 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
               dotData: const FlDotData(show: false),
               dashArray: [8, 4],
             ),
-          // Weight line
           LineChartBarData(
             spots: entries.asMap().entries.map((e) {
               return FlSpot(e.key.toDouble(), e.value.weight);
@@ -420,6 +504,14 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
               if (auth.user == null) return;
               await nutrition.saveWeight(userId: auth.user!.uid, weight: w);
               if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Weight logged successfully!'),
+                    backgroundColor: AppTheme.successColor,
+                  ),
+                );
+              }
             },
             child: const Text('Save'),
           ),

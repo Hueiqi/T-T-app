@@ -21,32 +21,6 @@ class NutritionSuccessScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // ─── Custom Header (close button) ────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close, color: AppTheme.textSecondary),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Expanded(
-                    child: Text(
-                      'Meal Logged',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                  ),
-                  // Placeholder to balance the row
-                  const SizedBox(width: 48),
-                ],
-              ),
-            ),
-
             // ─── Scrollable Content ──────────────────────────
             Expanded(
               child: SingleChildScrollView(
@@ -54,21 +28,28 @@ class NutritionSuccessScreen extends StatelessWidget {
                 physics: const BouncingScrollPhysics(),
                 child: Column(
                   children: [
-                    // ─── Success Animation (GIF) ──────────────
-                    SizedBox(
-                      width: 150,
-                      height: 150,
-                      child: Image.asset(
-                        'lib/assets/diet/logSuccess.gif',
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.check_circle,
-                          color: AppTheme.successColor,
-                          size: 120,
-                        ),
+                    const SizedBox(height: 40),
+                    // ─── Success Icon ──────────────
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: AppTheme.successColor.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        meal.mealType == 'breakfast'
+                            ? Icons.wb_sunny
+                            : meal.mealType == 'lunch'
+                                ? Icons.wb_cloudy
+                                : meal.mealType == 'dinner'
+                                    ? Icons.nightlight_round
+                                    : Icons.restaurant,
+                        color: AppTheme.successColor,
+                        size: 48,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     Text(
                       'Meal Logged Successfully!',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -274,7 +255,7 @@ class NutritionSuccessScreen extends StatelessWidget {
               ),
             ),
 
-            // ─── Fixed Bottom Buttons ─────────────────────────
+            // ─── Fixed Bottom Button ─────────────────────────
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -287,42 +268,25 @@ class NutritionSuccessScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back, size: 18),
-                      label: const Text('Back'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/nutrition',
+                      (route) => false,
+                    );
+                  },
+                  icon: const Icon(Icons.restaurant, size: 18),
+                  label: const Text('View Meals'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/nutrition',
-                          (route) => false,
-                        );
-                      },
-                      icon: const Icon(Icons.restaurant, size: 18),
-                      label: const Text('View All Meals'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],

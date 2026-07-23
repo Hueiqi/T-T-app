@@ -180,7 +180,7 @@ class _RoutineRowCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 130,
+        height: 170,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           border: isDone
@@ -209,26 +209,9 @@ class _RoutineRowCard extends StatelessWidget {
               ),
               // ─── Row Content ───────────────────────────────
               Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 child: Row(
                   children: [
-                    // ─── Left: Thumbnail ────────────────────
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        imageAsset,
-                        width: 72,
-                        height: 72,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 72,
-                          height: 72,
-                          color: Color(routine.colorValue).withValues(alpha: 0.3),
-                          child: const Icon(Icons.fitness_center, color: Colors.white, size: 28),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
                     // ─── Middle: Info ───────────────────────
                     Expanded(
                       child: Column(
@@ -248,7 +231,7 @@ class _RoutineRowCard extends StatelessWidget {
                             child: Text(
                               routine.difficulty,
                               style: const TextStyle(
-                                fontSize: 9,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
                               ),
@@ -259,7 +242,7 @@ class _RoutineRowCard extends StatelessWidget {
                           Text(
                             routine.title,
                             style: const TextStyle(
-                              fontSize: 15,
+                              fontSize: 17,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                               shadows: [
@@ -275,7 +258,12 @@ class _RoutineRowCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           // Duration + Calories row
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 4,
+                        children: [
                           Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.timer_outlined, size: 13, color: Colors.white70),
                               const SizedBox(width: 3),
@@ -287,7 +275,11 @@ class _RoutineRowCard extends StatelessWidget {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                            ],
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                               Icon(Icons.local_fire_department, size: 13, color: Colors.white70),
                               const SizedBox(width: 2),
                               Text(
@@ -298,7 +290,11 @@ class _RoutineRowCard extends StatelessWidget {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                            ],
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                               Icon(Icons.fitness_center, size: 13, color: Colors.white70),
                               const SizedBox(width: 2),
                               Text(
@@ -311,12 +307,14 @@ class _RoutineRowCard extends StatelessWidget {
                               ),
                             ],
                           ),
+                        ],
+                      ),
                           const SizedBox(height: 8),
                           // Description
                           Text(
                             routine.description ?? '',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: Colors.white.withValues(alpha: 0.7),
                             ),
                             maxLines: 1,
@@ -330,7 +328,7 @@ class _RoutineRowCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         SizedBox(
-                          height: 34,
+                          height: 38,
                           child: ElevatedButton.icon(
                             onPressed: onQuickStart,
                             icon: Icon(

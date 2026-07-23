@@ -1,9 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'dart:async';
-import 'package:geolocator/geolocator.dart';
 import '../services/health_service.dart';
-import '../services/health_connect_service.dart';
 import '../services/spotify_service.dart';
 import '../services/firebase_service.dart';
 import '../models/workout_model.dart';
@@ -14,7 +11,6 @@ import 'package:uuid/uuid.dart';
 
 class WorkoutProvider extends ChangeNotifier {
   final HealthService _healthService = HealthService();
-  final HealthConnectService _hcService = HealthConnectService();
   final SpotifyService _spotifyService = SpotifyService();
   final FirebaseService _firebaseService = FirebaseService();
   final Uuid _uuid = const Uuid();
@@ -42,12 +38,8 @@ class WorkoutProvider extends ChangeNotifier {
 
   String _workoutType = 'cardio';
   double _distance = 0.0;
-  final List<Map<String, double>> _routePoints = [];
-  StreamSubscription<Position>? _positionSub;
-  Timer? _stepPollTimer;
   int _workoutSteps = 0;
-  Position? _currentPosition;
-  DateTime? _workoutStartDate;
+  final List<Map<String, double>> _routePoints = [];
 
   bool get isWorkoutActive => _isWorkoutActive;
   int get currentHeartRate => _currentHeartRate;
@@ -65,9 +57,9 @@ class WorkoutProvider extends ChangeNotifier {
   bool get isSearching => _isSearching;
   String get workoutType => _workoutType;
   double get distance => _distance;
-  List<Map<String, double>> get routePoints => _routePoints;
   int get workoutSteps => _workoutSteps;
-  Position? get currentPosition => _currentPosition;
+  List<Map<String, double>> get routePoints => _routePoints;
+  Map<String, double>? get currentPosition => _routePoints.isNotEmpty ? _routePoints.last : null;
 
   String _hrZoneToMusicZone(String zone) {
     switch (zone) {
@@ -93,7 +85,7 @@ class WorkoutProvider extends ChangeNotifier {
   }
 
   Future<void> startWorkout(String userId, {bool spotifyConnected = false}) async {
-    // 1. Check smartwatch connection via health package
+    // 1. Check smartwatch connection
     bool hrAvailable = false;
     if (!_isWeb) {
       try {
@@ -104,31 +96,17 @@ class WorkoutProvider extends ChangeNotifier {
     }
     _smartwatchConnected = hrAvailable;
 
-    // 2. Request Health Connect permissions for reading + writing
-    if (!_isWeb) {
-      try {
-        final hcAvailable = await _hcService.isAvailable;
-        if (hcAvailable) {
-          await _hcService.requestPermissions();
-        }
-      } catch (_) {}
-    }
-
     // 2. Create workout session
     _isWorkoutActive = true;
     _workoutStartTime = DateTime.now();
-    _workoutStartDate = _workoutStartTime;
     _heartRateHistory = [];
+    _workoutSteps = 0;
     _currentTrackName = '';
     _currentTrackArtist = '';
     _currentMusicZone = '';
     _spotifyError = null;
     _manualOverrideActive = false;
     _manualOverrideTimer?.cancel();
-    _distance = 0.0;
-    _routePoints.clear();
-    _workoutSteps = 0;
-    _currentPosition = null;
     _currentWorkout = Workout(
       id: _uuid.v4(),
       userId: userId,
@@ -141,13 +119,7 @@ class WorkoutProvider extends ChangeNotifier {
       await _firebaseService.saveWorkout(_currentWorkout!);
     } catch (_) {}
 
-    // 3. Start GPS tracking for distance and route
-    _startGpsTracking();
-
-    // 4. Start step polling from Health Connect every 10 seconds
-    _startStepPolling();
-
-    // 5. Start HR streaming every 5 seconds (if smartwatch available)
+    // 4. Start HR streaming every 5 seconds (if smartwatch available)
     if (_smartwatchConnected) {
       _healthService.startHeartRateMonitoring((int hr) {
         _currentHeartRate = hr;
@@ -161,13 +133,11 @@ class WorkoutProvider extends ChangeNotifier {
       });
     }
 
-    // 6. Start Spotify if connected
-    if (spotifyConnected) {
-      try {
-        await _spotifyService.authenticate();
-      } catch (_) {
-        _spotifyError = 'Music unavailable. Workout continues without music.';
-      }
+        // 5. Start Spotify if connected
+    if (spotifyConnected && _spotifyService.isConnected) {
+      // Music is ready
+    } else if (spotifyConnected) {
+      _spotifyError = 'Music not connected. Please log in via Spotify first.';
     }
 
     if (spotifyConnected && _spotifyError == null) {
@@ -185,156 +155,11 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _startGpsTracking() async {
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return;
-    }
-
-    // Get initial position
-    try {
-      final initialPos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
-      _currentPosition = initialPos;
-      _routePoints.add({
-        'lat': initialPos.latitude,
-        'lng': initialPos.longitude,
-      });
-      notifyListeners();
-    } catch (_) {}
-
-    // Listen to position updates
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
-      ),
-    ).listen(
-      (Position position) {
-        if (!_isWorkoutActive) return;
-        _currentPosition = position;
-
-        if (_routePoints.isNotEmpty) {
-          final lastPoint = _routePoints.last;
-          final distanceDelta = Geolocator.distanceBetween(
-            lastPoint['lat']!,
-            lastPoint['lng']!,
-            position.latitude,
-            position.longitude,
-          );
-
-          // Only add point if moved more than 3 meters (filter GPS noise)
-          if (distanceDelta > 3) {
-            _routePoints.add({
-              'lat': position.latitude,
-              'lng': position.longitude,
-            });
-            _distance += distanceDelta / 1000.0; // convert meters to km
-            notifyListeners();
-          }
-        }
-      },
-      onError: (e) {
-        debugPrint('GPS tracking error: $e');
-      },
-    );
-  }
-
-  void _startStepPolling() {
-    _stepPollTimer?.cancel();
-    _stepPollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
-      if (!_isWorkoutActive || _workoutStartDate == null) return;
-      try {
-        final steps = await _healthService.getStepsBetween(
-          _workoutStartDate!,
-          DateTime.now(),
-        );
-        if (steps > 0) {
-          _workoutSteps = steps;
-          notifyListeners();
-        }
-      } catch (_) {}
-    });
-
-    // Also fetch immediately
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!_isWorkoutActive || _workoutStartDate == null) return;
-      try {
-        final steps = await _healthService.getStepsBetween(
-          _workoutStartDate!,
-          DateTime.now(),
-        );
-        if (steps > 0) {
-          _workoutSteps = steps;
-          notifyListeners();
-        }
-      } catch (_) {}
-    });
-  }
-
   void addRoutePoint(double latitude, double longitude, double distanceDelta) {
     _routePoints.add({'lat': latitude, 'lng': longitude});
     _distance += distanceDelta;
+    _workoutSteps = (_distance * 1312).toInt();
     notifyListeners();
-  }
-
-  /// Writes the completed workout session to Health Connect so it appears
-  /// in the user's health data alongside data from other apps (Mi Fitness, etc.).
-  Future<void> _writeWorkoutToHealthConnect({
-    required DateTime startTime,
-    required DateTime endTime,
-    required double caloriesBurned,
-    required double distanceMeters,
-    required int steps,
-  }) async {
-    if (_isWeb) return;
-    try {
-      final hcAvailable = await _hcService.isAvailable;
-      if (!hcAvailable) return;
-
-      // Map workout type to HC exercise type: 0=other, 1=running, 2=walking, 3=cardio
-      int exerciseType;
-      switch (_workoutType) {
-        case 'running':
-          exerciseType = 1;
-          break;
-        case 'walking':
-          exerciseType = 2;
-          break;
-        default:
-          exerciseType = 3;
-      }
-
-      // Write exercise session (includes calories + estimated steps from distance)
-      await _hcService.writeExerciseSession(
-        startTime: startTime,
-        endTime: endTime,
-        title: 'T&T Fitness - ${_workoutType[0].toUpperCase()}${_workoutType.substring(1)}',
-        exerciseType: exerciseType,
-        caloriesBurned: caloriesBurned,
-        distanceMeters: distanceMeters,
-      );
-
-      // Write actual step count if we have it (from Health Connect watch data)
-      if (steps > 0) {
-        await _hcService.writeSteps(
-          startTime: startTime,
-          endTime: endTime,
-          count: steps,
-        );
-      }
-
-      debugPrint('HealthConnect: Workout written successfully');
-    } catch (e) {
-      debugPrint('HealthConnect: Failed to write workout: $e');
-    }
   }
 
   Future<void> _adjustMusicForHeartRate(int heartRate) async {
@@ -405,10 +230,6 @@ class WorkoutProvider extends ChangeNotifier {
     _healthService.stopHeartRateMonitoring();
     _extHrSub?.cancel();
     _extHrSub = null;
-    _positionSub?.cancel();
-    _positionSub = null;
-    _stepPollTimer?.cancel();
-    _stepPollTimer = null;
     _currentTrackName = '';
     _currentTrackArtist = '';
     _currentMusicZone = '';
@@ -473,16 +294,6 @@ class WorkoutProvider extends ChangeNotifier {
     );
 
     await _firebaseService.saveWorkoutEndData(_currentWorkout!, caloriesBurned);
-
-    // Write workout data to Health Connect
-    await _writeWorkoutToHealthConnect(
-      startTime: _currentWorkout!.startTime,
-      endTime: endTime,
-      caloriesBurned: caloriesBurned,
-      distanceMeters: _distance * 1000,
-      steps: _workoutSteps,
-    );
-
     notifyListeners();
 
     return {
@@ -496,7 +307,6 @@ class WorkoutProvider extends ChangeNotifier {
       'distance': _distance,
       'routePoints': List<Map<String, double>>.from(_routePoints),
       'workout': _currentWorkout!,
-      'workoutSteps': _workoutSteps,
     };
   }
 
@@ -579,20 +389,14 @@ class WorkoutProvider extends ChangeNotifier {
     _bpmAdjustTimer?.cancel();
     _manualOverrideTimer?.cancel();
     _extHrSub?.cancel();
-    _positionSub?.cancel();
-    _positionSub = null;
-    _stepPollTimer?.cancel();
-    _stepPollTimer = null;
     _spotifyError = null;
     _manualOverrideActive = false;
     _searchResults = [];
     _isSearching = false;
     _workoutType = 'cardio';
     _distance = 0.0;
-    _routePoints.clear();
     _workoutSteps = 0;
-    _currentPosition = null;
-    _workoutStartDate = null;
+    _routePoints.clear();
     _osWorkouts = [];
     _recentWorkout = null;
     _todayCaloriesBurned = 0;
@@ -606,8 +410,6 @@ class WorkoutProvider extends ChangeNotifier {
     _bpmAdjustTimer?.cancel();
     _manualOverrideTimer?.cancel();
     _extHrSub?.cancel();
-    _positionSub?.cancel();
-    _stepPollTimer?.cancel();
     _healthService.stopHeartRateMonitoring();
     super.dispose();
   }

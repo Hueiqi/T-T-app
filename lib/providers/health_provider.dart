@@ -93,7 +93,7 @@ class HealthProvider extends ChangeNotifier {
 
   Future<bool> authorizeHealthConnect() async {
     try {
-      _isHealthConnectAuthorized = await _healthConnectService.authorize();
+      _isHealthConnectAuthorized = await _healthConnectService.requestPermissions();
       if (_isHealthConnectAuthorized) {
         await syncHealthData();
       }

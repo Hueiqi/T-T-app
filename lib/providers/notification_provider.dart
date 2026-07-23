@@ -116,7 +116,7 @@ class NotificationProvider extends ChangeNotifier {
 
   Future<void> removeFromHistory(String userId, String logId) async {
     try {
-      await _firebaseService.markNotificationTapped(userId, logId);
+      await _firebaseService.deleteNotification(userId, logId);
       _history.removeWhere((l) => l.id == logId);
       notifyListeners();
     } catch (_) {}

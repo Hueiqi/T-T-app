@@ -344,16 +344,37 @@ Keep it concise but complete.
   Future<Map<String, dynamic>> autoFillNutritionFromName(String foodName) async {
     if (_model == null) throw Exception('AI not initialized.');
     final prompt = '''
-  You are a nutrition expert. Given the food name "$foodName", return a JSON object with the following fields:
-  - calories (per 100g, number)
+  You are a nutrition expert. Given the food name "$foodName", return a JSON object with ALL of the following fields.
+  IMPORTANT: You MUST include EVERY field listed below. If you cannot determine a value for any nutrient, use 0. Do NOT skip any field.
+
+  Macros:
+  - calories (kcal per 100g, number)
   - protein (g per 100g, number)
   - carbs (g per 100g, number)
   - fat (g per 100g, number)
   - fiber (g per 100g, number)
   - sugar (g per 100g, number)
   - sodium (mg per 100g, number)
+
+  Vitamins (ALL must be included, use 0 if unknown):
+  - vitaminA (mcg per 100g, number)
+  - vitaminB (mg per 100g, number - total B vitamins)
+  - vitaminC (mg per 100g, number)
+  - vitaminD (mcg per 100g, number)
+  - vitaminE (mg per 100g, number)
+  - vitaminK (mcg per 100g, number)
+
+  Minerals (ALL must be included, use 0 if unknown):
+  - calcium (mg per 100g, number)
+  - iron (mg per 100g, number)
+  - magnesium (mg per 100g, number)
+  - potassium (mg per 100g, number)
+
+  Other:
   - servingSize (common serving description, string)
-  Only return the JSON object, no extra text.
+
+  Return ONLY the JSON object with ALL fields above. No extra text, no markdown, no backticks.
+  Every single field must be present in the JSON. If you don't know the exact value, use 0.
   ''';
     final response = await chat(prompt);
     final clean = response.replaceAll(RegExp(r'```json|```'), '').trim();

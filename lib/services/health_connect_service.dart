@@ -16,10 +16,21 @@ class HealthConnectService {
   Future<bool> get isAvailable async {
     if (defaultTargetPlatform != TargetPlatform.android) return false;
     try {
-      final available = await _channel.invokeMethod<bool>('checkAvailability');
-      return available ?? false;
+      final result = await _channel.invokeMethod<Map>('checkAvailability');
+      return (result?['available'] as bool?) ?? false;
     } catch (e) {
       debugPrint('HealthConnect: checkAvailability failed: $e');
+      return false;
+    }
+  }
+
+  /// Returns `true` if Health Connect needs a provider update/install.
+  Future<bool> get needsProviderUpdate async {
+    if (defaultTargetPlatform != TargetPlatform.android) return false;
+    try {
+      final result = await _channel.invokeMethod<Map>('checkAvailability');
+      return (result?['needsUpdate'] as bool?) ?? false;
+    } catch (e) {
       return false;
     }
   }
@@ -33,8 +44,12 @@ class HealthConnectService {
   Future<bool> requestPermissions() async {
     if (defaultTargetPlatform != TargetPlatform.android) return false;
     try {
-      final result = await _channel.invokeMethod<bool>('requestPermissions');
-      return result ?? false;
+      final result = await _channel.invokeMethod<Map>('requestPermissions');
+      if (result?['needsInstall'] == true) {
+        debugPrint('HealthConnect: needs install/update from Play Store');
+        return false;
+      }
+      return (result?['granted'] as bool?) ?? false;
     } catch (e) {
       debugPrint('HealthConnect: requestPermissions failed: $e');
       return false;

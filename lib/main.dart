@@ -19,6 +19,11 @@ import 'providers/user_progress_provider.dart';
 import 'providers/exercise_favorites_provider.dart';
 import 'providers/workout_music_provider.dart';
 
+// 👇 Add these imports
+import 'spotify/services/auth/auth.dart'; // exports mobile_auth_controller
+import 'providers/music_provider.dart';
+
+
 import 'services/exercise_db.dart';
 import 'app.dart';
 import 'firebase_options.dart';
@@ -34,6 +39,21 @@ void main() async {
 
   final healthProvider = HealthProvider();
   await healthProvider.initializeHealthAccess();
+
+  // --- Spotify Native Auth ---
+  final spotifyAuth = createAuthController();
+  await spotifyAuth.init();
+
+  // Create MusicProvider instance manually so we can set the token
+  final musicProvider = MusicProvider();
+
+  if (spotifyAuth.status == AuthStatus.authenticated) {
+    final token = await spotifyAuth.getValidAccessToken();
+    if (token != null) {
+      musicProvider.setAccessToken(token);
+    }
+  }
+
 
   runApp(
     MultiProvider(

@@ -19,13 +19,12 @@ class FoodSearchScreen extends StatefulWidget {
 
 class _FoodSearchScreenState extends State<FoodSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  String _selectedFilter = 'All';
+  String _selectedFilter = 'My Foods';
   String _query = '';
   bool _isLoading = false;
   String? _onlineError;
-  bool _libraryLoaded = false;
 
-  static const List<String> _filters = ['All', 'My Foods', 'Meals', 'Recipes', 'Online'];
+  static const List<String> _filters = ['My Foods', 'Meals', 'Online'];
 
   @override
   void initState() {
@@ -35,7 +34,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
 
   Future<void> _loadLibrary() async {
     await FoodLibrary.load();
-    if (mounted) setState(() => _libraryLoaded = true);
   }
 
   // ─── Local data (full library) ─────────────────────────────
@@ -60,7 +58,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   }
 
   List<ComboDisplay> get _mealCombos => mealCombos.map((m) => ComboDisplay(m.name, m.calories.toDouble(), m.items)).toList();
-  List<ComboDisplay> get _recipes => sampleRecipes.map((r) => ComboDisplay(r.name, r.calories.toDouble(), r.ingredients)).toList();
 
   // ─── Online search ─────────────────────────────────────────────
   final FoodApiService _api = FoodApiService();
@@ -109,10 +106,6 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       case 'Meals':
         var items = _mealCombos;
         if (q.isNotEmpty) items = items.where((m) => m.name.toLowerCase().contains(q)).toList();
-        return items;
-      case 'Recipes':
-        var items = _recipes;
-        if (q.isNotEmpty) items = items.where((r) => r.name.toLowerCase().contains(q)).toList();
         return items;
       case 'Online':
         return _onlineResults;
@@ -240,6 +233,163 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     }
   }
 
+  // ─── Show food detail bottom sheet ───────────────────────────
+  void _showFoodDetail(FoodItemDisplay food) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        builder: (_, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                food.name,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                food.servingSize,
+                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 20),
+
+              // ── Calories highlight ──
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.local_fire_department, color: AppTheme.warningColor, size: 28),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${food.calories.toInt()} kcal',
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // ── Macros ──
+              const Text('Macronutrients', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              const SizedBox(height: 10),
+              _nutrientRow('Protein', '${food.protein.toStringAsFixed(1)} g', AppTheme.accentColor, Icons.fitness_center),
+              const SizedBox(height: 6),
+              _nutrientRow('Carbs', '${food.carbs.toStringAsFixed(1)} g', AppTheme.successColor, Icons.grain),
+              const SizedBox(height: 6),
+              _nutrientRow('Fat', '${food.fat.toStringAsFixed(1)} g', AppTheme.errorColor, Icons.water_drop),
+              const SizedBox(height: 6),
+              _nutrientRow('Fiber', '${food.fiber.toStringAsFixed(1)} g', Colors.teal, Icons.eco),
+              const SizedBox(height: 6),
+              _nutrientRow('Sugar', '${food.sugar.toStringAsFixed(1)} g', Colors.orange, Icons.cookie),
+              const SizedBox(height: 6),
+              _nutrientRow('Sodium', '${food.sodium.toStringAsFixed(1)} mg', Colors.blueGrey, Icons.science),
+              const SizedBox(height: 20),
+
+              // ── Vitamins ──
+              const Text('Vitamins', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              const SizedBox(height: 10),
+              _nutrientRow('Vitamin A', '${food.vitaminA.toStringAsFixed(1)} mcg', Colors.orange, Icons.circle),
+              const SizedBox(height: 6),
+              _nutrientRow('Vitamin B', '${food.vitaminB.toStringAsFixed(1)} mg', Colors.yellow.shade700, Icons.circle),
+              const SizedBox(height: 6),
+              _nutrientRow('Vitamin C', '${food.vitaminC.toStringAsFixed(1)} mg', Colors.green, Icons.circle),
+              const SizedBox(height: 6),
+              _nutrientRow('Vitamin D', '${food.vitaminD.toStringAsFixed(1)} mcg', Colors.amber, Icons.circle),
+              const SizedBox(height: 6),
+              _nutrientRow('Vitamin E', '${food.vitaminE.toStringAsFixed(1)} mg', Colors.teal, Icons.circle),
+              const SizedBox(height: 6),
+              _nutrientRow('Vitamin K', '${food.vitaminK.toStringAsFixed(1)} mcg', Colors.brown, Icons.circle),
+              const SizedBox(height: 20),
+
+              // ── Minerals ──
+              const Text('Minerals', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              const SizedBox(height: 10),
+              _nutrientRow('Calcium', '${food.calcium.toStringAsFixed(1)} mg', Colors.white70, Icons.circle),
+              const SizedBox(height: 6),
+              _nutrientRow('Iron', '${food.iron.toStringAsFixed(1)} mg', Colors.red.shade700, Icons.circle),
+              const SizedBox(height: 6),
+              _nutrientRow('Magnesium', '${food.magnesium.toStringAsFixed(1)} mg', Colors.purple, Icons.circle),
+              const SizedBox(height: 6),
+              _nutrientRow('Potassium', '${food.potassium.toStringAsFixed(1)} mg', Colors.blue, Icons.circle),
+              const SizedBox(height: 28),
+
+              // ── Buttons ──
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.arrow_back, size: 18),
+                      label: const Text('Back'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await _selectFood(food);
+                      },
+                      icon: const Icon(Icons.add_circle_outline, size: 18),
+                      label: const Text('Add Meal'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _nutrientRow(String label, String value, Color color, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 8),
+        Text(label, style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+        const Spacer(),
+        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
   // ─── Build ────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -247,11 +397,12 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Add ${widget.mealType[0].toUpperCase()}${widget.mealType.substring(1)}'),
+        title: const Text('Food Library'),
       ),
       body: SafeArea(
         child: Column(
           children: [
+            const SizedBox(height: 8),
             // Search bar
             Container(
               color: Colors.white,
@@ -405,7 +556,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
             protein: item.protein,
             carbs: item.carbs,
             fat: item.fat,
-            onTap: () => _selectFood(item),
+            onTap: () => _showFoodDetail(item),
           );
         } else if (item is ComboDisplay) {
           return _ComboTile(
@@ -538,7 +689,7 @@ class _FoodItemTile extends StatelessWidget {
                   ],
                 ),
               const SizedBox(width: 4),
-              const Icon(Icons.add_circle_outline, color: AppTheme.primaryColor, size: 24),
+              const Icon(Icons.chevron_right, color: AppTheme.textSecondary, size: 24),
             ],
           ),
         ),

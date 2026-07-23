@@ -525,7 +525,7 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
     if (currentPos != null) {
       await _mapController!.addCircle(
         CircleOptions(
-          geometry: LatLng(currentPos.latitude, currentPos.longitude),
+          geometry: LatLng(currentPos['latitude']!, currentPos['longitude']!),
           circleRadius: 10,
           circleColor: '#EF4444',
           circleStrokeColor: '#FFFFFF',
@@ -662,8 +662,8 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
                 initialCameraPosition: CameraPosition(
                   target: workout.currentPosition != null
                       ? LatLng(
-                          workout.currentPosition!.latitude,
-                          workout.currentPosition!.longitude,
+                          workout.currentPosition!['latitude']!,
+                          workout.currentPosition!['longitude']!,
                         )
                       : const LatLng(0, 0),
                   zoom: 15,
