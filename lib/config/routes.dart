@@ -42,4 +42,5 @@ class AppRoutes {
   static const String spotify = '/spotify';
   static const String workoutMusic = '/workout-music';
   static const String watchHeartRate = '/watch-heart-rate';
+  static const String workoutHistory = '/workout-history';
 }

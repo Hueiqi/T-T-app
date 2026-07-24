@@ -10,6 +10,7 @@ import '../config/theme.dart';
 import '../config/routes.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../widgets/bottom_nav_shell.dart';
+import 'workout_history_screen.dart';
 
 class WorkoutScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -28,38 +29,73 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     return Scaffold(
       appBar: null,
       body: SafeArea(
-        child: Consumer<WorkoutProvider>(
-          builder: (context, workout, _) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(color: AppTheme.appBarColor),
+              child: Row(
                 children: [
-                  if (workout.spotifyError != null && workout.isWorkoutActive)
-                    _WarningBanner(
-                      icon: Icons.error_outline,
-                      message: workout.spotifyError!,
-                      color: AppTheme.errorColor,
+                  const Text(
+                    'Workout',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
-
-                  _HeartRateMonitor(workout: workout),
-                  const SizedBox(height: 20),
-                  if (workout.isWorkoutActive)
-                    _ActiveWorkoutPanel(
-                      workout: workout,
-                      spotifyConnected: spotifyConnected,
-                    )
-                  else
-                    _WorkoutStartPanel(
-                      workout: workout,
-                      spotifyConnected: spotifyConnected,
-                    ),
-                  const SizedBox(height: 20),
-                  _HeartRateChart(heartRates: workout.heartRateHistory),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.history, color: Colors.white),
+                    tooltip: 'Workout History',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const WorkoutHistoryScreen(),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
-            );
-          },
+            ),
+            Expanded(
+              child: Consumer<WorkoutProvider>(
+                builder: (context, workout, _) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (workout.spotifyError != null && workout.isWorkoutActive)
+                          _WarningBanner(
+                            icon: Icons.error_outline,
+                            message: workout.spotifyError!,
+                            color: AppTheme.errorColor,
+                          ),
+
+                        _HeartRateMonitor(workout: workout),
+                        const SizedBox(height: 20),
+                        if (workout.isWorkoutActive)
+                          _ActiveWorkoutPanel(
+                            workout: workout,
+                            spotifyConnected: spotifyConnected,
+                          )
+                        else
+                          _WorkoutStartPanel(
+                            workout: workout,
+                            spotifyConnected: spotifyConnected,
+                          ),
+                        const SizedBox(height: 20),
+                        _HeartRateChart(heartRates: workout.heartRateHistory),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: widget.showBottomNav ? buildBottomNavBar(context) : null,

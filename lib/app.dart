@@ -46,6 +46,7 @@ import 'spotify/state/player_provider.dart';
 import 'spotify/widgets/global_mini_player.dart';
 import 'screens/workout_music_screen.dart';
 import 'screens/watch_heart_rate_screen.dart';
+import 'screens/workout_history_screen.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -176,6 +177,7 @@ class _FitSyncAppState extends State<FitSyncApp> {
           AppRoutes.spotify: (_) => const SpotifySection(),
           AppRoutes.workoutMusic: (_) => const WorkoutMusicScreen(),
           AppRoutes.watchHeartRate: (_) => const WatchHeartRateScreen(),
+          AppRoutes.workoutHistory: (_) => const WorkoutHistoryScreen(),
         },
       ),
     );
