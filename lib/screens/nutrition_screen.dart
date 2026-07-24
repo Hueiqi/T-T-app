@@ -1231,15 +1231,15 @@ class _QuickAddCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final quickFoods = [
-      _QuickFood('Apple', 95, Colors.red.shade300,
+      _QuickFood('Apple', 95, Colors.red.shade300, Icons.apple,
           protein: 0.5, carbs: 25, fat: 0.3),
-      _QuickFood('Chicken', 165, Colors.brown,
+      _QuickFood('Chicken', 165, Colors.brown, Icons.set_meal,
           protein: 31, carbs: 0, fat: 3.6),
-      _QuickFood('Rice', 130, Colors.blueGrey,
+      _QuickFood('Rice', 130, Colors.blueGrey, Icons.rice_bowl,
           protein: 2.7, carbs: 28, fat: 0.3),
-      _QuickFood('Eggs', 155, Colors.orange.shade300,
+      _QuickFood('Eggs', 155, Colors.orange.shade300, Icons.egg,
           protein: 13, carbs: 1.1, fat: 11),
-      _QuickFood('Banana', 105, const Color(0xFFFCD34D),
+      _QuickFood('Banana', 105, const Color(0xFFFCD34D), Icons.lunch_dining,
           protein: 1.3, carbs: 27, fat: 0.4),
     ];
 
@@ -1399,14 +1399,7 @@ class _QuickAddCard extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Image.asset(
-                            'lib/assets/diet/quickAdd.png',
-                            width: 18,
-                            height: 18,
-                            color: f.color,
-                            errorBuilder: (_, __, ___) =>
-                                Icon(Icons.restaurant, color: f.color, size: 18),
-                          ),
+                          Icon(f.icon, color: f.color, size: 20),
                           const SizedBox(height: 2),
                           Text(
                             f.name,
@@ -1444,7 +1437,8 @@ class _QuickFood {
   final double carbs;
   final double fat;
   final Color color;
-  const _QuickFood(this.name, this.baseCalories, this.color,
+  final IconData icon;
+  const _QuickFood(this.name, this.baseCalories, this.color, this.icon,
       {this.protein = 0, this.carbs = 0, this.fat = 0});
 }
 

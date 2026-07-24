@@ -25,6 +25,12 @@ class AppTheme {
   static const Color warningColor = Color(0xFFF59E0B);
   static const Color errorColor = Color(0xFFEF4444);
 
+  static const Color workoutDayBg = Color(0xFFEDE9FE);
+  static const Color workoutDayBgDark = Color(0xFF3B2D6B);
+  static const Color workoutDayAccent = Color(0xFF7C3AED);
+  static const Color restDayBg = Color(0xFFF3F4F6);
+  static const Color restDayBgDark = Color(0xFF2A2755);
+
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,

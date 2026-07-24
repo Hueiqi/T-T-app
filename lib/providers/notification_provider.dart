@@ -80,10 +80,11 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> logSentNotification(String userId, String title, String body) async {
+  Future<void> logSentNotification(String userId, String title, String body, {String type = 'general'}) async {
     final log = NotificationLog(
       id: 'notif_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
       userId: userId,
+      type: type,
       title: title,
       body: body,
       sentAt: DateTime.now(),

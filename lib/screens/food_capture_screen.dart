@@ -526,145 +526,147 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     );
   }
 
-  // ─── Beautiful Capture View ────────────────────────────────────
-  Widget _buildCaptureView() {
-    return Column(
-      children: [
-        const SizedBox(height: 12),
-        Stack(
-          children: [
-            // Decorative blurred circle
-            Positioned(
-              top: -30,
-              right: -30,
-              child: Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.06),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                      blurRadius: 60,
-                      spreadRadius: 20,
-                    ),
-                  ],
-                ),
+ // ─── Beautiful Capture View ────────────────────────────────────
+Widget _buildCaptureView() {
+  return Column(
+    children: [
+      const SizedBox(height: 12),
+      Stack(
+        children: [
+          // Decorative blurred circle
+          Positioned(
+            top: -30,
+            right: -30,
+            child: Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                    blurRadius: 60,
+                    spreadRadius: 20,
+                  ),
+                ],
               ),
             ),
-            // Main card
-            Container(
-              height: 340,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.95),
-                    Colors.grey.shade50.withValues(alpha: 0.9),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(32),
-               
+          ),
+          // Main card
+          Container(
+            height: 340,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: 0.95),
+                  Colors.grey.shade50.withValues(alpha: 0.9),
+                ],
               ),
-              child: Stack(
-                alignment: Alignment.center,
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Glowing frame
-                  CustomPaint(
-                    size: const Size(260, 260),
-                    painter: _FramePainter(
-                      color: AppTheme.primaryColor,
-                      glowColor: AppTheme.primaryColor.withValues(alpha: 0.15),
+                  // Animated camera icon
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 1.0, end: 1.05),
+                    duration: const Duration(milliseconds: 1500),
+                    curve: Curves.easeInOut,
+                    builder: (context, scale, _) => Transform.scale(
+                      scale: scale,
+                      child: Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppTheme.primaryColor.withValues(alpha: 0.12),
+                              AppTheme.primaryColor.withValues(alpha: 0.04),
+                            ],
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Image.asset(
+                          'lib/assets/diet/camera.png',
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => Icon(
+                            Icons.camera_alt_rounded,
+                            size: 44,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  // Content
-                  Column(
+                  const SizedBox(height: 20),
+                  Text(
+                    'Take photo of your meal',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Position your plate in the frame',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppTheme.textSecondary.withValues(alpha: 0.7),
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Animated camera icon
-                      TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 1.0, end: 1.05),
-                        duration: const Duration(milliseconds: 1500),
-                        curve: Curves.easeInOut,
-                        builder: (context, scale, _) => Transform.scale(
-                          scale: scale,
-                          child: Container(
-                            width: 88,
-                            height: 88,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppTheme.primaryColor.withValues(alpha: 0.12),
-                                  AppTheme.primaryColor.withValues(alpha: 0.04),
-                                ],
-                              ),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Image.asset(
-                              'lib/assets/diet/camera.png',
-                              width: 48,
-                              height: 48,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => Icon(
-                                Icons.camera_alt_rounded,
-                                size: 44,
-                                color: AppTheme.primaryColor,
-                              ),
-                            ),
-                          ),
+                      _buildPillButton(
+                        label: 'Camera',
+                        onTap: _takePhoto,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
                         ),
+                        icon: Icons.camera_alt_rounded,
                       ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Take photo of your meal',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
-                          letterSpacing: 0.3,
+                      const SizedBox(width: 14),
+                      _buildPillButton(
+                        label: 'Gallery',
+                        onTap: _pickFromGallery,
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFFEF3C7), Color(0xFFFDE68A)],
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                 
-                      const SizedBox(height: 28),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildPillButton(
-                            label: 'Camera',
-                            onTap: _takePhoto,
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
-                            ),
-                            icon: Icons.camera_alt_rounded,
-                          ),
-                          const SizedBox(width: 14),
-                          _buildPillButton(
-                            label: 'Gallery',
-                            onTap: _pickFromGallery,
-                            gradient: LinearGradient(
-                              colors: [Color(0xFFFEF3C7), Color(0xFFFDE68A)],
-                            ),
-                            icon: Icons.photo_library_rounded,
-                            iconColor: const Color(0xFF92400E),
-                            textColor: const Color(0xFF92400E),
-                          ),
-                        ],
+                        icon: Icons.photo_library_rounded,
+                        iconColor: const Color(0xFF92400E),
+                        textColor: const Color(0xFF92400E),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 28),
-        _buildAlternativeOptions(),
-      ],
-    );
-  }
+          ),
+        ],
+      ),
+      const SizedBox(height: 28),
+      // Optional: alternative options (if you have _buildAlternativeOptions())
+      _buildAlternativeOptions(),
+    ],
+  );
+}
 
   Widget _buildPillButton({
     required String label,

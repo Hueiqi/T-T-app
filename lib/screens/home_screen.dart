@@ -16,6 +16,7 @@ import '../models/planning_model.dart';
 import '../models/meal_model.dart';
 import '../models/workout_model.dart';
 import '../models/weight_entry_model.dart';
+import '../models/sleep_model.dart';
 import '../config/theme.dart';
 import '../services/firebase_service.dart';
 import '../services/health_connect_service.dart';
@@ -268,6 +269,8 @@ class _DashboardTabState extends State<_DashboardTab>
   List<WeightEntry> _weightHistory = [];
   List<Meal> _reportMeals = [];
   final Set<int> _completedScheduleItems = {};
+  int _totalWorkoutSessions30d = 0;
+  int _activeDays30d = 0;
 
   @override
   void initState() {
@@ -353,6 +356,9 @@ class _DashboardTabState extends State<_DashboardTab>
         placeProvider.loadPlaces(auth.user!.uid).catchError((e, s) => debugPrint('loadPlaces: $e')),
         newsProvider.fetchNews().catchError((e, s) => debugPrint('fetchNews: $e')),
         planningProvider.loadBookmarks(auth.user!.uid).catchError((e, s) => debugPrint('loadBookmarks: $e')),
+        planningProvider.loadActivePlan(auth.user!.uid).catchError((e, s) => debugPrint('loadActivePlan: $e')),
+        planningProvider.loadPlans(auth.user!.uid).catchError((e, s) => debugPrint('loadPlans: $e')),
+        workoutProvider.loadSleepData(auth.user!.uid).catchError((e, s) => debugPrint('loadSleepData: $e')),
       ]);
 
       _weightHistory = nutrition.weightHistory;
@@ -360,6 +366,8 @@ class _DashboardTabState extends State<_DashboardTab>
       final recentMeals = await nutrition.loadRecentMeals(auth.user!.uid, days: 30);
       _computeCalorieHistory(recentMeals, workoutProvider.workouts);
       await _loadReportMeals(nutrition, auth.user!.uid);
+
+      _loadCompletedSchedule(auth.user!.uid);
 
       if (!mounted) return;
       await _syncHealthConnectSteps(auth.user!.uid);
@@ -393,9 +401,33 @@ class _DashboardTabState extends State<_DashboardTab>
     }
   }
 
+  Future<void> _loadCompletedSchedule(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now();
+    final key = 'schedule_done_${uid}_${today.year}_${today.month}_${today.day}';
+    final saved = prefs.getStringList(key);
+    if (saved != null) {
+      setState(() {
+        _completedScheduleItems.clear();
+        _completedScheduleItems.addAll(saved.map(int.parse));
+      });
+    }
+  }
+
+  Future<void> _saveCompletedSchedule(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now();
+    final key = 'schedule_done_${uid}_${today.year}_${today.month}_${today.day}';
+    await prefs.setStringList(
+      key,
+      _completedScheduleItems.map((i) => i.toString()).toList(),
+    );
+  }
+
   void _computeCalorieHistory(List<Meal> meals, List<Workout> workouts) {
     final Map<String, double> eatenByDay = {};
     final Map<String, double> burnedByDay = {};
+    int totalWorkouts = 0;
 
     for (final meal in meals) {
       final key = '${meal.dateTime.year}-${meal.dateTime.month.toString().padLeft(2, '0')}-${meal.dateTime.day.toString().padLeft(2, '0')}';
@@ -403,23 +435,33 @@ class _DashboardTabState extends State<_DashboardTab>
     }
 
     for (final workout in workouts) {
-      final key = '${workout.startTime.year}-${workout.startTime.month.toString().padLeft(2, '0')}-${workout.startTime.day.toString().padLeft(2, '0')}';
+      final date = workout.endTime ?? workout.startTime;
+      final key = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
       burnedByDay[key] = (burnedByDay[key] ?? 0) + workout.caloriesBurned;
+      totalWorkouts++;
     }
 
     final history = <Map<String, dynamic>>[];
     final now = DateTime.now();
+    int activeDays = 0;
     for (int i = 29; i >= 0; i--) {
       final date = now.subtract(Duration(days: i));
       final key = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      final eaten = eatenByDay[key] ?? 0.0;
+      final burned = burnedByDay[key] ?? 0.0;
+      if (eaten > 0 || burned > 0) activeDays++;
       history.add({
         'date': date,
-        'eaten': eatenByDay[key] ?? 0.0,
-        'burned': burnedByDay[key] ?? 0.0,
+        'eaten': eaten,
+        'burned': burned,
       });
     }
 
-    setState(() => _calorieHistory = history);
+    setState(() {
+      _calorieHistory = history;
+      _totalWorkoutSessions30d = totalWorkouts;
+      _activeDays30d = activeDays;
+    });
   }
 
   List<Map<String, dynamic>> _getSevenDayCalorieData(
@@ -453,7 +495,7 @@ class _DashboardTabState extends State<_DashboardTab>
     return result;
   }
 
-  Widget _buildSevenDayChart(List<Map<String, dynamic>> data) {
+  Widget _buildSevenDayChart(List<Map<String, dynamic>> data, {double? targetCalories}) {
     if (data.isEmpty) return const SizedBox.shrink();
 
     final maxVal = data.fold<double>(
@@ -465,6 +507,9 @@ class _DashboardTabState extends State<_DashboardTab>
       (max, entry) => max > (entry['burned'] as double) ? max : (entry['burned'] as double),
     );
     final overallMax = maxVal > maxBurned ? maxVal : maxBurned;
+    final effectiveMax = targetCalories != null && targetCalories > overallMax
+        ? targetCalories * 1.2
+        : overallMax * 1.2;
 
     return Card(
       child: Padding(
@@ -481,16 +526,45 @@ class _DashboardTabState extends State<_DashboardTab>
               height: 200,
               child: BarChart(
                 BarChartData(
-                  gridData: const FlGridData(show: false),
+                  gridData: FlGridData(
+                    show: targetCalories != null,
+                    drawVerticalLine: false,
+                    horizontalInterval: targetCalories,
+                    getDrawingHorizontalLine: (value) {
+                      final isTargetLine = targetCalories != null &&
+                          (value - targetCalories).abs() < 1;
+                      if (isTargetLine) {
+                        return FlLine(
+                          color: AppTheme.accentColor,
+                          strokeWidth: 2,
+                          dashArray: [8, 4],
+                        );
+                      }
+                      return const FlLine(color: Colors.transparent);
+                    },
+                  ),
                   titlesData: FlTitlesData(
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 40,
-                        getTitlesWidget: (value, meta) => Text(
-                          '${value.toInt()}',
-                          style: const TextStyle(fontSize: 10),
-                        ),
+                        getTitlesWidget: (value, meta) {
+                          if (targetCalories != null &&
+                              (value - targetCalories).abs() < 1) {
+                            return Text(
+                              '${targetCalories.toInt()}',
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: AppTheme.accentColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          }
+                          return Text(
+                            '${value.toInt()}',
+                            style: const TextStyle(fontSize: 10),
+                          );
+                        },
                       ),
                     ),
                     bottomTitles: AxisTitles(
@@ -537,7 +611,7 @@ class _DashboardTabState extends State<_DashboardTab>
                     );
                   }).toList(),
                   minY: 0,
-                  maxY: overallMax * 1.2,
+                  maxY: effectiveMax,
                   barTouchData: BarTouchData(
                     touchTooltipData: BarTouchTooltipData(
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
@@ -559,6 +633,10 @@ class _DashboardTabState extends State<_DashboardTab>
                 _legendItem('Eaten', AppTheme.warningColor),
                 const SizedBox(width: 16),
                 _legendItem('Burned', AppTheme.primaryColor),
+                if (targetCalories != null) ...[
+                  const SizedBox(width: 16),
+                  _legendItem('Target', AppTheme.accentColor),
+                ],
               ],
             ),
           ],
@@ -806,13 +884,54 @@ class _DashboardTabState extends State<_DashboardTab>
   Widget _buildWeightFlChart() {
     final filtered = _getFilteredWeights();
     if (filtered.isEmpty) {
-      return const SizedBox.shrink();
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.monitor_weight, color: AppTheme.primaryColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('Weight Progress',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Icon(Icons.show_chart,
+                  size: 40, color: AppTheme.textSecondary.withValues(alpha: 0.4)),
+              const SizedBox(height: 8),
+              const Text('No weight entries yet.',
+                  style: TextStyle(color: AppTheme.textSecondary)),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/nutrition'),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Log Weight'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     final minWeight =
         filtered.map((e) => e.weight).reduce((a, b) => a < b ? a : b);
     final maxWeight =
         filtered.map((e) => e.weight).reduce((a, b) => a > b ? a : b);
+    final currentWeight = filtered.last.weight;
+    final firstWeight = filtered.first.weight;
+    final change = currentWeight - firstWeight;
     final range = maxWeight - minWeight;
     final yMin = (minWeight - range * 0.1).clamp(0.0, minWeight);
     final yMax = maxWeight + range * 0.1;
@@ -826,12 +945,25 @@ class _DashboardTabState extends State<_DashboardTab>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Weight Progress',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.monitor_weight, color: AppTheme.primaryColor, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text('Weight Progress',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
+                ),
                 Row(
                   children: ['All', '1M', '6M', '1Y'].map((filter) {
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
                       child: ChoiceChip(
                         label: Text(filter),
                         selected: _weightFilter == filter,
@@ -842,8 +974,10 @@ class _DashboardTabState extends State<_DashboardTab>
                           color: _weightFilter == filter
                               ? Colors.white
                               : AppTheme.textSecondary,
-                          fontSize: 12,
+                          fontSize: 11,
                         ),
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     );
                   }).toList(),
@@ -852,7 +986,7 @@ class _DashboardTabState extends State<_DashboardTab>
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 180,
+              height: 160,
               child: LineChart(
                 LineChartData(
                   gridData: FlGridData(
@@ -868,9 +1002,9 @@ class _DashboardTabState extends State<_DashboardTab>
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 40,
+                        reservedSize: 36,
                         getTitlesWidget: (value, meta) => Text(
-                          '${value.toStringAsFixed(1)}',
+                          '${value.toStringAsFixed(0)}',
                           style: const TextStyle(fontSize: 10),
                         ),
                       ),
@@ -884,7 +1018,7 @@ class _DashboardTabState extends State<_DashboardTab>
                             final d = filtered[idx].date;
                             return Text(
                               '${d.day}/${d.month}',
-                              style: const TextStyle(fontSize: 10),
+                              style: const TextStyle(fontSize: 9),
                             );
                           }
                           return const Text('');
@@ -899,6 +1033,23 @@ class _DashboardTabState extends State<_DashboardTab>
                   borderData: FlBorderData(show: false),
                   minY: yMin,
                   maxY: yMax,
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (_) => AppTheme.primaryColor,
+                      getTooltipItems: (spots) => spots.map((spot) {
+                        final idx = spot.x.toInt();
+                        if (idx >= 0 && idx < filtered.length) {
+                          final w = filtered[idx].weight;
+                          final d = DateFormat('d MMM').format(filtered[idx].date);
+                          return LineTooltipItem(
+                            '${w.toStringAsFixed(1)} kg\n$d',
+                            const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                          );
+                        }
+                        return null;
+                      }).toList(),
+                    ),
+                  ),
                   lineBarsData: [
                     LineChartBarData(
                       spots: filtered.asMap().entries.map((e) {
@@ -906,17 +1057,39 @@ class _DashboardTabState extends State<_DashboardTab>
                       }).toList(),
                       isCurved: true,
                       color: AppTheme.primaryColor,
-                      barWidth: 3,
+                      barWidth: 2.5,
                       isStrokeCapRound: true,
-                      dotData: const FlDotData(show: true),
+                      dotData: FlDotData(
+                        show: true,
+                        getDotPainter: (spot, percent, barData, index) {
+                          return FlDotCirclePainter(
+                            radius: 3,
+                            color: Colors.white,
+                            strokeWidth: 2,
+                            strokeColor: AppTheme.primaryColor,
+                          );
+                        },
+                      ),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.08),
                       ),
                     ),
                   ],
                 ),
               ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _weightStat('Current', '${currentWeight.toStringAsFixed(1)} kg', AppTheme.primaryColor),
+                _weightStat('Change',
+                    '${change > 0 ? '+' : ''}${change.toStringAsFixed(1)} kg',
+                    change > 0 ? AppTheme.warningColor : AppTheme.successColor),
+                _weightStat('Low', '${minWeight.toStringAsFixed(1)} kg', AppTheme.successColor),
+                _weightStat('High', '${maxWeight.toStringAsFixed(1)} kg', AppTheme.warningColor),
+              ],
             ),
           ],
         ),
@@ -924,11 +1097,71 @@ class _DashboardTabState extends State<_DashboardTab>
     );
   }
 
+  Widget _weightStat(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(value,
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 14, color: color)),
+        const SizedBox(height: 2),
+        Text(label,
+            style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+      ],
+    );
+  }
+
   // ─── DAILY SCHEDULE ────────────────────────────────────────────
   Widget _buildDailySchedule(FitnessPlan? plan) {
     if (plan == null || plan.dailySchedule.isEmpty) {
-      return const SizedBox.shrink();
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.schedule, color: AppTheme.primaryColor, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Daily Schedule',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      plan == null
+                          ? 'Generate an AI plan to get your daily schedule'
+                          : 'No schedule items in this plan',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.arrow_forward, color: AppTheme.primaryColor),
+                onPressed: () => Navigator.pushNamed(context, '/planning'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
+
+    final completedCount = _completedScheduleItems.length;
+    final totalItems = plan.dailySchedule.length;
+    final progress = totalItems > 0 ? completedCount / totalItems : 0.0;
 
     return Card(
       child: Padding(
@@ -938,19 +1171,68 @@ class _DashboardTabState extends State<_DashboardTab>
           children: [
             Row(
               children: [
-                const Icon(Icons.schedule, size: 18, color: AppTheme.primaryColor),
-                const SizedBox(width: 8),
-                const Text(
-                  'Daily Schedule',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.schedule, size: 20, color: AppTheme.primaryColor),
                 ),
-                const Spacer(),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Daily Schedule',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                ),
                 Text(
-                  plan.title,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  '$completedCount/$totalItems',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: progress >= 1.0
+                        ? AppTheme.successColor
+                        : AppTheme.primaryColor,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 3,
+                        backgroundColor: Colors.grey.shade200,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          progress >= 1.0
+                              ? AppTheme.successColor
+                              : AppTheme.primaryColor,
+                        ),
+                      ),
+                      Center(
+                        child: progress >= 1.0
+                            ? const Icon(Icons.check, size: 14, color: AppTheme.successColor)
+                            : Text(
+                                '${(progress * 100).toInt()}%',
+                                style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
+            if (plan.title.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                plan.title,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+            ],
             const SizedBox(height: 12),
             ...List.generate(plan.dailySchedule.length, (i) {
               final activity = plan.dailySchedule[i];
@@ -973,6 +1255,9 @@ class _DashboardTabState extends State<_DashboardTab>
     bool isLast,
     bool isNext,
   ) {
+    final typeIcon = _scheduleTypeIcon(activity.type);
+    final typeColor = _scheduleTypeColor(activity.type);
+
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1036,6 +1321,8 @@ class _DashboardTabState extends State<_DashboardTab>
                     _completedScheduleItems.add(index);
                   }
                 });
+                final uid = context.read<AuthProvider>().user?.uid;
+                if (uid != null) _saveCompletedSchedule(uid);
               },
               child: Container(
                 margin: EdgeInsets.only(bottom: isLast ? 0 : 12),
@@ -1043,37 +1330,56 @@ class _DashboardTabState extends State<_DashboardTab>
                 decoration: BoxDecoration(
                   color: isNext
                       ? AppTheme.primaryColor.withValues(alpha: 0.05)
-                      : Colors.transparent,
+                      : isChecked
+                          ? AppTheme.successColor.withValues(alpha: 0.03)
+                          : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                   border: isNext
                       ? Border.all(
                           color: AppTheme.primaryColor.withValues(alpha: 0.2))
                       : null,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      activity.title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: isChecked
-                            ? Colors.grey
-                            : (isNext
-                                ? AppTheme.primaryColor
-                                : AppTheme.textPrimary),
-                        decoration:
-                            isChecked ? TextDecoration.lineThrough : null,
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: typeColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(typeIcon, size: 14, color: typeColor),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            activity.title,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: isChecked
+                                  ? Colors.grey
+                                  : (isNext
+                                      ? AppTheme.primaryColor
+                                      : AppTheme.textPrimary),
+                              decoration:
+                                  isChecked ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                          Text(
+                            activity.description,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      activity.description,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
+                    if (isChecked)
+                      const Icon(Icons.check_circle, size: 16, color: AppTheme.successColor),
                   ],
                 ),
               ),
@@ -1082,6 +1388,32 @@ class _DashboardTabState extends State<_DashboardTab>
         ],
       ),
     );
+  }
+
+  IconData _scheduleTypeIcon(String type) {
+    switch (type) {
+      case 'workout':
+        return Icons.fitness_center;
+      case 'meal':
+        return Icons.restaurant;
+      case 'sleep':
+        return Icons.bedtime;
+      default:
+        return Icons.circle;
+    }
+  }
+
+  Color _scheduleTypeColor(String type) {
+    switch (type) {
+      case 'workout':
+        return AppTheme.successColor;
+      case 'meal':
+        return AppTheme.warningColor;
+      case 'sleep':
+        return AppTheme.secondaryColor;
+      default:
+        return AppTheme.primaryColor;
+    }
   }
 
   // ─── REPORTS CARD ─────────────────────────────────────────────
@@ -1167,13 +1499,25 @@ class _DashboardTabState extends State<_DashboardTab>
   }
 
   // ─── 30-DAY HISTORY CARD ──────────────────────────────────────
-  Widget _buildHistorySummary() {
+  Widget _buildHistorySummary({double? targetCalories}) {
     if (_calorieHistory.isEmpty) return const SizedBox.shrink();
 
     final totalEaten = _calorieHistory.fold<double>(0, (sum, d) => sum + (d['eaten'] as double));
     final totalBurned = _calorieHistory.fold<double>(0, (sum, d) => sum + (d['burned'] as double));
     final dailyAvg = _calorieHistory.isEmpty ? 0 : totalEaten / _calorieHistory.length;
     final netBalance = totalEaten - totalBurned;
+    final avgBurnedPerDay = _activeDays30d > 0 ? totalBurned / _activeDays30d : 0.0;
+    final target = targetCalories;
+
+    int daysOnTarget = 0;
+    if (target != null && target > 0) {
+      for (final day in _calorieHistory) {
+        final eaten = day['eaten'] as double;
+        if (eaten > 0 && (eaten - target).abs() <= target * 0.1) {
+          daysOnTarget++;
+        }
+      }
+    }
 
     return Card(
       child: Padding(
@@ -1225,7 +1569,7 @@ class _DashboardTabState extends State<_DashboardTab>
               children: [
                 Expanded(
                   child: _statBox(
-                    'Daily Avg',
+                    'Daily Avg Eaten',
                     '${dailyAvg.toStringAsFixed(0)} kcal',
                     AppTheme.primaryColor,
                     Icons.bar_chart,
@@ -1234,14 +1578,88 @@ class _DashboardTabState extends State<_DashboardTab>
                 const SizedBox(width: 12),
                 Expanded(
                   child: _statBox(
+                    'Avg Burned/Day',
+                    '${avgBurnedPerDay.toStringAsFixed(0)} kcal',
+                    AppTheme.secondaryColor,
+                    Icons.local_fire_department,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _statBox(
                     'Net Balance',
                     '${netBalance.toStringAsFixed(0)} kcal',
                     netBalance > 0 ? AppTheme.warningColor : AppTheme.successColor,
                     netBalance > 0 ? Icons.arrow_upward : Icons.arrow_downward,
                   ),
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _statBox(
+                    'Workouts',
+                    '$_totalWorkoutSessions30d sessions',
+                    AppTheme.primaryColor,
+                    Icons.fitness_center,
+                  ),
+                ),
               ],
             ),
+            if (target != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.accentColor.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.flag, size: 20, color: AppTheme.accentColor),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Plan Target',
+                            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                          ),
+                          Text(
+                            '${target.toStringAsFixed(0)} kcal/day',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.accentColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (daysOnTarget > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.successColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$daysOnTarget/30 on target',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.successColor,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1450,13 +1868,13 @@ class _DashboardTabState extends State<_DashboardTab>
     final calories = context.select(
       (NutritionProvider p) => p.totalCaloriesToday,
     );
-    final heartRate = context.select((HealthProvider p) => p.currentHeartRate);
-    final hrHistory = context.select((HealthProvider p) => p.heartRateHistory);
     final stepsToday = context.select((HealthProvider p) => p.stepsToday);
     final caloriesBurned = context.select(
       (WorkoutProvider p) => p.todayCaloriesBurned,
     );
     final selectedPlan = context.select((PlanningProvider p) => p.selectedPlan);
+    final activePlan = context.select((PlanningProvider p) => p.activePlan);
+    final currentPlan = activePlan ?? selectedPlan;
     final nutrition = context.read<NutritionProvider>();
     final workout = context.read<WorkoutProvider>();
 
@@ -1541,7 +1959,7 @@ class _DashboardTabState extends State<_DashboardTab>
                   ),
                   const SizedBox(height: 16),
 
-                  // Row 1: Steps + Heart Rate
+                  // Row 1: Steps + Today's Calories
                   Row(
                     children: [
                       Expanded(
@@ -1556,20 +1974,11 @@ class _DashboardTabState extends State<_DashboardTab>
                       const SizedBox(width: 12),
                       Expanded(
                         child: _StatusCard(
-                          icon: Icons.favorite,
-                          label: 'Heart Rate',
-                          value: heartRate == 0 ? '--' : '$heartRate',
-                          unit: 'bpm',
-                          color: AppTheme.accentColor,
-                          child: hrHistory.isNotEmpty
-                              ? Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: _HrSparkline(
-                                    data: hrHistory,
-                                    lineColor: AppTheme.accentColor,
-                                  ),
-                                )
-                              : null,
+                          icon: Icons.restaurant,
+                          label: 'Calories Eaten',
+                          value: calories > 0 ? '${calories.toStringAsFixed(0)}' : '--',
+                          unit: 'kcal',
+                          color: AppTheme.warningColor,
                         ),
                       ),
                     ],
@@ -1583,6 +1992,7 @@ class _DashboardTabState extends State<_DashboardTab>
                         child: _CaloriesCard(
                           eatenCalories: calories,
                           burnedCalories: caloriesBurned,
+                          targetCalories: currentPlan?.dailyCalories.toDouble(),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1601,22 +2011,37 @@ class _DashboardTabState extends State<_DashboardTab>
                   ),
                   const SizedBox(height: 16),
 
+                  // ── Sleep Summary Card ──
+                  if (!_isDashboardLoading)
+                    _buildSleepSummaryCard(sleep),
+                  const SizedBox(height: 16),
+
+                  // ── Today's Workout Recommendation ──
+                  if (!_isDashboardLoading)
+                    _buildWorkoutRecommendationCard(sleep, currentPlan),
+                  const SizedBox(height: 16),
+
                   // ── Weight FL Chart ──
                   if (!_isDashboardLoading)
                     _buildWeightFlChart(),
                   const SizedBox(height: 16),
 
                   // ── Daily Schedule ──
-                  _buildDailySchedule(selectedPlan),
+                  _buildDailySchedule(currentPlan),
                   const SizedBox(height: 16),
 
                   // ── 7-Day Calorie Chart ──
                   if (!_isDashboardLoading)
-                    _buildSevenDayChart(_getSevenDayCalorieData(nutrition, workout)),
+                    _buildSevenDayChart(
+                      _getSevenDayCalorieData(nutrition, workout),
+                      targetCalories: currentPlan?.dailyCalories.toDouble(),
+                    ),
                   const SizedBox(height: 16),
 
                   // ── 30-Day History (separate) ──
-                  _buildHistorySummary(),
+                  _buildHistorySummary(
+                    targetCalories: currentPlan?.dailyCalories.toDouble(),
+                  ),
                   const SizedBox(height: 16),
 
                   // ── News Carousel ──
@@ -1629,6 +2054,467 @@ class _DashboardTabState extends State<_DashboardTab>
         ),
       ),
     );
+  }
+
+  // ── Build: Sleep Summary Card ──
+
+  Widget _buildSleepSummaryCard(SleepData? sleep) {
+    if (sleep == null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.secondaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.bedtime, color: AppTheme.secondaryColor, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Sleep Summary',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'No sleep data yet. Log your sleep to get personalized workout recommendations.',
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.arrow_forward, color: AppTheme.secondaryColor),
+                onPressed: () => Navigator.pushNamed(context, '/sleep'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final hours = sleep.hoursSlept;
+    final quality = sleep.quality;
+    final readiness = sleep.readinessLevel;
+    final deepMin = sleep.deepSleepMinutes;
+    final lightMin = sleep.lightSleepMinutes;
+    final remMin = sleep.remSleepMinutes;
+    final totalTracked = deepMin + lightMin + remMin;
+
+    final qualityColor = quality == 'good'
+        ? AppTheme.successColor
+        : quality == 'moderate'
+            ? AppTheme.warningColor
+            : AppTheme.errorColor;
+
+    final readinessColor = readiness == 'high'
+        ? AppTheme.successColor
+        : readiness == 'moderate'
+            ? AppTheme.warningColor
+            : AppTheme.errorColor;
+
+    final readinessLabel = readiness == 'high'
+        ? 'Fully Rested'
+        : readiness == 'moderate'
+            ? 'Moderately Rested'
+            : 'Under-Rested';
+
+    // Sleep score out of 100
+    double score = 0;
+    if (hours >= 8) {
+      score += 40;
+    } else if (hours >= 7) {
+      score += 35;
+    } else if (hours >= 6) {
+      score += 25;
+    } else {
+      score += 10;
+    }
+    if (deepMin >= 90) {
+      score += 30;
+    } else if (deepMin >= 60) {
+      score += 20;
+    } else if (deepMin >= 30) {
+      score += 10;
+    }
+    if (remMin >= 60) {
+      score += 20;
+    } else if (remMin >= 30) {
+      score += 10;
+    }
+    if (quality == 'good') {
+      score += 10;
+    }
+    score = score.clamp(0, 100);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.secondaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.bedtime, color: AppTheme.secondaryColor, size: 20),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Sleep Summary',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: readinessColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    readinessLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: readinessColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                // Hours slept
+                Expanded(
+                  child: Column(
+                    children: [
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 64,
+                            height: 64,
+                            child: CircularProgressIndicator(
+                              value: (hours / 10).clamp(0.0, 1.0),
+                              strokeWidth: 5,
+                              backgroundColor: Colors.grey.shade200,
+                              valueColor: AlwaysStoppedAnimation<Color>(qualityColor),
+                            ),
+                          ),
+                          Text(
+                            hours.toStringAsFixed(1),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: qualityColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text('Hours', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                    ],
+                  ),
+                ),
+                // Sleep score
+                Expanded(
+                  child: Column(
+                    children: [
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 64,
+                            height: 64,
+                            child: CircularProgressIndicator(
+                              value: score / 100,
+                              strokeWidth: 5,
+                              backgroundColor: Colors.grey.shade200,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                score >= 70
+                                    ? AppTheme.successColor
+                                    : score >= 40
+                                        ? AppTheme.warningColor
+                                        : AppTheme.errorColor,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${score.toInt()}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: score >= 70
+                                  ? AppTheme.successColor
+                                  : score >= 40
+                                      ? AppTheme.warningColor
+                                      : AppTheme.errorColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text('Score', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                    ],
+                  ),
+                ),
+                // Quality
+                Expanded(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: qualityColor.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          quality == 'good'
+                              ? Icons.sentiment_very_satisfied
+                              : quality == 'moderate'
+                                  ? Icons.sentiment_neutral
+                                  : Icons.sentiment_dissatisfied,
+                          color: qualityColor,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        quality[0].toUpperCase() + quality.substring(1),
+                        style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (totalTracked > 0) ...[
+              const SizedBox(height: 16),
+              // Sleep breakdown bars
+              _sleepBar('Deep', deepMin, totalTracked, AppTheme.primaryColor),
+              const SizedBox(height: 6),
+              _sleepBar('Light', lightMin, totalTracked, AppTheme.secondaryColor.withValues(alpha: 0.6)),
+              const SizedBox(height: 6),
+              _sleepBar('REM', remMin, totalTracked, AppTheme.accentColor),
+              if (sleep.awakeMinutes > 0) ...[
+                const SizedBox(height: 6),
+                _sleepBar('Awake', sleep.awakeMinutes, totalTracked + sleep.awakeMinutes, Colors.grey.shade400),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sleepBar(String label, int minutes, int total, Color color) {
+    final fraction = total > 0 ? minutes / total : 0.0;
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    final timeStr = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
+    return Row(
+      children: [
+        SizedBox(
+          width: 44,
+          child: Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 8,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 44,
+          child: Text(
+            timeStr,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+            textAlign: TextAlign.right,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Build: Workout Recommendation Card ──
+
+  Widget _buildWorkoutRecommendationCard(SleepData? sleep, FitnessPlan? plan) {
+    final readiness = sleep?.readinessLevel ?? 'moderate';
+    final hours = sleep?.hoursSlept ?? 0;
+
+    String recommendation;
+    String intensity;
+    Color intensityColor;
+    IconData intensityIcon;
+    List<String> exercises;
+    String reason;
+
+    if (readiness == 'high' && hours >= 7) {
+      recommendation = 'Push Hard Today';
+      intensity = 'High Intensity';
+      intensityColor = AppTheme.successColor;
+      intensityIcon = Icons.local_fire_department;
+      exercises = plan != null && plan.weeklyWorkouts.isNotEmpty
+          ? _getTodayWorkoutExercises(plan)
+          : ['HIIT Sprints', 'Deadlifts', 'Box Jumps', 'Pull-ups'];
+      reason = 'Great sleep! Your body is ready for intense training.';
+    } else if (readiness == 'moderate') {
+      recommendation = 'Moderate Session';
+      intensity = 'Medium Intensity';
+      intensityColor = AppTheme.warningColor;
+      intensityIcon = Icons.fitness_center;
+      exercises = plan != null && plan.weeklyWorkouts.isNotEmpty
+          ? _getTodayWorkoutExercises(plan)
+          : ['Jogging', 'Push-ups', 'Squats', 'Planks'];
+      reason = 'Decent sleep. A moderate workout will keep you on track.';
+    } else {
+      recommendation = 'Take It Easy';
+      intensity = 'Low Intensity';
+      intensityColor = AppTheme.errorColor;
+      intensityIcon = Icons.self_improvement;
+      exercises = ['Yoga Flow', 'Stretching', 'Light Walking', 'Meditation'];
+      reason = hours < 5
+          ? 'Very low sleep. Focus on recovery and gentle movement.'
+          : 'Poor sleep quality. Light activity will help without overloading.';
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: intensityColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(intensityIcon, color: intensityColor, size: 20),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        recommendation,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      Text(
+                        intensity,
+                        style: TextStyle(fontSize: 11, color: intensityColor, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.arrow_forward, color: AppTheme.primaryColor),
+                  onPressed: () => Navigator.pushNamed(context, '/workout'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: intensityColor.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: intensityColor.withValues(alpha: 0.15)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: intensityColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      reason,
+                      style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Suggested Exercises',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: exercises.map((ex) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.15)),
+                  ),
+                  child: Text(
+                    ex,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/workout'),
+                icon: const Icon(Icons.play_arrow, size: 18),
+                label: const Text('Start Workout'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: intensityColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<String> _getTodayWorkoutExercises(FitnessPlan plan) {
+    final dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final todayName = dayNames[DateTime.now().weekday - 1];
+    final todayWorkout = plan.weeklyWorkouts.where((w) => w.day == todayName).firstOrNull;
+    if (todayWorkout != null && todayWorkout.exercises.isNotEmpty) {
+      return todayWorkout.exercises.take(4).toList();
+    }
+    if (plan.sampleExercises.isNotEmpty) {
+      return plan.sampleExercises.take(4).toList();
+    }
+    return ['Warm-up', 'Main Set', 'Cool Down', 'Stretching'];
   }
 
   // ── Build: Tour Prompt ──
@@ -1948,16 +2834,23 @@ class _StatusCard extends StatelessWidget {
 class _CaloriesCard extends StatelessWidget {
   final double eatenCalories;
   final double burnedCalories;
+  final double? targetCalories;
 
   const _CaloriesCard({
     required this.eatenCalories,
     required this.burnedCalories,
+    this.targetCalories,
   });
 
   @override
   Widget build(BuildContext context) {
     final net = eatenCalories - burnedCalories;
     final inDeficit = net <= 0;
+    final target = targetCalories;
+    final remaining = target != null ? (target - eatenCalories + burnedCalories) : null;
+    final progress = target != null && target > 0
+        ? (eatenCalories / target).clamp(0.0, 1.5)
+        : null;
 
     return Card(
       child: Padding(
@@ -2034,6 +2927,41 @@ class _CaloriesCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (target != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Eaten ${eatenCalories.toStringAsFixed(0)} / ${target.toStringAsFixed(0)} kcal',
+                    style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  ),
+                  if (remaining != null)
+                    Text(
+                      '${remaining >= 0 ? remaining.toStringAsFixed(0) : '0'} left',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: remaining >= 0 ? AppTheme.primaryColor : AppTheme.warningColor,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: progress != null && progress <= 1.0 ? progress : 1.0,
+                  minHeight: 8,
+                  backgroundColor: AppTheme.textSecondary.withValues(alpha: 0.15),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    progress != null && progress > 1.0
+                        ? AppTheme.warningColor
+                        : AppTheme.primaryColor,
+                  ),
+                ),
+              ),
+            ],
             if (eatenCalories > 0 || burnedCalories > 0) ...[
               const SizedBox(height: 12),
               Wrap(
@@ -2062,6 +2990,18 @@ class _CaloriesCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (target != null)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _calorieDot(AppTheme.primaryColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Target ${target.toStringAsFixed(0)}',
+                          style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ],

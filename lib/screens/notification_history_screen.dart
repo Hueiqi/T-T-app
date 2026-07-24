@@ -131,6 +131,8 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                 final log = provider.history[index];
                 final dateStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(log.sentAt);
                 final isTapped = log.tapped;
+                final typeIcon = _typeIcon(log.type);
+                final typeLabel = _typeLabel(log.type);
 
                 return Dismissible(
                   key: Key(log.id),
@@ -148,7 +150,7 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                   child: Card(
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: () => _showDetail(log.id, log.title, log.body, dateStr, isTapped),
+                      onTap: () => _showDetail(log.id, log.title, log.body, dateStr, isTapped, typeLabel),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(
@@ -164,7 +166,7 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Icon(
-                                isTapped ? Icons.check_circle : Icons.notifications,
+                                isTapped ? Icons.check_circle : typeIcon,
                                 color: isTapped ? AppTheme.successColor : AppTheme.primaryColor,
                                 size: 20,
                               ),
@@ -174,10 +176,33 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(log.title,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14)),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(log.title,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14)),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.primaryColor
+                                              .withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          typeLabel,
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppTheme.primaryColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                   const SizedBox(height: 4),
                                   Text(log.body,
                                       maxLines: 2,
@@ -241,7 +266,7 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
     );
   }
 
-  void _showDetail(String id, String title, String body, String dateStr, bool isTapped) {
+  void _showDetail(String id, String title, String body, String dateStr, bool isTapped, String typeLabel) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -266,6 +291,22 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
             const SizedBox(height: 20),
             Text(title,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                typeLabel,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
             Text(body, style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
             const SizedBox(height: 16),
@@ -315,5 +356,35 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
         ),
       ),
     );
+  }
+
+  IconData _typeIcon(String type) {
+    switch (type) {
+      case 'workout':
+        return Icons.fitness_center;
+      case 'meal':
+        return Icons.restaurant;
+      case 'water':
+        return Icons.water_drop;
+      case 'weight':
+        return Icons.monitor_weight;
+      default:
+        return Icons.notifications;
+    }
+  }
+
+  String _typeLabel(String type) {
+    switch (type) {
+      case 'workout':
+        return 'Workout';
+      case 'meal':
+        return 'Meal';
+      case 'water':
+        return 'Water';
+      case 'weight':
+        return 'Weight';
+      default:
+        return 'General';
+    }
   }
 }

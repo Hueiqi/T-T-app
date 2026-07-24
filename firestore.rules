@@ -135,14 +135,65 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // ── Notification Settings ──
+      // ═══════════════════════════════════════════════
+      // NOTIFICATION SETTINGS – with validation
+      // ═══════════════════════════════════════════════
       match /notificationSettings/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        function isValidNotificationSettings() {
+          let data = request.resource.data;
+          return data.keys().hasAll([
+            'userId', 'workoutReminderEnabled', 'calorieAlertEnabled',
+            'sleepReminderEnabled', 'logReminderEnabled'])
+            && data.userId == request.auth.uid
+            && data.workoutReminderEnabled is bool
+            && data.calorieAlertEnabled is bool
+            && data.sleepReminderEnabled is bool
+            && data.logReminderEnabled is bool;
+        }
+
+        allow read: if request.auth != null
+          && request.auth.uid == userId;
+
+        allow create: if request.auth != null
+          && request.auth.uid == userId
+          && isValidNotificationSettings();
+
+        allow update: if request.auth != null
+          && request.auth.uid == userId
+          && isValidNotificationSettings();
+
+        allow delete: if false;
       }
 
-      // ── Notification History ──
+      // ═══════════════════════════════════════════════
+      // NOTIFICATION HISTORY – with validation
+      // ═══════════════════════════════════════════════
       match /notificationHistory/{logId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        function isValidNotificationLog() {
+          let data = request.resource.data;
+          return data.keys().hasAll(['userId', 'title', 'body', 'sentAt'])
+            && data.userId == request.auth.uid
+            && data.title is string
+            && data.title.size() > 0
+            && data.body is string
+            && data.sentAt is string;
+        }
+
+        allow read: if request.auth != null
+          && request.auth.uid == userId
+          && resource.data.userId == request.auth.uid;
+
+        allow create: if request.auth != null
+          && request.auth.uid == userId
+          && isValidNotificationLog();
+
+        allow update: if request.auth != null
+          && request.auth.uid == userId
+          && resource.data.userId == request.auth.uid;
+
+        allow delete: if request.auth != null
+          && request.auth.uid == userId
+          && resource.data.userId == request.auth.uid;
       }
     }
 

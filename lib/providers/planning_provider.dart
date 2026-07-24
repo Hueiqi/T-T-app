@@ -229,6 +229,7 @@ class PlanningProvider extends ChangeNotifier {
       'build_muscle': 'build muscle',
       'general_fitness': 'improve general fitness',
       'endurance': 'build endurance',
+      'strength': 'increase strength',
     };
 
     final activityLabels = {
@@ -255,43 +256,90 @@ class PlanningProvider extends ChangeNotifier {
     final activity = activityLabels[user.activityLevel] ?? user.activityLevel;
     final diet = dietLabels[user.dietPreference] ?? user.dietPreference;
     final bmi = user.bmi.toStringAsFixed(1);
+    final weightDiff = user.targetWeightKg != null
+        ? (user.weight - user.targetWeightKg!).toStringAsFixed(1)
+        : null;
+    final weightDirection = weightDiff != null
+        ? (double.parse(weightDiff) > 0 ? 'lose' : 'gain')
+        : null;
+    final absWeightDiff = weightDiff != null ? double.parse(weightDiff).abs().toStringAsFixed(1) : null;
+
+    String timelineInfo = '';
+    if (user.workoutEndDate != null) {
+      final weeksLeft = user.workoutEndDate!.difference(DateTime.now()).inDays / 7;
+      if (weeksLeft > 0) {
+        timelineInfo = '- Target Timeline: ${weeksLeft.toStringAsFixed(0)} weeks until deadline (${user.workoutEndDate!.day}/${user.workoutEndDate!.month}/${user.workoutEndDate!.year})';
+      }
+    }
 
     return '''You are an expert fitness and nutrition planner. Generate a JSON response with exactly 4 different personalized fitness plans for a user with this profile:
 
-Profile:
-- Age: ${user.age}
+USER PROFILE:
+- Name: ${user.displayName}
+- Age: ${user.age} years old
 - Gender: ${user.gender}
-- Weight: ${user.weight} kg
+- Current Weight: ${user.weight} kg
 - Height: ${user.height} cm
 - BMI: $bmi
-- Goal: $goal
+- Primary Goal: $goal
 - Activity Level: $activity
-${user.targetWeightKg != null ? '- Target Weight: ${user.targetWeightKg} kg' : ''}
-${user.dailyCalorieTarget != null ? '- Daily Calorie Target: ${user.dailyCalorieTarget!.toInt()} kcal' : ''}
+${user.targetWeightKg != null ? '- Target Weight: ${user.targetWeightKg} kg ($weightDirection ${absWeightDiff ?? ''} kg)' : ''}
+${user.dailyCalorieTarget != null ? '- Daily Calorie Target: ${user.dailyCalorieTarget!.toInt()} kcal (calculated from TDEE)' : ''}
 ${user.dietPreference != 'none' ? '- Diet Preference: $diet' : ''}
 ${averageSleepHours != null ? '- Average Sleep: ${averageSleepHours.toStringAsFixed(1)} hours/night' : ''}
+${user.workoutGoal != null && user.workoutGoal!.isNotEmpty ? '- Specific Workout Goal: ${user.workoutGoal}' : ''}
+$timelineInfo
 
-IMPORTANT INSTRUCTIONS:
-- Tailor workout intensity and complexity to the user's activity level. A sedentary user should start with gentle workouts; an extremely active user should get challenging routines.
-- All meal plans MUST respect the user's diet preference. If they are vegetarian, no meat in any meals. If vegan, no animal products at all. If halal, only halal protein sources.
-- Calorie targets should align with the user's goal: deficit for weight loss, surplus for muscle gain, maintenance for general fitness.
-- Sleep recommendations should be 7-9 hours. If the user's average sleep is below 7 hours, emphasize sleep improvement in the plan.
-- Consider the user's age: older users may need more recovery time and joint-friendly exercises.
+PERSONALIZATION RULES (CRITICAL):
+1. EXERCISE SELECTION by age:
+   - Under 20: Focus on bodyweight, learning proper form, fun dynamic movements
+   - 20-35: Full range of exercises including heavy compound lifts, HIIT, plyometrics
+   - 35-50: Moderate joint impact, include mobility work, focus on functional strength
+   - Over 50: Low-impact exercises, emphasis on balance, flexibility, joint-friendly movements
+
+2. INTENSITY by activity level:
+   - Sedentary/Light: Start with 3 workouts/week, 25-30 min, bodyweight-focused
+   - Moderate: 4 workouts/week, 35-45 min, mix of cardio and weights
+   - Very Active: 5-6 workouts/week, 45-55 min, progressive overload
+   - Extremely Active: 6 workouts/week, 50-60 min, advanced techniques
+
+3. CALORIE & MACRO targets:
+   - Weight loss: deficit of 300-500 kcal, higher protein (1.6-2.2g/kg bodyweight)
+   - Muscle gain: surplus of 200-400 kcal, high protein (1.8-2.4g/kg), higher carbs
+   - General fitness: maintenance calories, balanced macros
+   - Protein = based on ${user.weight} kg bodyweight
+
+4. MEAL PLANS must respect diet preference. NO exceptions.
+   - Vegan: zero animal products
+   - Vegetarian: no meat/fish
+   - Halal: only halal protein sources
+   - Keto: <50g carbs/day
+   - Match meals to the daily calorie target
+
+5. DAILY SCHEDULE must be realistic and personalized:
+   - Workout timing should reflect a typical day (morning or evening workout)
+   - Meal times should be spaced 3-4 hours apart
+   - Include wind-down and sleep routine
+   - If sleep data shows < 7 hours, add sleep hygiene tips
+
+6. TIMELINE: If a target deadline is provided, estimate goal_weeks realistically. Don't promise impossible timelines.
+
+7. WEEKLY WORKOUTS: Assign specific focus days (e.g., Upper Body, Lower Body, Cardio, Core, Rest). Include actual exercise names. For strength goals, include progressive overload guidance. For endurance, include running/cycling distances.
 
 The 4 plans should have different approaches:
-1. An "intensive" high-intensity plan for fastest results (aggressive)
-2. A "balanced" moderate plan for steady progress
-3. A "gentle" low-intensity sustainable plan
-4. A "custom" plan tailored specifically to their goal
+1. "Intensive" - aggressive plan for fastest results
+2. "Balanced" - moderate plan for steady sustainable progress
+3. "Gentle" - low-intensity plan for beginners or older users
+4. "Custom" - specifically tailored to their goal and timeline
 
 Return ONLY valid JSON with this exact structure. No markdown, no explanation:
 {
   "plans": [
     {
       "title": "Plan name with emoji",
-      "tagline": "Short catchy description",
+      "tagline": "Short catchy description (mention the user's name)",
       "difficulty": "beginner/intermediate/advanced",
-      "description": "2-3 sentence detailed description of what this plan offers",
+      "description": "2-3 sentence personalized description mentioning their specific goal, current weight, and what they can expect",
       "daily_calories": 2000,
       "protein_g": 150,
       "carbs_g": 200,
@@ -329,7 +377,7 @@ Return ONLY valid JSON with this exact structure. No markdown, no explanation:
   ]
 }
 
-Make calorie and macro targets realistic and personalized. Ensure daily_schedule times make sense with the meals. Only return valid JSON.''';
+Make calorie and macro targets realistic and personalized to the user's ${user.weight}kg bodyweight. Ensure daily_schedule times make sense with the meals. Only return valid JSON.''';
   }
 
   List<FitnessPlan> _parsePlansResponse(Map<String, dynamic> data) {
@@ -367,10 +415,21 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
   List<FitnessPlan> _fallbackPlans(AppUser user) {
     final isLoseWeight = user.fitnessGoal == 'lose_weight';
     final isBuildMuscle = user.fitnessGoal == 'build_muscle';
+    final isStrength = user.fitnessGoal == 'strength';
+    final isEndurance = user.fitnessGoal == 'endurance';
     final isSedentary = user.activityLevel == 'sedentary' || user.activityLevel == 'light';
     final isVegan = user.dietPreference == 'vegan';
     final isVegetarian = user.dietPreference == 'vegetarian' || isVegan;
     final baseCalories = user.dailyCalorieTarget?.toInt() ?? 2200;
+    final isOlder = user.age >= 45;
+    final proteinPerKg = isBuildMuscle ? 2.0 : 1.6;
+    final targetProtein = (user.weight * proteinPerKg).roundToDouble();
+
+    int goalWeeks = 12;
+    if (user.workoutEndDate != null) {
+      final weeks = user.workoutEndDate!.difference(DateTime.now()).inDays / 7;
+      if (weeks > 0) goalWeeks = weeks.round().clamp(4, 24);
+    }
 
     return [
       FitnessPlan(
@@ -384,12 +443,12 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
                 ? 'Intense progressive overload training with a caloric surplus for maximum muscle gain.'
                 : 'High-intensity full-body workouts with strict nutrition for rapid fitness gains.',
         dailyCalories: isLoseWeight ? baseCalories - 500 : baseCalories + 300,
-        proteinG: isBuildMuscle ? 180 : 140,
+        proteinG: targetProtein,
         carbsG: isLoseWeight ? 150 : 250,
         fatG: 45,
         workoutStyle: 'HIIT + Strength Training',
-        workoutsPerWeek: 6,
-        workoutDurationMinutes: 50,
+        workoutsPerWeek: isSedentary ? 4 : 6,
+        workoutDurationMinutes: isOlder ? 40 : 50,
         sampleExercises: [
           'Burpees',
           'Deadlifts',
@@ -408,15 +467,15 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
           'Builds discipline',
         ],
         intensity: 'high',
-        estimatedGoalWeeks: isLoseWeight ? 8 : 10,
+        estimatedGoalWeeks: goalWeeks,
         sleepHours: 8,
         sleepBedtime: '9:30 PM',
         dailySchedule: [
-          DailyActivity(time: '6:00 AM', title: 'Wake Up', description: 'Drink water with lemon, light stretching', type: 'general'),
-          DailyActivity(time: '6:30 AM', title: 'Morning Cardio', description: '20-min fasted cardio', type: 'workout'),
-          DailyActivity(time: '7:30 AM', title: 'Breakfast', description: 'High-protein breakfast', type: 'meal'),
+          DailyActivity(time: isOlder ? '7:00 AM' : '6:00 AM', title: 'Wake Up', description: 'Drink water with lemon, light stretching', type: 'general'),
+          DailyActivity(time: isOlder ? '7:30 AM' : '6:30 AM', title: 'Morning Cardio', description: isOlder ? '15-min brisk walk' : '20-min fasted cardio', type: 'workout'),
+          DailyActivity(time: isOlder ? '8:30 AM' : '7:30 AM', title: 'Breakfast', description: 'High-protein breakfast', type: 'meal'),
           DailyActivity(time: '12:00 PM', title: 'Lunch', description: 'Lean protein + complex carbs', type: 'meal'),
-          DailyActivity(time: '4:00 PM', title: 'Main Workout', description: 'Strength training session', type: 'workout'),
+          DailyActivity(time: isOlder ? '5:00 PM' : '4:00 PM', title: 'Main Workout', description: isStrength ? 'Compound lifts: squats, deadlifts, bench' : 'Strength training session', type: 'workout'),
           DailyActivity(time: '6:30 PM', title: 'Dinner', description: 'High protein, moderate carbs', type: 'meal'),
           DailyActivity(time: '9:00 PM', title: 'Wind Down', description: 'No screens, meditation', type: 'general'),
           DailyActivity(time: '9:30 PM', title: 'Sleep', description: 'Full recovery sleep', type: 'sleep'),
@@ -447,12 +506,12 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
                 ? 'Well-rounded strength program with adequate nutrition for consistent muscle growth.'
                 : 'A balanced mix of cardio, strength, and flexibility training for overall fitness.',
         dailyCalories: isLoseWeight ? baseCalories - 300 : baseCalories + 150,
-        proteinG: 120,
+        proteinG: (targetProtein * 0.85).roundToDouble(),
         carbsG: 200,
         fatG: 55,
         workoutStyle: 'Mixed Cardio + Weights',
-        workoutsPerWeek: 4,
-        workoutDurationMinutes: 40,
+        workoutsPerWeek: isSedentary ? 3 : 4,
+        workoutDurationMinutes: isOlder ? 35 : 40,
         sampleExercises: ['Squats', 'Push-ups', 'Running', 'Rows', 'Planks'],
         mealTips: [
           'Follow 80/20 rule',
@@ -465,7 +524,7 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
           'Flexible diet',
         ],
         intensity: 'medium',
-        estimatedGoalWeeks: 12,
+        estimatedGoalWeeks: goalWeeks,
         sleepHours: 8,
         sleepBedtime: '10:00 PM',
         dailySchedule: [
@@ -501,12 +560,12 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
                 ? 'Foundation-building strength work with basic compound lifts and proper form focus.'
                 : 'Beginner-friendly activities to build consistency and establish healthy habits.',
         dailyCalories: isLoseWeight ? baseCalories - 150 : baseCalories,
-        proteinG: 100,
+        proteinG: (targetProtein * 0.7).roundToDouble(),
         carbsG: 220,
         fatG: 60,
-        workoutStyle: 'Walking + Bodyweight',
+        workoutStyle: isOlder ? 'Walking + Gentle Movement' : 'Walking + Bodyweight',
         workoutsPerWeek: isSedentary ? 3 : 3,
-        workoutDurationMinutes: isSedentary ? 25 : 30,
+        workoutDurationMinutes: isOlder ? 20 : (isSedentary ? 25 : 30),
         sampleExercises: [
           'Brisk Walking',
           'Bodyweight Squats',
@@ -525,7 +584,7 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
           'Builds confidence',
         ],
         intensity: 'low',
-        estimatedGoalWeeks: 16,
+        estimatedGoalWeeks: (goalWeeks * 1.3).round(),
         sleepHours: 9,
         sleepBedtime: '10:30 PM',
         dailySchedule: [
@@ -556,34 +615,54 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
             ? '💪 Muscle Builder Pro'
             : isLoseWeight
                 ? '🔥 Fat Burner Focus'
-                : '🎯 Goal Crusher',
+                : isStrength
+                    ? '🏋️ Strength Max'
+                    : isEndurance
+                        ? '🏃 Endurance Engine'
+                        : '🎯 Goal Crusher',
         tagline: isBuildMuscle
             ? 'Optimized for muscle growth'
             : isLoseWeight
                 ? 'Targeted fat loss strategy'
-                : 'Customized for your goals',
+                : isStrength
+                    ? 'Maximum strength gains'
+                    : isEndurance
+                        ? 'Build unstoppable stamina'
+                        : 'Customized for your goals',
         difficulty: 'intermediate',
         description: isBuildMuscle
             ? 'Specialized hypertrophy program with progressive overload and targeted nutrition for muscle growth.'
             : isLoseWeight
                 ? 'Strategic calorie cycling with metabolic conditioning to maximize fat oxidation.'
-                : 'Purpose-built plan combining the best elements for your specific fitness goal.',
+                : isStrength
+                    ? 'Heavy compound lifts with progressive overload to maximize your ${user.weight}kg frame strength.'
+                    : isEndurance
+                        ? 'Cardiovascular training plan to build endurance and stamina over ${goalWeeks} weeks.'
+                        : 'Purpose-built plan combining the best elements for your specific fitness goal.',
         dailyCalories: isBuildMuscle
             ? baseCalories + 400
             : isLoseWeight
                 ? baseCalories - 400
                 : baseCalories + 100,
-        proteinG: isBuildMuscle ? 200 : 130,
+        proteinG: isBuildMuscle ? (user.weight * 2.2).roundToDouble() : targetProtein,
         carbsG: isBuildMuscle ? 280 : 170,
         fatG: isBuildMuscle ? 50 : 50,
         workoutStyle: isBuildMuscle
             ? 'Progressive Overload Split'
-            : 'Metabolic Conditioning',
-        workoutsPerWeek: 5,
-        workoutDurationMinutes: 45,
+            : isStrength
+                ? 'Powerlifting Focused'
+                : isEndurance
+                    ? 'Progressive Running + Cross Training'
+                    : 'Metabolic Conditioning',
+        workoutsPerWeek: isSedentary ? 4 : 5,
+        workoutDurationMinutes: isOlder ? 40 : 45,
         sampleExercises: isBuildMuscle
             ? ['Bench Press', 'Squats', 'Deadlifts', 'Pull-ups', 'OHP']
-            : ['Jump Rope', 'Kettlebell Swings', 'Rowing', 'Mountain Climbers', 'Burpees'],
+            : isStrength
+                ? ['Back Squat', 'Deadlift', 'Bench Press', 'Barbell Row', 'Overhead Press']
+                : isEndurance
+                    ? ['Running Intervals', 'Cycling', 'Rowing', 'Jump Rope', 'Swimming']
+                    : ['Jump Rope', 'Kettlebell Swings', 'Rowing', 'Mountain Climbers', 'Burpees'],
         mealTips: isBuildMuscle
             ? [
                 'Eat in caloric surplus',
@@ -599,14 +678,14 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
             ? ['Maximum hypertrophy', 'Strength gains', 'Targeted nutrition']
             : ['Efficient fat burn', 'Metabolism boost', 'Quick results'],
         intensity: 'high',
-        estimatedGoalWeeks: isBuildMuscle ? 10 : 8,
+        estimatedGoalWeeks: goalWeeks,
         sleepHours: 8,
         sleepBedtime: '9:45 PM',
         dailySchedule: [
-          DailyActivity(time: '6:30 AM', title: 'Wake Up', description: 'Hydrate, light mobility work', type: 'general'),
-          DailyActivity(time: '7:00 AM', title: 'Breakfast', description: isBuildMuscle ? 'High carb/protein breakfast' : 'Light protein breakfast', type: 'meal'),
+          DailyActivity(time: isOlder ? '7:30 AM' : '6:30 AM', title: 'Wake Up', description: 'Hydrate, light mobility work', type: 'general'),
+          DailyActivity(time: isOlder ? '8:00 AM' : '7:00 AM', title: 'Breakfast', description: isBuildMuscle ? 'High carb/protein breakfast' : 'Light protein breakfast', type: 'meal'),
           DailyActivity(time: '12:00 PM', title: 'Lunch', description: 'Targeted macro lunch', type: 'meal'),
-          DailyActivity(time: '4:30 PM', title: 'Workout', description: isBuildMuscle ? 'Strength training' : 'Metabolic conditioning', type: 'workout'),
+          DailyActivity(time: isOlder ? '5:00 PM' : '4:30 PM', title: 'Workout', description: isBuildMuscle ? 'Strength training' : isStrength ? 'Compound lifts' : isEndurance ? 'Cardio session' : 'Metabolic conditioning', type: 'workout'),
           DailyActivity(time: '6:30 PM', title: 'Dinner', description: 'Recovery meal', type: 'meal'),
           DailyActivity(time: '9:15 PM', title: 'Wind Down', description: 'Stretch, plan tomorrow', type: 'general'),
           DailyActivity(time: '9:45 PM', title: 'Sleep', description: 'Deep recovery sleep', type: 'sleep'),
@@ -633,13 +712,31 @@ Make calorie and macro targets realistic and personalized. Ensure daily_schedule
                 WorkoutDay(day: 'Friday', focus: 'Leg Day', durationMinutes: 55, exercises: ['Barbell Squats', 'Romanian Deadlifts', 'Leg Press', 'Calf Raises']),
                 WorkoutDay(day: 'Saturday', focus: 'Arms & Core', durationMinutes: 40, exercises: ['EZ Bar Curls', 'Skull Crushers', 'Hammer Curls', 'Ab Wheel']),
               ]
-            : [
-                WorkoutDay(day: 'Monday', focus: 'HIIT Cardio', durationMinutes: 35, exercises: ['Jump Rope Intervals', 'Burpees', 'Kettlebell Swings', 'Mountain Climbers']),
-                WorkoutDay(day: 'Tuesday', focus: 'Full Body Circuit', durationMinutes: 40, exercises: ['Circuit: Squats, Push-ups, Rows', 'Box Jumps', 'Plank to Row', 'Battleropes']),
-                WorkoutDay(day: 'Wednesday', focus: 'LISS Cardio', durationMinutes: 45, exercises: ['Incline Walking', 'Cycling', 'Rowing Steady State', 'Swimming']),
-                WorkoutDay(day: 'Thursday', focus: 'HIIT Cardio', durationMinutes: 35, exercises: ['Sprint Intervals', 'Jump Squats', 'Battle Ropes', 'Slams']),
-                WorkoutDay(day: 'Friday', focus: 'Metabolic Circuit', durationMinutes: 40, exercises: ['Kettlebell Complex', 'Medicine Ball Slams', 'Rowing Sprints', 'Farmer Walks']),
-              ],
+            : isStrength
+                ? [
+                    WorkoutDay(day: 'Monday', focus: 'Squat Day', durationMinutes: 55, exercises: ['Back Squat', 'Front Squat', 'Leg Press', 'Leg Curl']),
+                    WorkoutDay(day: 'Tuesday', focus: 'Bench Press Day', durationMinutes: 50, exercises: ['Bench Press', 'Close-grip Bench', 'Dips', 'Tricep Extensions']),
+                    WorkoutDay(day: 'Wednesday', focus: 'Rest/Recovery', durationMinutes: 20, exercises: ['Light Walk', 'Stretching', 'Foam Rolling']),
+                    WorkoutDay(day: 'Thursday', focus: 'Deadlift Day', durationMinutes: 55, exercises: ['Deadlift', 'Barbell Row', 'Rack Pulls', 'Shrugs']),
+                    WorkoutDay(day: 'Friday', focus: 'Overhead Press Day', durationMinutes: 45, exercises: ['Overhead Press', 'Push Press', 'Lateral Raises', 'Face Pulls']),
+                    WorkoutDay(day: 'Saturday', focus: 'Accessory Work', durationMinutes: 35, exercises: ['Hammer Curls', 'Skull Crushers', 'Abs Circuit', 'Farmer Walks']),
+                  ]
+                : isEndurance
+                    ? [
+                        WorkoutDay(day: 'Monday', focus: 'Easy Run', durationMinutes: 35, exercises: ['Easy Pace Run 5K', 'Dynamic Stretching', 'Cool Down Walk']),
+                        WorkoutDay(day: 'Tuesday', focus: 'Cross Training', durationMinutes: 30, exercises: ['Cycling', 'Swimming', 'Core Work']),
+                        WorkoutDay(day: 'Wednesday', focus: 'Tempo Run', durationMinutes: 40, exercises: ['Warm Up 1K', 'Tempo 3K', 'Cool Down 1K', 'Stretching']),
+                        WorkoutDay(day: 'Thursday', focus: 'Strength for Runners', durationMinutes: 35, exercises: ['Squats', 'Lunges', 'Planks', 'Hip Strength']),
+                        WorkoutDay(day: 'Friday', focus: 'Rest', durationMinutes: 15, exercises: ['Foam Rolling', 'Yoga Flow', 'Deep Breathing']),
+                        WorkoutDay(day: 'Saturday', focus: 'Long Run', durationMinutes: 50, exercises: ['Long Slow Distance Run', 'Post-run Stretching', 'Hydration Focus']),
+                      ]
+                    : [
+                        WorkoutDay(day: 'Monday', focus: 'HIIT Cardio', durationMinutes: 35, exercises: ['Jump Rope Intervals', 'Burpees', 'Kettlebell Swings', 'Mountain Climbers']),
+                        WorkoutDay(day: 'Tuesday', focus: 'Full Body Circuit', durationMinutes: 40, exercises: ['Circuit: Squats, Push-ups, Rows', 'Box Jumps', 'Plank to Row', 'Battleropes']),
+                        WorkoutDay(day: 'Wednesday', focus: 'LISS Cardio', durationMinutes: 45, exercises: ['Incline Walking', 'Cycling', 'Rowing Steady State', 'Swimming']),
+                        WorkoutDay(day: 'Thursday', focus: 'HIIT Cardio', durationMinutes: 35, exercises: ['Sprint Intervals', 'Jump Squats', 'Battle Ropes', 'Slams']),
+                        WorkoutDay(day: 'Friday', focus: 'Metabolic Circuit', durationMinutes: 40, exercises: ['Kettlebell Complex', 'Medicine Ball Slams', 'Rowing Sprints', 'Farmer Walks']),
+                      ],
       ),
     ];
   }
