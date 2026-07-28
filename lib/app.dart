@@ -65,7 +65,16 @@ class AuthWrapper extends StatelessWidget {
 }
 
 class FitSyncApp extends StatefulWidget {
-  const FitSyncApp({super.key});
+  /// The Spotify auth controller created and `init()`-ed in main(), passed in
+  /// so the whole app shares ONE instance.
+  ///
+  /// Creating a second controller here meant the one registered in the
+  /// provider tree was not the one main() had already restored tokens into —
+  /// so screens that watch AuthController (e.g. Workout Music) saw
+  /// `unknown`/`unauthenticated` even though a valid token was on disk.
+  final AuthController spotifyAuth;
+
+  const FitSyncApp({super.key, required this.spotifyAuth});
 
   @override
   State<FitSyncApp> createState() => _FitSyncAppState();
@@ -89,10 +98,11 @@ class _FitSyncAppState extends State<FitSyncApp> {
   @override
   void initState() {
     super.initState();
-    _spotifyAuth = createAuthController();
+    // Already constructed and init()-ed in main(); reuse it rather than
+    // creating a second controller with its own separate auth state.
+    _spotifyAuth = widget.spotifyAuth;
     _spotifyApi = SpotifyApi(_spotifyAuth);
     _spotifyPlayer = PlayerProvider(createPlaybackEngine(_spotifyApi, _spotifyAuth));
-    _spotifyAuth.init();
   }
 
   @override

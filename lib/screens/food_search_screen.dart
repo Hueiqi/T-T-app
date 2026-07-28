@@ -8,6 +8,7 @@ import '../services/food_library.dart';
 import '../models/meal_model.dart';
 import '../services/food_api_service.dart';
 import 'nutrition_success_screen.dart';
+import 'food_detail_screen.dart';
 
 class FoodSearchScreen extends StatefulWidget {
   final String mealType;
@@ -192,6 +193,106 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   }
 
   // ─── Add combo (meals / recipes) ────────────────────────────
+  Future<void> _confirmSelectCombo(ComboDisplay combo) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        minChildSize: 0.35,
+        maxChildSize: 0.85,
+        builder: (_, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                combo.name,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                combo.items.join(' · '),
+                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 20),
+
+              // ── Calories highlight ──
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.local_fire_department, color: AppTheme.warningColor, size: 28),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${combo.calories.toInt()} kcal',
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // ── Buttons ──
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close, size: 18),
+                      label: const Text('Cancel'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await _selectCombo(combo);
+                      },
+                      icon: const Icon(Icons.add_circle_outline, size: 18),
+                      label: const Text('Add Meal'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _selectCombo(ComboDisplay combo) async {
     if (combo.items.isEmpty) return;
     final calsPerItem = combo.calories / combo.items.length;
@@ -207,6 +308,102 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
   }
 
   // ─── Add online food (fetches full nutrition by barcode) ───
+  Future<void> _confirmAddOnlineFood(FoodItemDisplay food) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: food.imageUrl != null && food.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          food.imageUrl!,
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.food_bank, size: 56),
+                        )
+                      : const Icon(Icons.food_bank, size: 56),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    food.name,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Online · Open Food Facts',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Full nutrition info will be fetched when you add this item.',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 28),
+
+            // ── Buttons ──
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text('Cancel'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await _addOnlineFood(food);
+                    },
+                    icon: const Icon(Icons.add_circle_outline, size: 18),
+                    label: const Text('Add Meal'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _addOnlineFood(FoodItemDisplay food) async {
     final auth = context.read<AuthProvider>();
     if (auth.user == null) return;
@@ -233,160 +430,19 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
     }
   }
 
-  // ─── Show food detail bottom sheet ───────────────────────────
+  // ─── Show food detail screen ─────────────────────────────────
   void _showFoodDetail(FoodItemDisplay food) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.75,
-        minChildSize: 0.4,
-        maxChildSize: 0.92,
-        builder: (_, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                food.name,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                food.servingSize,
-                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
-              ),
-              const SizedBox(height: 20),
-
-              // ── Calories highlight ──
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.local_fire_department, color: AppTheme.warningColor, size: 28),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${food.calories.toInt()} kcal',
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // ── Macros ──
-              const Text('Macronutrients', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-              const SizedBox(height: 10),
-              _nutrientRow('Protein', '${food.protein.toStringAsFixed(1)} g', AppTheme.accentColor, Icons.fitness_center),
-              const SizedBox(height: 6),
-              _nutrientRow('Carbs', '${food.carbs.toStringAsFixed(1)} g', AppTheme.successColor, Icons.grain),
-              const SizedBox(height: 6),
-              _nutrientRow('Fat', '${food.fat.toStringAsFixed(1)} g', AppTheme.errorColor, Icons.water_drop),
-              const SizedBox(height: 6),
-              _nutrientRow('Fiber', '${food.fiber.toStringAsFixed(1)} g', Colors.teal, Icons.eco),
-              const SizedBox(height: 6),
-              _nutrientRow('Sugar', '${food.sugar.toStringAsFixed(1)} g', Colors.orange, Icons.cookie),
-              const SizedBox(height: 6),
-              _nutrientRow('Sodium', '${food.sodium.toStringAsFixed(1)} mg', Colors.blueGrey, Icons.science),
-              const SizedBox(height: 20),
-
-              // ── Vitamins ──
-              const Text('Vitamins', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-              const SizedBox(height: 10),
-              _nutrientRow('Vitamin A', '${food.vitaminA.toStringAsFixed(1)} mcg', Colors.orange, Icons.circle),
-              const SizedBox(height: 6),
-              _nutrientRow('Vitamin B', '${food.vitaminB.toStringAsFixed(1)} mg', Colors.yellow.shade700, Icons.circle),
-              const SizedBox(height: 6),
-              _nutrientRow('Vitamin C', '${food.vitaminC.toStringAsFixed(1)} mg', Colors.green, Icons.circle),
-              const SizedBox(height: 6),
-              _nutrientRow('Vitamin D', '${food.vitaminD.toStringAsFixed(1)} mcg', Colors.amber, Icons.circle),
-              const SizedBox(height: 6),
-              _nutrientRow('Vitamin E', '${food.vitaminE.toStringAsFixed(1)} mg', Colors.teal, Icons.circle),
-              const SizedBox(height: 6),
-              _nutrientRow('Vitamin K', '${food.vitaminK.toStringAsFixed(1)} mcg', Colors.brown, Icons.circle),
-              const SizedBox(height: 20),
-
-              // ── Minerals ──
-              const Text('Minerals', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-              const SizedBox(height: 10),
-              _nutrientRow('Calcium', '${food.calcium.toStringAsFixed(1)} mg', Colors.white70, Icons.circle),
-              const SizedBox(height: 6),
-              _nutrientRow('Iron', '${food.iron.toStringAsFixed(1)} mg', Colors.red.shade700, Icons.circle),
-              const SizedBox(height: 6),
-              _nutrientRow('Magnesium', '${food.magnesium.toStringAsFixed(1)} mg', Colors.purple, Icons.circle),
-              const SizedBox(height: 6),
-              _nutrientRow('Potassium', '${food.potassium.toStringAsFixed(1)} mg', Colors.blue, Icons.circle),
-              const SizedBox(height: 28),
-
-              // ── Buttons ──
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.arrow_back, size: 18),
-                      label: const Text('Back'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        Navigator.pop(ctx);
-                        await _selectFood(food);
-                      },
-                      icon: const Icon(Icons.add_circle_outline, size: 18),
-                      label: const Text('Add Meal'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FoodDetailScreen(
+          food: food,
+          onAddMeal: () async {
+            Navigator.pop(context);
+            await _selectFood(food);
+          },
         ),
       ),
-    );
-  }
-
-  Widget _nutrientRow(String label, String value, Color color, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 8),
-        Text(label, style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
-        const Spacer(),
-        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-      ],
     );
   }
 
@@ -545,7 +601,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
             return _OnlineFoodTile(
               name: item.name,
               imageUrl: item.imageUrl,
-              onTap: () => _addOnlineFood(item),
+              onTap: () => _confirmAddOnlineFood(item),
+              onQuickAdd: () => _addOnlineFood(item),
             );
           }
           // Local food
@@ -563,7 +620,8 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
             name: item.name,
             calories: item.calories,
             items: item.items,
-            onTap: () => _selectCombo(item),
+            onTap: () => _confirmSelectCombo(item),
+            onQuickAdd: () => _selectCombo(item),
           );
         }
         return const SizedBox.shrink();
@@ -702,11 +760,13 @@ class _OnlineFoodTile extends StatelessWidget {
   final String name;
   final String? imageUrl;
   final VoidCallback onTap;
+  final VoidCallback onQuickAdd;
 
   const _OnlineFoodTile({
     required this.name,
     this.imageUrl,
     required this.onTap,
+    required this.onQuickAdd,
   });
 
   @override
@@ -743,7 +803,11 @@ class _OnlineFoodTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.add_circle_outline, color: AppTheme.primaryColor, size: 24),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: AppTheme.primaryColor, size: 24),
+                tooltip: 'Quick add',
+                onPressed: onQuickAdd,
+              ),
             ],
           ),
         ),
@@ -757,12 +821,14 @@ class _ComboTile extends StatelessWidget {
   final double calories;
   final List<String> items;
   final VoidCallback onTap;
+  final VoidCallback onQuickAdd;
 
   const _ComboTile({
     required this.name,
     required this.calories,
     required this.items,
     required this.onTap,
+    required this.onQuickAdd,
   });
 
   @override
@@ -803,7 +869,11 @@ class _ComboTile extends StatelessWidget {
               ),
               _calBadge('${calories.toInt()} kcal'),
               const SizedBox(width: 4),
-              const Icon(Icons.add_circle_outline, color: AppTheme.primaryColor, size: 24),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: AppTheme.primaryColor, size: 24),
+                tooltip: 'Quick add',
+                onPressed: onQuickAdd,
+              ),
             ],
           ),
         ),

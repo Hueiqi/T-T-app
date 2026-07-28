@@ -67,7 +67,6 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
         .toList();
 
     final calories = _estimateCalories(routine);
-    final totalExercises = routine.exercises.length;
 
     final baseColor = Color(routine.colorValue);
     final lightColor = baseColor.withValues(alpha: 0.1);

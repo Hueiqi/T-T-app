@@ -1,5 +1,13 @@
-// Public auth API. The concrete controller is chosen at compile time:
-// web uses PKCE redirect; mobile (dart:io) uses the native Spotify SDK.
-// FitSync is Android-only, so we export the native (mobile) controller directly.
+// Public auth API. FitSync is Android-only.
+//
+// We use the PKCE browser flow rather than the native Spotify SDK: the SDK's
+// app-to-app handshake fails with AUTHENTICATION_SERVICE_UNKNOWN_ERROR on some
+// Android builds, and the browser flow additionally gives us a refresh token
+// for silent renewal. `mobile_auth_controller.dart` is kept for reference.
+import 'auth_controller.dart';
+import 'pkce_auth_controller.dart';
+
 export 'auth_controller.dart';
-export 'mobile_auth_controller.dart' show createAuthController;
+export 'pkce_auth_controller.dart' show PkceAuthController;
+
+AuthController createAuthController() => PkceAuthController();

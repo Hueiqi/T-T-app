@@ -44,6 +44,25 @@ class WorkoutMusicProvider extends ChangeNotifier {
     WorkoutCondition('sprint_run', 'Sprint Run', '💨'),
   ];
 
+  /// Display name for a stored `Workout.type`. Workouts saved before the
+  /// condition ids existed still carry 'running' / 'walking' / 'cardio', so
+  /// those are mapped here too rather than falling through to 'Workout'.
+  static String labelForType(String type) {
+    for (final c in conditions) {
+      if (c.id == type) return c.label;
+    }
+    switch (type) {
+      case 'running':
+        return 'Run';
+      case 'walking':
+        return 'Walk';
+      case 'cardio':
+        return 'Cardio';
+      default:
+        return 'Workout';
+    }
+  }
+
   final Map<String, List<SavedPlaylist>> _byCondition = {};
   bool _loaded = false;
   final _random = Random();

@@ -382,7 +382,12 @@ Future<List<SavedFood>> getSavedFoods(String userId) async {
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final ref = _storage!.ref().child('users/$userId/food_images/${timestamp}_$fileName');
-      await ref.putData(imageBytes);
+      // Without explicit metadata these upload as application/octet-stream,
+      // which fails a contentType check in the Storage rules.
+      await ref.putData(
+        imageBytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
       return await ref.getDownloadURL();
     } catch (e) {
       debugPrint('uploadImageBytes error: $e');

@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ────────────────────────────────────────────────
-    // 1. MEALS – top‑level collection (your query uses this)
+    // 1. MEALS – top-level collection
     // ────────────────────────────────────────────────
     match /meals/{mealId} {
       function isValidMeal() {
@@ -12,7 +12,6 @@ service cloud.firestore {
           'userId', 'foodName', 'calories',
           'protein', 'carbs', 'fat',
           'mealType', 'dateTime',
-          // All vitamins and minerals you requested
           'vitaminA', 'vitaminB', 'vitaminC', 'vitaminD', 'vitaminE',
           'vitaminK', 'calcium', 'iron', 'magnesium', 'potassium',
           'sodium', 'fiber', 'water'
@@ -25,22 +24,20 @@ service cloud.firestore {
         && data.fat is number && data.fat >= 0 && data.fat <= 500
         && data.mealType in ['breakfast', 'lunch', 'dinner', 'snack']
         && data.dateTime is timestamp
-        // Vitamins
         && data.vitaminA is number && data.vitaminA >= 0
         && data.vitaminB is number && data.vitaminB >= 0
         && data.vitaminC is number && data.vitaminC >= 0
         && data.vitaminD is number && data.vitaminD >= 0
         && data.vitaminE is number && data.vitaminE >= 0
         && data.vitaminK is number && data.vitaminK >= 0
-        // Minerals
         && data.calcium is number && data.calcium >= 0
         && data.iron is number && data.iron >= 0
         && data.magnesium is number && data.magnesium >= 0
         && data.potassium is number && data.potassium >= 0
         && data.sodium is number && data.sodium >= 0
-        // Other
         && data.fiber is number && data.fiber >= 0
-        && data.water is number && data.water >= 0;
+        && data.water is number && data.water >= 0
+        && (data.imageUrl is string || data.imageUrl == null);
       }
 
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
@@ -52,10 +49,41 @@ service cloud.firestore {
     }
 
     // ────────────────────────────────────────────────
-    // 2. USERS – root document + subcollections
+    // 2. USER PROGRESS – top-level, keyed by uid
+    // ────────────────────────────────────────────────
+    match /userProgress/{userId} {
+      function isValidProgress() {
+        let data = request.resource.data;
+        return data.keys().hasAll([
+          'totalWorkouts', 'totalSteps', 'totalDistanceKm',
+          'totalWorkoutMinutes', 'dietDaysCompleted',
+          'planningWeeksCompleted', 'joinDate'
+        ])
+        && data.totalWorkouts is int && data.totalWorkouts >= 0
+        && data.totalSteps is int && data.totalSteps >= 0
+        && data.totalDistanceKm is number && data.totalDistanceKm >= 0
+        && data.totalWorkoutMinutes is int && data.totalWorkoutMinutes >= 0
+        && data.dietDaysCompleted is int && data.dietDaysCompleted >= 0
+        && data.planningWeeksCompleted is int && data.planningWeeksCompleted >= 0
+        && data.joinDate is timestamp;
+      }
+
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Full shape is enforced on create (the app seeds all fields at once).
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && isValidProgress();
+      // Updates are single-field increments (addDistance, addWorkoutMinutes,
+      // incrementDietDays, ...) so they cannot satisfy a hasAll() check —
+      // requiring one here silently denies every progress update.
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false; // never delete progress
+    }
+
+    // ────────────────────────────────────────────────
+    // 3. USERS – root document + subcollections
     // ────────────────────────────────────────────────
     match /users/{userId} {
-      // The user document itself
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
       // ── Profile ──
@@ -78,11 +106,12 @@ service cloud.firestore {
       }
 
       // ── Daily Totals ──
+      // Written incrementally with merge:true from several call sites (steps
+      // sends date/dailySteps/lastUpdated; nutrition sends calorie fields;
+      // workouts increment caloriesBurned). Field-level validation would
+      // reject every one of those partial writes, so check ownership only.
       match /dailyTotals/{dateId} {
-        allow read: if request.auth != null && request.auth.uid == userId;
-        allow create, update: if request.auth != null
-          && request.auth.uid == userId;
-        allow delete: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
       // ── Plans ──
@@ -90,7 +119,10 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // ── Workouts ──
+      // ── Workouts (per-user subcollection) ──
+      // saveWorkout / saveWorkoutEndData / getWorkouts all use
+      // users/{uid}/workouts. Without this block those writes fall through
+      // to the deny-all fallback below.
       match /workouts/{workoutId} {
         allow read: if request.auth != null && request.auth.uid == userId;
         allow create: if request.auth != null
@@ -102,12 +134,27 @@ service cloud.firestore {
 
       // ── Weight History ──
       match /weightHistory/{entryId} {
-        allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+        // WeightEntry.toMap() sends id/userId/date/weight, where `date` is an
+        // ISO-8601 string (toIso8601String()) — NOT a `dateTime` timestamp.
+        // Requiring `dateTime is timestamp` here denies every weight log.
+        function isValidWeightEntry() {
+          let data = request.resource.data;
+          return data.keys().hasAll(['userId', 'weight', 'date'])
+            && data.userId == request.auth.uid
+            && data.weight is number
+            && data.weight > 0
+            && data.weight < 500
+            && data.date is string;
+        }
+
+        allow read: if request.auth != null && request.auth.uid == userId;
         allow create: if request.auth != null
-          && request.resource.data.userId == request.auth.uid
-          && request.resource.data.weight is number
-          && request.resource.data.weight > 0;
-        allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+          && request.auth.uid == userId
+          && isValidWeightEntry();
+        allow update: if request.auth != null
+          && request.auth.uid == userId
+          && isValidWeightEntry();
+        allow delete: if request.auth != null && request.auth.uid == userId;
       }
 
       // ── Sleep ──
@@ -135,9 +182,18 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // ═══════════════════════════════════════════════
-      // NOTIFICATION SETTINGS – with validation
-      // ═══════════════════════════════════════════════
+      // ── Saved Foods (user's own food library) ──
+      match /savedFoods/{foodId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null
+          && request.auth.uid == userId
+          && request.resource.data.foodName is string
+          && request.resource.data.foodName.size() > 0;
+        allow update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // ── Notification Settings ──
+      // Field names must match NotificationSettings.toMap().
       match /notificationSettings/{docId} {
         function isValidNotificationSettings() {
           let data = request.resource.data;
@@ -151,23 +207,16 @@ service cloud.firestore {
             && data.logReminderEnabled is bool;
         }
 
-        allow read: if request.auth != null
-          && request.auth.uid == userId;
-
-        allow create: if request.auth != null
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null
           && request.auth.uid == userId
           && isValidNotificationSettings();
-
-        allow update: if request.auth != null
-          && request.auth.uid == userId
-          && isValidNotificationSettings();
-
-        allow delete: if false;
+        allow delete: if false; // never delete settings
       }
 
-      // ═══════════════════════════════════════════════
-      // NOTIFICATION HISTORY – with validation
-      // ═══════════════════════════════════════════════
+      // ── Notification History ──
+      // sentAt is stored as an ISO-8601 string (toIso8601String()), not a
+      // Firestore timestamp — checking `is timestamp` denies every write.
       match /notificationHistory/{logId} {
         function isValidNotificationLog() {
           let data = request.resource.data;
@@ -179,26 +228,16 @@ service cloud.firestore {
             && data.sentAt is string;
         }
 
-        allow read: if request.auth != null
-          && request.auth.uid == userId
-          && resource.data.userId == request.auth.uid;
-
+        allow read: if request.auth != null && request.auth.uid == userId;
         allow create: if request.auth != null
           && request.auth.uid == userId
           && isValidNotificationLog();
-
-        allow update: if request.auth != null
-          && request.auth.uid == userId
-          && resource.data.userId == request.auth.uid;
-
-        allow delete: if request.auth != null
-          && request.auth.uid == userId
-          && resource.data.userId == request.auth.uid;
+        allow update, delete: if request.auth != null && request.auth.uid == userId;
       }
     }
 
     // ────────────────────────────────────────────────
-    // 3. WORKOUTS – global collection (filtered by userId)
+    // 4. WORKOUTS – top-level collection (filtered by userId)
     // ────────────────────────────────────────────────
     match /workouts/{workoutId} {
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
@@ -210,7 +249,7 @@ service cloud.firestore {
     }
 
     // ────────────────────────────────────────────────
-    // 4. EXERCISES – public read‑only library
+    // 5. EXERCISES – public read-only library
     // ────────────────────────────────────────────────
     match /exercises/{exerciseId} {
       allow read: if true;
@@ -218,7 +257,7 @@ service cloud.firestore {
     }
 
     // ────────────────────────────────────────────────
-    // 5. FALLBACK – deny everything else
+    // 6. FALLBACK – deny everything else
     // ────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

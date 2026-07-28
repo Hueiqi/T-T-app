@@ -265,7 +265,7 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
 
           // Weight value
           Text(
-            '${entry.weight.toStringAsFixed(1)}',
+            entry.weight.toStringAsFixed(1),
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -395,7 +395,7 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
               reservedSize: 40,
               interval: interval,
               getTitlesWidget: (value, meta) => Text(
-                '${value.toStringAsFixed(0)}',
+                value.toStringAsFixed(0),
                 style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
               ),
             ),
@@ -504,7 +504,7 @@ class _WeightProgressScreenState extends State<WeightProgressScreen> {
               if (auth.user == null) return;
               await nutrition.saveWeight(userId: auth.user!.uid, weight: w);
               if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) {
+              if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Weight logged successfully!'),

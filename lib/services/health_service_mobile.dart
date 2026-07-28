@@ -59,6 +59,10 @@ class HealthService {
       HealthDataType.SLEEP_AWAKE,
       HealthDataType.ACTIVE_ENERGY_BURNED,
       HealthDataType.WORKOUT,
+      // Reading WORKOUT (exercise session) records pulls in linked distance
+      // data under the hood; Health Connect requires this permission for
+      // that even though we never read distance directly ourselves.
+      HealthDataType.DISTANCE_DELTA,
     ];
     _isAuthorized = await _health.requestAuthorization(types);
     return _isAuthorized;

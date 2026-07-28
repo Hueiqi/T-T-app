@@ -4,7 +4,9 @@ import '../config/theme.dart';
 import '../config/routes.dart';
 import '../providers/auth_provider.dart';
 import '../providers/user_progress_provider.dart';
+import '../providers/workout_provider.dart';
 import '../services/firebase_service.dart';
+import '../models/workout_model.dart';
 
 class RoutineCompleteSummaryScreen extends StatefulWidget {
   final String routineTitle;
@@ -59,7 +61,27 @@ class _RoutineCompleteSummaryScreenState
     };
     await firebase.saveActivity(userId, activity);
 
+    // The user can pop this summary while the write above is in flight; the
+    // providers below are looked up from context, so bail out if that happened.
+    if (!mounted) return;
+
+    // Resolve both providers before any further awaits so no context lookup
+    // happens across an async gap.
+    final workoutProvider = context.read<WorkoutProvider>();
     final progress = context.read<UserProgressProvider>();
+
+    final now = DateTime.now();
+    final workout = Workout(
+      id: now.millisecondsSinceEpoch.toString(),
+      userId: userId,
+      startTime: now.subtract(Duration(seconds: widget.durationSeconds)),
+      endTime: now,
+      type: widget.routineTitle,
+      avgHeartRate: _avgHeartRate,
+      caloriesBurned: _caloriesBurned.toDouble(),
+    );
+    await workoutProvider.saveWorkout(workout);
+
     await progress.incrementWorkouts();
     await progress.addWorkoutMinutes((widget.durationSeconds / 60).ceil());
   }

@@ -637,7 +637,7 @@ Make calorie and macro targets realistic and personalized to the user's ${user.w
                 : isStrength
                     ? 'Heavy compound lifts with progressive overload to maximize your ${user.weight}kg frame strength.'
                     : isEndurance
-                        ? 'Cardiovascular training plan to build endurance and stamina over ${goalWeeks} weeks.'
+                        ? 'Cardiovascular training plan to build endurance and stamina over $goalWeeks weeks.'
                         : 'Purpose-built plan combining the best elements for your specific fitness goal.',
         dailyCalories: isBuildMuscle
             ? baseCalories + 400

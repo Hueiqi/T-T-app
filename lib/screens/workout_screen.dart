@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, Factory;
+import 'package:flutter/gestures.dart'
+    show EagerGestureRecognizer, OneSequenceGestureRecognizer;
 import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../providers/workout_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/health_provider.dart';
+import '../providers/workout_music_provider.dart';
+import '../services/reverse_geocode_service.dart';
+import '../widgets/heart_rate_meter.dart';
 import '../config/theme.dart';
 import '../config/routes.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../widgets/bottom_nav_shell.dart';
 import 'workout_history_screen.dart';
 
@@ -75,8 +79,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                             color: AppTheme.errorColor,
                           ),
 
-                        _HeartRateMonitor(workout: workout),
-                        const SizedBox(height: 20),
                         if (workout.isWorkoutActive)
                           _ActiveWorkoutPanel(
                             workout: workout,
@@ -87,8 +89,6 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                             workout: workout,
                             spotifyConnected: spotifyConnected,
                           ),
-                        const SizedBox(height: 20),
-                        _HeartRateChart(heartRates: workout.heartRateHistory),
                       ],
                     ),
                   );
@@ -144,100 +144,6 @@ class _WarningBanner extends StatelessWidget {
   }
 }
 
-// ─── Heart Rate Monitor ──────────────────────────────────────────
-class _HeartRateMonitor extends StatelessWidget {
-  final WorkoutProvider workout;
-
-  const _HeartRateMonitor({required this.workout});
-
-  @override
-  Widget build(BuildContext context) {
-    final zoneColors = <String, Color>{
-      'Warm up': Colors.green,
-      'Fat Burn': AppTheme.warningColor,
-      'Cardio': AppTheme.accentColor,
-      'Peak': AppTheme.errorColor,
-    };
-
-    final hr = workout.currentHeartRate;
-    final zone = workout.currentHrZone;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Text(
-              'Current Heart Rate',
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '$hr',
-                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: zoneColors[zone] ?? AppTheme.primaryColor,
-                      ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 16, left: 4),
-                  child: Text(
-                    'bpm',
-                    style: TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (workout.isWorkoutActive || hr > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: (zoneColors[zone] ?? AppTheme.primaryColor)
-                      .withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  zone,
-                  style: TextStyle(
-                    color: zoneColors[zone] ?? AppTheme.primaryColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 8),
-            const SizedBox(height: 12),
-            if (workout.lastNightSleep != null)
-              Text(
-                'Sleep Readiness: ${workout.sleepReadiness.toUpperCase()}',
-                style: TextStyle(
-                  color: workout.sleepReadiness == 'high'
-                      ? AppTheme.successColor
-                      : workout.sleepReadiness == 'moderate'
-                          ? AppTheme.warningColor
-                          : AppTheme.errorColor,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ─── Workout Start Panel ─────────────────────────────────────────
 class _WorkoutStartPanel extends StatefulWidget {
   final WorkoutProvider workout;
@@ -253,27 +159,18 @@ class _WorkoutStartPanel extends StatefulWidget {
 }
 
 class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
-  String _selectedType = 'cardio';
+  /// Workout types mirror [WorkoutMusicProvider.conditions] so the type picked
+  /// here is the same id the music screen assigns playlists to.
+  String _selectedType = WorkoutMusicProvider.conditions.first.id;
 
   IconData _iconForType(String type) {
     switch (type) {
-      case 'running':
+      case 'slow_run':
         return Icons.directions_run;
-      case 'walking':
-        return Icons.directions_walk;
+      case 'sprint_run':
+        return Icons.bolt;
       default:
-        return Icons.fitness_center;
-    }
-  }
-
-  String _labelForType(String type) {
-    switch (type) {
-      case 'running':
-        return 'Run';
-      case 'walking':
-        return 'Walk';
-      default:
-        return 'General';
+        return Icons.self_improvement;
     }
   }
 
@@ -314,21 +211,24 @@ class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
             const SizedBox(height: 10),
             Row(
               children: [
-                for (final type in ['running', 'walking', 'cardio']) ...[
-                  if (type != 'running') const SizedBox(width: 10),
+                for (final condition in WorkoutMusicProvider.conditions) ...[
+                  if (condition != WorkoutMusicProvider.conditions.first)
+                    const SizedBox(width: 10),
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => setState(() => _selectedType = type),
+                      onTap: () =>
+                          setState(() => _selectedType = condition.id),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14, horizontal: 4),
                         decoration: BoxDecoration(
-                          color: _selectedType == type
+                          color: _selectedType == condition.id
                               ? AppTheme.primaryColor
                               : AppTheme.primaryColor.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: _selectedType == type
+                            color: _selectedType == condition.id
                                 ? AppTheme.primaryColor
                                 : AppTheme.primaryColor.withValues(alpha: 0.2),
                           ),
@@ -336,21 +236,28 @@ class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
                         child: Column(
                           children: [
                             Icon(
-                              _iconForType(type),
+                              _iconForType(condition.id),
                               size: 24,
-                              color: _selectedType == type
+                              color: _selectedType == condition.id
                                   ? Colors.white
                                   : AppTheme.primaryColor,
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              _labelForType(type),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: _selectedType == type
-                                    ? Colors.white
-                                    : AppTheme.primaryColor,
+                            // "Sprint Run" clips on narrow phones and at large
+                            // system text scales, so shrink to fit instead.
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                condition.label,
+                                maxLines: 1,
+                                softWrap: false,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: _selectedType == condition.id
+                                      ? Colors.white
+                                      : AppTheme.primaryColor,
+                                ),
                               ),
                             ),
                           ],
@@ -393,7 +300,23 @@ class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(context, AppRoutes.workoutMusic);
+                },
+                icon: const Icon(Icons.queue_music, color: Color(0xFF1DB954)),
+                label: const Text('Workout Playlist'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Color(0xFF1DB954)),
+                  foregroundColor: const Color(0xFF1DB954),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -401,37 +324,12 @@ class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
                   final auth = context.read<AuthProvider>();
                   if (auth.user == null) return;
 
-                  // Check smartwatch connection before starting
-                  final healthProvider = context.read<HealthProvider>();
-                  if (!healthProvider.smartwatchConnected) {
-                    final action = await showDialog<String>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('No Smartwatch'),
-                        content: const Text(
-                          'Please pair your smartwatch in Settings for heart rate tracking. '
-                          'Without it, dynamic BPM matching and calorie calculation will not work. '
-                          'You can still start the workout and log calories manually later.',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, 'settings'),
-                            child: const Text('Go to Settings'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(ctx, 'start'),
-                            child: const Text('Start Anyway'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (action == null) return;
-                    if (action == 'settings') {
-                      if (context.mounted) {
-                        Navigator.pushNamed(context, '/profile');
-                      }
-                      return;
-                    }
+                  // Guarantee the heart rate meter has a ticking source for
+                  // this session. No-ops when a real BLE strap is connected or
+                  // the simulation is already running.
+                  final health = context.read<HealthProvider>();
+                  if (!health.isSimulating && !health.smartwatchConnected) {
+                    health.startHeartRateSimulation();
                   }
 
                   try {
@@ -439,6 +337,15 @@ class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
                     await widget.workout.startWorkout(
                       auth.user!.uid,
                       spotifyConnected: widget.spotifyConnected,
+                      workoutType: _selectedType,
+                    );
+
+                    // WorkoutProvider only records HR itself when a paired
+                    // smartwatch is present. Feed it HealthProvider's stream
+                    // (simulated or BLE strap) so Avg/Max HR and Zone have
+                    // data for everyone else.
+                    widget.workout.attachExternalHeartRate(
+                      health.heartRateStream,
                     );
                   } catch (e) {
                     if (context.mounted) {
@@ -482,6 +389,12 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
   bool _isSaving = false;
   MapLibreMapController? _mapController;
   int _lastRouteCount = 0;
+  String? _lastPosKey;
+
+  /// True once the user has zoomed or panned the map themselves. While set,
+  /// [_updateMapRoute] keeps redrawing the route but leaves the camera alone,
+  /// so a GPS update can't yank the view back. The recentre button clears it.
+  bool _userAdjustedCamera = false;
 
   @override
   void initState() {
@@ -500,9 +413,18 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
   @override
   void didUpdateWidget(covariant _ActiveWorkoutPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (_mapController == null) return;
     final newCount = widget.workout.routePoints.length;
-    if (newCount != _lastRouteCount && _mapController != null) {
+    // Also watch the raw position: before the first route point is logged the
+    // count stays 0, so without this the map would never leave LatLng(0,0)
+    // even once GPS has a fix.
+    final pos = widget.workout.currentPosition;
+    final posKey = pos == null
+        ? null
+        : '${pos['latitude']},${pos['longitude']}';
+    if (newCount != _lastRouteCount || posKey != _lastPosKey) {
       _lastRouteCount = newCount;
+      _lastPosKey = posKey;
       WidgetsBinding.instance.addPostFrameCallback((_) => _updateMapRoute());
     }
   }
@@ -523,7 +445,6 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
   Future<void> _updateMapRoute() async {
     if (_mapController == null) return;
     final routePoints = widget.workout.routePoints;
-    if (routePoints.isEmpty) return;
 
     final coordinates = routePoints
         .map((p) => LatLng(p['lat']!, p['lng']!))
@@ -561,7 +482,7 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
     if (currentPos != null) {
       await _mapController!.addCircle(
         CircleOptions(
-          geometry: LatLng(currentPos['latitude']!, currentPos['longitude']!),
+          geometry: LatLng(currentPos['latitude'] ?? 0, currentPos['longitude'] ?? 0),
           circleRadius: 10,
           circleColor: '#EF4444',
           circleStrokeColor: '#FFFFFF',
@@ -570,7 +491,10 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
       );
     }
 
-    // Animate camera to show full route
+    // Animate camera to show full route. Skipped once the user has taken
+    // manual control of the camera, so their zoom/pan survives GPS updates.
+    if (_userAdjustedCamera) return;
+
     if (coordinates.length >= 2) {
       var minLat = coordinates.first.latitude;
       var maxLat = coordinates.first.latitude;
@@ -591,9 +515,47 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
       );
     } else if (coordinates.length == 1) {
       _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(coordinates.first, 15),
+        CameraUpdate.newLatLngZoom(coordinates.first, 16),
+      );
+    } else if (currentPos != null) {
+      // No route logged yet (GPS still warming up). Without this the camera
+      // stays on the initial LatLng(0,0) at street zoom, which renders as
+      // blank ocean and looks like the map failed to load.
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(
+          LatLng(currentPos['latitude'] ?? 0, currentPos['longitude'] ?? 0),
+          16,
+        ),
       );
     }
+  }
+
+  /// Steps the camera zoom by [delta] levels.
+  ///
+  /// Also sets [_userAdjustedCamera] so the auto-fit in [_updateMapRoute]
+  /// stops overriding the user — otherwise the next GPS point would snap the
+  /// zoom straight back to the route bounds.
+  Future<void> _zoomBy(double delta) async {
+    if (_mapController == null) return;
+    _userAdjustedCamera = true;
+    await _mapController!.animateCamera(
+      delta > 0 ? CameraUpdate.zoomIn() : CameraUpdate.zoomOut(),
+    );
+  }
+
+  /// Returns the camera to the runner's current position and re-enables
+  /// automatic route following.
+  Future<void> _recentre() async {
+    if (_mapController == null) return;
+    _userAdjustedCamera = false;
+    final pos = widget.workout.currentPosition;
+    if (pos == null) return;
+    await _mapController!.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        LatLng(pos['latitude'] ?? 0, pos['longitude'] ?? 0),
+        16,
+      ),
+    );
   }
 
   String get _pace {
@@ -682,6 +644,12 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
 
     return Column(
       children: [
+        // Runner view — which street you're on
+        if (!kIsWeb) ...[
+          _RunnerStreetView(workout: widget.workout),
+          const SizedBox(height: 12),
+        ],
+
         // Live Map
         if (!kIsWeb)
           Card(
@@ -690,27 +658,83 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: SizedBox(
-              height: 220,
+              height: 260,
               width: double.infinity,
-              child: MapLibreMap(
-                onMapCreated: _onMapCreated,
-                styleString: 'https://tiles.openfreemap.org/styles/positron',
-                initialCameraPosition: CameraPosition(
-                  target: workout.currentPosition != null
-                      ? LatLng(
-                          workout.currentPosition!['latitude']!,
-                          workout.currentPosition!['longitude']!,
-                        )
-                      : const LatLng(0, 0),
-                  zoom: 15,
-                ),
-                compassEnabled: false,
-                rotateGesturesEnabled: false,
-                myLocationEnabled: false,
-                myLocationTrackingMode: MyLocationTrackingMode.none,
+              child: Stack(
+                children: [
+                  MapLibreMap(
+                    onMapCreated: _onMapCreated,
+                    styleString:
+                        'https://tiles.openfreemap.org/styles/positron',
+                    initialCameraPosition: CameraPosition(
+                      target: workout.currentPosition != null
+                          ? LatLng(
+                              workout.currentPosition!['latitude'] ?? 0,
+                              workout.currentPosition!['longitude'] ?? 0,
+                            )
+                          : const LatLng(0, 0),
+                      // With no GPS fix yet the target is (0,0) — open zoomed
+                      // out so it reads as a world map rather than a blank
+                      // ocean close-up. _updateMapRoute() zooms in once a fix
+                      // arrives.
+                      zoom: workout.currentPosition != null ? 16 : 1,
+                    ),
+                    compassEnabled: false,
+                    rotateGesturesEnabled: false,
+                    zoomGesturesEnabled: true,
+                    scrollGesturesEnabled: true,
+                    // The map lives inside a SingleChildScrollView. Without
+                    // claiming the vertical drag gesture, the scroll view wins
+                    // the arena and one-finger pans (and the vertical part of a
+                    // pinch) scroll the page instead of moving the map.
+                    gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                      Factory<OneSequenceGestureRecognizer>(
+                        () => EagerGestureRecognizer(),
+                      ),
+                    },
+                    // Show the blue "you are here" dot. Tracking mode is NOT
+                    // used here: it re-centres the camera on every fix, which
+                    // would fight the user's own zoom/pan. _recentre() below
+                    // puts them back on their location on demand.
+                    myLocationEnabled: true,
+                    myLocationTrackingMode: MyLocationTrackingMode.none,
+                  ),
+                  // Zoom / recentre controls, since pinch is awkward on a
+                  // 260px map embedded in a scrolling page.
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _MapButton(
+                          icon: Icons.add,
+                          tooltip: 'Zoom in',
+                          onTap: () => _zoomBy(1),
+                        ),
+                        const SizedBox(height: 6),
+                        _MapButton(
+                          icon: Icons.remove,
+                          tooltip: 'Zoom out',
+                          onTap: () => _zoomBy(-1),
+                        ),
+                        const SizedBox(height: 6),
+                        _MapButton(
+                          icon: Icons.my_location,
+                          tooltip: 'Recentre on me',
+                          onTap: _recentre,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
+        const SizedBox(height: 12),
+
+        // Live heart rate meter
+        const HeartRateMeterCard(),
         const SizedBox(height: 12),
 
         // Stats Card
@@ -786,7 +810,7 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
                   children: [
                     _MetricColumn(
                       label: 'Distance',
-                      value: workout.distance.toStringAsFixed(2) + ' km',
+                      value: '${workout.distance.toStringAsFixed(2)} km',
                     ),
                     _MetricColumn(
                       label: 'Steps',
@@ -1149,6 +1173,40 @@ class _ManualCalorieDialogState extends State<_ManualCalorieDialog> {
   }
 }
 
+// ─── Map Control Button ─────────────────────────────────────────
+class _MapButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _MapButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white,
+        elevation: 2,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(icon, size: 20, color: AppTheme.textPrimary),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Metric Column ──────────────────────────────────────────────
 class _MetricColumn extends StatelessWidget {
   final String label;
@@ -1172,114 +1230,178 @@ class _MetricColumn extends StatelessWidget {
   }
 }
 
-// ─── Heart Rate Chart ───────────────────────────────────────────
-class _HeartRateChart extends StatelessWidget {
-  final List<int> heartRates;
 
-  const _HeartRateChart({required this.heartRates});
+// ─── Runner street view ─────────────────────────────────────────
+//
+// Reverse-geocodes the current GPS fix so the runner can see which street
+// they're on without reading the map. Lookups are throttled and cached per
+// ~110 m grid cell inside ReverseGeocodeService (Nominatim's usage policy),
+// so this costs roughly one request per block.
+class _RunnerStreetView extends StatefulWidget {
+  final WorkoutProvider workout;
+  const _RunnerStreetView({required this.workout});
+
+  @override
+  State<_RunnerStreetView> createState() => _RunnerStreetViewState();
+}
+
+class _RunnerStreetViewState extends State<_RunnerStreetView> {
+  final _geocoder = ReverseGeocodeService();
+  StreetInfo? _info;
+  String? _lastCell;
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeLookup();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RunnerStreetView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _maybeLookup();
+  }
+
+  Future<void> _maybeLookup() async {
+    final pos = widget.workout.currentPosition;
+    if (pos == null) return;
+    final lat = pos['latitude'];
+    final lng = pos['longitude'];
+    if (lat == null || lng == null) return;
+
+    // Only re-query once the runner has moved to a new ~110 m cell.
+    final cell = '${lat.toStringAsFixed(3)},${lng.toStringAsFixed(3)}';
+    if (cell == _lastCell && _info != null) return;
+
+    final result = await _geocoder.lookup(lat, lng);
+    if (!mounted || result == null || result.isEmpty) return;
+    setState(() {
+      _info = result;
+      _lastCell = cell;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (heartRates.isEmpty) return const SizedBox.shrink();
+    final gpsError = widget.workout.gpsError;
+    final pos = widget.workout.currentPosition;
 
-    final minY = _getMinY(heartRates) - 10;
-    final maxY = _getMaxY(heartRates) + 10;
+    if (gpsError != null) {
+      return _shell(
+        icon: Icons.location_disabled,
+        iconColor: AppTheme.errorColor,
+        title: 'Location unavailable',
+        subtitle: gpsError,
+      );
+    }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Heart Rate History',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+    if (pos == null) {
+      return _shell(
+        icon: Icons.gps_not_fixed,
+        iconColor: AppTheme.textSecondary,
+        title: 'Acquiring GPS…',
+        subtitle: 'Move outdoors for a faster fix',
+        showSpinner: true,
+      );
+    }
+
+    final info = _info;
+    return _shell(
+      icon: Icons.navigation,
+      iconColor: AppTheme.primaryColor,
+      title: info?.primary ?? 'Locating street…',
+      subtitle: (info != null && info.secondary.isNotEmpty)
+          ? info.secondary
+          : '${(pos['latitude'] ?? 0).toStringAsFixed(5)}, '
+              '${(pos['longitude'] ?? 0).toStringAsFixed(5)}',
+      trailing: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            widget.workout.distance.toStringAsFixed(2),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primaryColor,
+              height: 1.0,
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 200,
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    horizontalInterval: 20,
-                    getDrawingHorizontalLine: (value) => FlLine(
-                      color: Colors.grey.withValues(alpha: 0.2),
-                      strokeWidth: 1,
-                    ),
-                  ),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 40,
-                        getTitlesWidget: (value, meta) => Text(
-                          '${value.toInt()}',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                    bottomTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  minY: minY,
-                  maxY: maxY,
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: heartRates
-                          .asMap()
-                          .entries
-                          .map(
-                            (e) => FlSpot(e.key.toDouble(), e.value.toDouble()),
-                          )
-                          .toList(),
-                      isCurved: true,
-                      color: AppTheme.primaryColor,
-                      barWidth: 3,
-                      isStrokeCapRound: true,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          Text(
+            'km',
+            style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+          ),
+        ],
       ),
     );
   }
 
-  double _getMinY(List<int> rates) {
-    var min = rates.isNotEmpty ? rates[0] : 0;
-    for (final r in rates) {
-      if (r < min) min = r;
-    }
-    return min.toDouble();
-  }
-
-  double _getMaxY(List<int> rates) {
-    var max = rates.isNotEmpty ? rates[0] : 0;
-    for (final r in rates) {
-      if (r > max) max = r;
-    }
-    return max.toDouble();
+  Widget _shell({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    Widget? trailing,
+    bool showSpinner = false,
+  }) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: showSpinner
+                  ? Padding(
+                      padding: const EdgeInsets.all(11),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(iconColor),
+                      ),
+                    )
+                  : Icon(icon, color: iconColor, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: AppTheme.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 10),
+              trailing,
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }

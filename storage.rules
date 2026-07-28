@@ -1,0 +1,60 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Every upload site sets SettableMetadata(contentType: 'image/jpeg'),
+    // so the image/* checks below are safe. Uploading with a bare putData()
+    // or putFile() would store the object as application/octet-stream and be
+    // denied here.
+
+    // ──────────────────────────────────────────────
+    // 1. MEAL IMAGES – /meals/{userId}/{filename}
+    //    StorageService.uploadMealImage (putFile)
+    //    FoodCaptureScreen._uploadImage (putData)
+    // ──────────────────────────────────────────────
+    match /meals/{userId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024  // Max 10MB
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ──────────────────────────────────────────────
+    // 2. FOOD IMAGES – /users/{userId}/food_images/{filename}
+    //    FirebaseService.uploadImageBytes (putData)
+    //    A separate path from /meals, and previously unmatched — every
+    //    upload here fell through to the deny-all rule below.
+    // ──────────────────────────────────────────────
+    match /users/{userId}/food_images/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024  // Max 10MB
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ──────────────────────────────────────────────
+    // 3. PROFILE AVATARS – /avatars/{userId}/{filename}
+    //    EditProfileScreen._uploadPhoto (putFile with image/jpeg metadata,
+    //    so the contentType check is safe to keep here)
+    // ──────────────────────────────────────────────
+    match /avatars/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024  // Max 5MB
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ──────────────────────────────────────────────
+    // 4. DENY EVERYTHING ELSE
+    // ──────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

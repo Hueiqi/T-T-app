@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show Factory;
+import 'package:flutter/gestures.dart'
+    show EagerGestureRecognizer, OneSequenceGestureRecognizer;
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../providers/auth_provider.dart';
+import '../providers/workout_music_provider.dart';
 import '../services/firebase_service.dart';
 import '../models/workout_model.dart';
 import '../config/theme.dart';
@@ -145,7 +149,7 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
           ),
           _SummaryItem(
             icon: Icons.local_fire_department,
-            value: '${totalCalories.toStringAsFixed(0)}',
+            value: totalCalories.toStringAsFixed(0),
             label: 'Calories',
             color: AppTheme.warningColor,
           ),
@@ -383,19 +387,15 @@ class _WorkoutCard extends StatelessWidget {
 
   const _WorkoutCard({required this.workout});
 
-  String _typeLabel(String type) {
-    switch (type) {
-      case 'running':
-        return 'Run';
-      case 'walking':
-        return 'Walk';
-      default:
-        return 'Workout';
-    }
-  }
+  String _typeLabel(String type) => WorkoutMusicProvider.labelForType(type);
 
   IconData _typeIcon(String type) {
     switch (type) {
+      case 'sprint_run':
+        return Icons.bolt;
+      case 'chill':
+        return Icons.self_improvement;
+      case 'slow_run':
       case 'running':
         return Icons.directions_run;
       case 'walking':
@@ -635,6 +635,18 @@ class _WorkoutDetailScreenState extends State<_WorkoutDetailScreen> {
       ),
     );
 
+    await _fitRoute();
+  }
+
+  /// Frames the whole route in view. Used on first draw and by the
+  /// "Fit route" button after the user has zoomed or panned away.
+  Future<void> _fitRoute() async {
+    if (_mapController == null || widget.workout.routePoints.length < 2) return;
+
+    final coordinates = widget.workout.routePoints
+        .map((p) => LatLng(p['lat']!, p['lng']!))
+        .toList();
+
     var minLat = coordinates.first.latitude;
     var maxLat = coordinates.first.latitude;
     var minLng = coordinates.first.longitude;
@@ -649,7 +661,7 @@ class _WorkoutDetailScreenState extends State<_WorkoutDetailScreen> {
       southwest: LatLng(minLat, minLng),
       northeast: LatLng(maxLat, maxLng),
     );
-    _mapController!.animateCamera(
+    await _mapController!.animateCamera(
         CameraUpdate.newLatLngBounds(bounds, left: 60, top: 60, right: 60, bottom: 60));
   }
 
@@ -670,16 +682,8 @@ class _WorkoutDetailScreenState extends State<_WorkoutDetailScreen> {
     return '$pMin:${pSec.toString().padLeft(2, '0')} /km';
   }
 
-  String get _workoutTypeLabel {
-    switch (widget.workout.type) {
-      case 'running':
-        return 'Run';
-      case 'walking':
-        return 'Walk';
-      default:
-        return 'Workout';
-    }
-  }
+  String get _workoutTypeLabel =>
+      WorkoutMusicProvider.labelForType(widget.workout.type);
 
   @override
   Widget build(BuildContext context) {
@@ -735,25 +739,65 @@ class _WorkoutDetailScreenState extends State<_WorkoutDetailScreen> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: SizedBox(
-                          height: 220,
+                          height: 260,
                           width: double.infinity,
-                          child: MapLibreMap(
-                            onMapCreated: _onMapCreated,
-                            styleString:
-                                'https://tiles.openfreemap.org/styles/positron',
-                            initialCameraPosition: CameraPosition(
-                              target: LatLng(
-                                workout.routePoints.first['lat']!,
-                                workout.routePoints.first['lng']!,
+                          child: Stack(
+                            children: [
+                              MapLibreMap(
+                                onMapCreated: _onMapCreated,
+                                styleString:
+                                    'https://tiles.openfreemap.org/styles/positron',
+                                initialCameraPosition: CameraPosition(
+                                  target: LatLng(
+                                    workout.routePoints.first['lat']!,
+                                    workout.routePoints.first['lng']!,
+                                  ),
+                                  zoom: 14,
+                                ),
+                                compassEnabled: false,
+                                rotateGesturesEnabled: false,
+                                tiltGesturesEnabled: false,
+                                zoomGesturesEnabled: true,
+                                scrollGesturesEnabled: true,
+                                // Claim the drag gesture from the surrounding
+                                // scroll view, which would otherwise win the
+                                // arena and swallow pans over the map.
+                                gestureRecognizers: <Factory<
+                                    OneSequenceGestureRecognizer>>{
+                                  Factory<OneSequenceGestureRecognizer>(
+                                    () => EagerGestureRecognizer(),
+                                  ),
+                                },
                               ),
-                              zoom: 14,
-                            ),
-                            compassEnabled: false,
-                            rotateGesturesEnabled: false,
-                            zoomGesturesEnabled: false,
-                            dragEnabled: false,
-                            scrollGesturesEnabled: false,
-                            tiltGesturesEnabled: false,
+                              Positioned(
+                                right: 8,
+                                bottom: 8,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _HistoryMapButton(
+                                      icon: Icons.add,
+                                      tooltip: 'Zoom in',
+                                      onTap: () => _mapController
+                                          ?.animateCamera(CameraUpdate.zoomIn()),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _HistoryMapButton(
+                                      icon: Icons.remove,
+                                      tooltip: 'Zoom out',
+                                      onTap: () => _mapController?.animateCamera(
+                                          CameraUpdate.zoomOut()),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _HistoryMapButton(
+                                      icon: Icons.fit_screen,
+                                      tooltip: 'Fit route',
+                                      onTap: _fitRoute,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -864,6 +908,40 @@ class _WorkoutDetailScreenState extends State<_WorkoutDetailScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Map Control Button ─────────────────────────────────────────
+class _HistoryMapButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _HistoryMapButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white,
+        elevation: 2,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(icon, size: 20, color: AppTheme.textPrimary),
+          ),
         ),
       ),
     );

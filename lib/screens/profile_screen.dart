@@ -59,47 +59,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     context.read<PlanningProvider>().loadBookmarks(auth.user!.uid);
   }
 
-  Future<void> _connectSpotify() async {
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
-    final music = context.read<MusicProvider>();
-    final success = await music.connect();
-    if (success && mounted) {
-      await _onSpotifyConnected();
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(music.error ?? 'Spotify connection failed. Make sure you have a Spotify account.')),
-      );
-    }
-  }
-
-  Future<void> _onSpotifyConnected() async {
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
-    final updatedUser = auth.user!.copyWith(spotifyConnected: 'connected');
-    await auth.updateProfile(updatedUser);
-  }
-
-  Future<void> _disconnectSpotify() async {
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
-    final music = context.read<MusicProvider>();
-    await music.disconnect();
-    if (!mounted) return;
-    final updatedUser = auth.user!.copyWith(spotifyConnected: 'disconnected');
-    await auth.updateProfile(updatedUser);
-  }
-
-  Future<void> _toggleSpotify() async {
-    final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
-    if (auth.user!.spotifyConnected == 'connected') {
-      await _disconnectSpotify();
-    } else {
-      await _connectSpotify();
-    }
-  }
-
+  // Kept for reuse — BMR is currently shown via TDEECalculator elsewhere.
+  // ignore: unused_element
   double _calculateBmr(AppUser user) {
     if (user.weight <= 0 || user.height <= 0 || user.age <= 0) return 0;
     return TDEECalculator.calculateBMR(
@@ -779,44 +740,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // ── Spotify ──
-            _ServiceSwitchTile(
-              icon: Icons.music_note,
-              iconColor: const Color(0xFF1DB954),
-              label: 'Spotify',
-              connected: user?.spotifyConnected == 'connected',
-              onToggle: (_) => _toggleSpotify(),
-            ),
-            const SizedBox(height: 12),
+            // ── Health Connect ──
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionChipButton(
+                    icon: Icons.health_and_safety,
+                    label: 'Health Connect',
+                    subtitle: health.isHealthConnectAuthorized
+                        ? 'Connected'
+                        : 'Tap to connect',
+                    onTap: () async {
+                      // Captured up front so the snackbars below don't need a
+                      // context lookup after an await.
+                      final messenger = ScaffoldMessenger.of(context);
 
-            // ── Health Connect ── NEW ──
-            _ServiceSwitchTile(
-              icon: Icons.health_and_safety,
-              iconColor: AppTheme.primaryColor,
-              label: 'Health Connect',
-              connected: health.isHealthConnectAuthorized,
-              onToggle: (_) async {
-                if (health.isHealthConnectAuthorized) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Disconnect from Health Connect settings on your device.')),
-                  );
-                } else {
-                  final available = await health.checkAvailability();
-                  if (!available) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Health Connect not installed.')),
-                    );
-                    return;
-                  }
-                  final authorized = await health.authorizeHealthConnect();
-                  if (authorized) {
-                    await health.syncHealthData();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Health Connect connected!')),
-                    );
-                  }
-                }
-              },
+                      if (health.isHealthConnectAuthorized) {
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('Disconnect from Health Connect settings on your device.')),
+                        );
+                        return;
+                      }
+                      final available = await health.checkAvailability();
+                      if (!available) {
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('Health Connect not installed.')),
+                        );
+                        return;
+                      }
+                      final authorized = await health.authorizeHealthConnect();
+                      if (authorized) {
+                        await health.syncHealthData();
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('Health Connect connected!')),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
 
@@ -829,12 +791,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     label: 'Notification Settings',
                     subtitle: 'Configure alerts',
                     onTap: () async {
+                      final navigator = Navigator.of(context);
                       if (user != null) {
                         await notifications.loadSettings(user.uid);
                       }
-                      if (context.mounted) {
-                        Navigator.pushNamed(context, AppRoutes.notificationSettings);
-                      }
+                      navigator.pushNamed(AppRoutes.notificationSettings);
                     },
                   ),
                 ),
@@ -940,49 +901,6 @@ class _BpmGauge extends StatelessWidget {
         const SizedBox(height: 4),
         Text('bpm', style: TextStyle(fontSize: 11, color: _color)),
       ],
-    );
-  }
-}
-
-class _ServiceSwitchTile extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String label;
-  final bool connected;
-  final ValueChanged<bool> onToggle;
-
-  const _ServiceSwitchTile({
-    required this.icon,
-    required this.iconColor,
-    required this.label,
-    required this.connected,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade200),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: iconColor, size: 28),
-          const SizedBox(height: 6),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 6),
-          Switch(
-            value: connected,
-            onChanged: onToggle,
-            activeThumbColor: iconColor,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ],
-      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:pedometer/pedometer.dart';
 
@@ -26,7 +27,7 @@ class MotionService {
 
     _pedometerSubscription = Pedometer.stepCountStream.listen(
       (stepCount) => _stepController.add(stepCount.steps),
-      onError: (e) => print('Pedometer error: $e'),
+      onError: (e) => debugPrint('Pedometer error: $e'),
     );
 
     _gyroSubscription = gyroscopeEventStream().listen((GyroscopeEvent event) {

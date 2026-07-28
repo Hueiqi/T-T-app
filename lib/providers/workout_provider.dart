@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'package:geolocator/geolocator.dart';
 import '../services/health_service.dart';
 import '../services/spotify_service.dart';
 import '../services/firebase_service.dart';
@@ -36,10 +37,18 @@ class WorkoutProvider extends ChangeNotifier {
   List<MusicTrack> _searchResults = [];
   bool _isSearching = false;
 
-  String _workoutType = 'cardio';
+  /// A WorkoutMusicProvider condition id: 'chill', 'slow_run' or 'sprint_run'.
+  String _workoutType = 'chill';
   double _distance = 0.0;
   int _workoutSteps = 0;
   final List<Map<String, double>> _routePoints = [];
+
+  // ── GPS route tracking ──
+  StreamSubscription<Position>? _gpsSub;
+  Position? _lastGpsFix;
+  String? _gpsError;
+
+  String? get gpsError => _gpsError;
 
   bool get isWorkoutActive => _isWorkoutActive;
   int get currentHeartRate => _currentHeartRate;
@@ -59,7 +68,26 @@ class WorkoutProvider extends ChangeNotifier {
   double get distance => _distance;
   int get workoutSteps => _workoutSteps;
   List<Map<String, double>> get routePoints => _routePoints;
-  Map<String, double>? get currentPosition => _routePoints.isNotEmpty ? _routePoints.last : null;
+
+  /// Latest GPS fix, or null before the first one arrives.
+  ///
+  /// Route points are stored as {'lat','lng'} (that shape is persisted to
+  /// Firestore, so it must not change), but callers read {'latitude',
+  /// 'longitude'}. Both spellings are exposed here so a mismatched key can't
+  /// produce a null that blows up on a `!` at the call site.
+  Map<String, double>? get currentPosition {
+    if (_routePoints.isEmpty) return null;
+    final last = _routePoints.last;
+    final lat = last['lat'];
+    final lng = last['lng'];
+    if (lat == null || lng == null) return null;
+    return {
+      'lat': lat,
+      'lng': lng,
+      'latitude': lat,
+      'longitude': lng,
+    };
+  }
 
   String _hrZoneToMusicZone(String zone) {
     switch (zone) {
@@ -84,7 +112,16 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> startWorkout(String userId, {bool spotifyConnected = false}) async {
+  /// [workoutType] is one of the [WorkoutMusicProvider] condition ids
+  /// ('chill', 'slow_run', 'sprint_run'), so the saved workout and the music
+  /// playlists assigned to that condition stay in sync.
+  Future<void> startWorkout(
+    String userId, {
+    bool spotifyConnected = false,
+    String? workoutType,
+  }) async {
+    if (workoutType != null) _workoutType = workoutType;
+
     // 1. Check smartwatch connection
     bool hrAvailable = false;
     if (!_isWeb) {
@@ -112,12 +149,15 @@ class WorkoutProvider extends ChangeNotifier {
       userId: userId,
       startTime: _workoutStartTime!,
       sleepReadiness: _sleepReadiness,
-      type: workoutType,
+      type: _workoutType,
     );
 
     try {
       await _firebaseService.saveWorkout(_currentWorkout!);
     } catch (_) {}
+
+    // 3. Start GPS so the live map has a route/position to display.
+    _startGpsTracking();
 
     // 4. Start HR streaming every 5 seconds (if smartwatch available)
     if (_smartwatchConnected) {
@@ -155,11 +195,112 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Feeds heart rate from a source outside this provider — the simulated
+  /// stream on HealthProvider, or a BLE strap it owns.
+  ///
+  /// Without this, `_heartRateHistory` is only ever filled inside the
+  /// `if (_smartwatchConnected)` branch of [startWorkout], so a user with no
+  /// paired watch sees Avg HR / Max HR / Zone stuck at 0 for the whole
+  /// session and the workout saves with no HR data.
+  void attachExternalHeartRate(Stream<int> source) {
+    _extHrSub?.cancel();
+    _extHrSub = source.listen((hr) {
+      if (!_isWorkoutActive || hr <= 0) return;
+      _currentHeartRate = hr;
+      _heartRateHistory.add(hr);
+      final newZone = AppConstants.getHrZone(hr);
+      if (newZone != _currentHrZone) {
+        _currentMusicZone = _hrZoneToMusicZone(newZone);
+      }
+      _currentHrZone = newZone;
+      notifyListeners();
+    });
+  }
+
   void addRoutePoint(double latitude, double longitude, double distanceDelta) {
     _routePoints.add({'lat': latitude, 'lng': longitude});
     _distance += distanceDelta;
     _workoutSteps = (_distance * 1312).toInt();
     notifyListeners();
+  }
+
+  /// Subscribes to GPS for the duration of the workout, feeding the route that
+  /// the live map draws. Without this nothing ever calls addRoutePoint, so
+  /// currentPosition stays null and the map has no location to show.
+  Future<void> _startGpsTracking() async {
+    if (_isWeb) return;
+    _gpsError = null;
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _gpsError = 'Location services are off. Enable GPS to map your route.';
+        notifyListeners();
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _gpsError = 'Location permission denied. Route mapping is unavailable.';
+        notifyListeners();
+        return;
+      }
+
+      // Seed an immediate fix so the map can centre without waiting for the
+      // first stream event (which only fires after `distanceFilter` metres).
+      try {
+        final first = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ),
+        );
+        _lastGpsFix = first;
+        addRoutePoint(first.latitude, first.longitude, 0);
+      } catch (_) {
+        // Non-fatal: the stream below may still deliver a fix.
+      }
+
+      _gpsSub?.cancel();
+      _gpsSub = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10,
+        ),
+      ).listen(
+        (pos) {
+          final prev = _lastGpsFix;
+          var deltaKm = 0.0;
+          if (prev != null) {
+            final metres = Geolocator.distanceBetween(
+              prev.latitude,
+              prev.longitude,
+              pos.latitude,
+              pos.longitude,
+            );
+            // Ignore GPS jitter while standing still.
+            if (metres < 5) return;
+            deltaKm = metres / 1000.0;
+          }
+          _lastGpsFix = pos;
+          addRoutePoint(pos.latitude, pos.longitude, deltaKm);
+        },
+        onError: (e) {
+          _gpsError = 'Location error: $e';
+          notifyListeners();
+        },
+      );
+    } catch (e) {
+      _gpsError = 'Could not start location tracking: $e';
+      notifyListeners();
+    }
+  }
+
+  void _stopGpsTracking() {
+    _gpsSub?.cancel();
+    _gpsSub = null;
+    _lastGpsFix = null;
   }
 
   Future<void> _adjustMusicForHeartRate(int heartRate) async {
@@ -230,6 +371,7 @@ class WorkoutProvider extends ChangeNotifier {
     _healthService.stopHeartRateMonitoring();
     _extHrSub?.cancel();
     _extHrSub = null;
+    _stopGpsTracking();
     _currentTrackName = '';
     _currentTrackArtist = '';
     _currentMusicZone = '';
@@ -393,9 +535,11 @@ class WorkoutProvider extends ChangeNotifier {
     _manualOverrideActive = false;
     _searchResults = [];
     _isSearching = false;
-    _workoutType = 'cardio';
+    _workoutType = 'chill';
     _distance = 0.0;
     _workoutSteps = 0;
+    _stopGpsTracking();
+    _gpsError = null;
     _routePoints.clear();
     _osWorkouts = [];
     _recentWorkout = null;
@@ -410,6 +554,7 @@ class WorkoutProvider extends ChangeNotifier {
     _bpmAdjustTimer?.cancel();
     _manualOverrideTimer?.cancel();
     _extHrSub?.cancel();
+    _stopGpsTracking();
     _healthService.stopHeartRateMonitoring();
     super.dispose();
   }

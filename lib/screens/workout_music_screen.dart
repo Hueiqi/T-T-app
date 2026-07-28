@@ -63,6 +63,14 @@ class _WorkoutMusicScreenState extends State<WorkoutMusicScreen> {
   }
 
   void _openPlaylistPicker() {
+    if (context.read<AuthController>().status != AuthStatus.authenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connect Spotify first to browse your playlists.'),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -113,10 +121,21 @@ class _WorkoutMusicScreenState extends State<WorkoutMusicScreen> {
               ),
             ),
             Expanded(
-              child: authStatus != AuthStatus.authenticated
+              // The condition picker is always usable — assigning playlists
+              // needs Spotify, but choosing a condition and seeing what is
+              // already saved does not. Gating the whole body on auth is what
+              // made this screen render blank when the status was wrong.
+              child: authStatus == AuthStatus.unauthenticated
                   ? _connectPrompt()
                   : ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      // Extra bottom room so the last tile clears the global
+                      // floating mini-player.
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        8,
+                        16,
+                        24 + MediaQuery.of(context).padding.bottom + 72,
+                      ),
                       children: [
                         const Text(
                           'Pick a workout condition, assign your Spotify '
@@ -196,6 +215,7 @@ class _WorkoutMusicScreenState extends State<WorkoutMusicScreen> {
 
   Widget _conditionBar() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final c in WorkoutMusicProvider.conditions) ...[
           Expanded(
@@ -203,7 +223,8 @@ class _WorkoutMusicScreenState extends State<WorkoutMusicScreen> {
               onTap: () => setState(() => _selectedCondition = c.id),
               borderRadius: BorderRadius.circular(14),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
                 decoration: BoxDecoration(
                   color: c.id == _selectedCondition
                       ? AppTheme.primaryColor
@@ -216,17 +237,25 @@ class _WorkoutMusicScreenState extends State<WorkoutMusicScreen> {
                   ),
                 ),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(c.emoji, style: const TextStyle(fontSize: 24)),
                     const SizedBox(height: 4),
-                    Text(
-                      c.label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: c.id == _selectedCondition
-                            ? Colors.white
-                            : AppTheme.textPrimary,
+                    // Labels like "Sprint Run" clip on narrow phones and at
+                    // large system text scales, so shrink to fit instead.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        c.label,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: c.id == _selectedCondition
+                              ? Colors.white
+                              : AppTheme.textPrimary,
+                        ),
                       ),
                     ),
                   ],
@@ -254,9 +283,13 @@ class _WorkoutMusicScreenState extends State<WorkoutMusicScreen> {
                     strokeWidth: 2, color: Colors.white),
               )
             : const Icon(Icons.play_arrow),
-        label: Text(_starting
-            ? 'Starting...'
-            : 'Play ${_condition.label} ${_condition.emoji}'),
+        label: Text(
+          _starting
+              ? 'Starting...'
+              : 'Play ${_condition.label} ${_condition.emoji}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF1DB954),
           foregroundColor: Colors.white,
@@ -357,9 +390,20 @@ class _PlaylistPickerSheetState extends State<_PlaylistPickerSheet> {
 
   Future<List<SavedPlaylist>> _loadPlaylists() async {
     final page = await widget.api.getMyPlaylists(limit: 50);
+    debugPrint(
+      'WorkoutMusic: /me/playlists returned ${page.items.length} of '
+      '${page.total}',
+    );
+    // Playlists with a blank uri can't be played or stored meaningfully, and
+    // would render as empty rows.
     return [
       for (final p in page.items)
-        SavedPlaylist(uri: p.uri, name: p.name, imageUrl: p.imageUrl),
+        if (p.uri.isNotEmpty)
+          SavedPlaylist(
+            uri: p.uri,
+            name: p.name.isEmpty ? 'Untitled Playlist' : p.name,
+            imageUrl: p.imageUrl,
+          ),
     ];
   }
 
@@ -372,7 +416,13 @@ class _PlaylistPickerSheetState extends State<_PlaylistPickerSheet> {
       maxChildSize: 0.9,
       builder: (ctx, scrollController) {
         return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          // Keep the Done button clear of the system gesture bar.
+          padding: EdgeInsets.fromLTRB(
+            20,
+            16,
+            20,
+            12 + MediaQuery.of(ctx).padding.bottom,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -399,19 +449,46 @@ class _PlaylistPickerSheetState extends State<_PlaylistPickerSheet> {
                     }
                     if (snapshot.hasError) {
                       return Center(
-                        child: Text(
-                          'Could not load your playlists.\n${snapshot.error}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              color: AppTheme.textSecondary, fontSize: 12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.error_outline,
+                                color: AppTheme.textSecondary, size: 32),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Could not load your playlists.\n${snapshot.error}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  color: AppTheme.textSecondary, fontSize: 12),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: () => setState(() {
+                                _future = _loadPlaylists();
+                              }),
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text('Retry'),
+                            ),
+                          ],
                         ),
                       );
                     }
                     final playlists = snapshot.data!;
                     if (playlists.isEmpty) {
                       return const Center(
-                        child: Text('Your Spotify library has no playlists.',
-                            style: TextStyle(color: AppTheme.textSecondary)),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 24),
+                          child: Text(
+                            'No playlists found in your Spotify account.\n\n'
+                            'Spotify only returns playlists you created or '
+                            'follow — liked songs and algorithmic mixes like '
+                            'Discover Weekly are not included. Save one in the '
+                            'Spotify app, then reopen this sheet.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: AppTheme.textSecondary, fontSize: 13),
+                          ),
+                        ),
                       );
                     }
                     // Listen to the provider so ticks update immediately.

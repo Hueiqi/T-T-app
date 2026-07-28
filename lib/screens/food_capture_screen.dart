@@ -92,7 +92,13 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
       final ref = FirebaseStorage.instance
           .ref()
           .child('meals/$userId/${_uuid.v4()}.jpg');
-      await ref.putData(_imageBytes!);
+      // putData() without metadata stores these as application/octet-stream,
+      // which fails a contentType check in the Storage rules and serves the
+      // file with the wrong type.
+      await ref.putData(
+        _imageBytes!,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
       return await ref.getDownloadURL();
     } catch (e) {
       _showError('Failed to upload image: $e');
@@ -125,6 +131,7 @@ class _FoodCaptureScreenState extends State<FoodCaptureScreen> {
     if (_imageBytes != null) {
       imageUrl = await _uploadImage(auth.user!.uid);
       if (imageUrl == null) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Image upload failed, but meal will be saved.'),
@@ -852,7 +859,7 @@ Widget _buildCaptureView() {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Image.asset(
-                      'lib/assets/diet/${_selectedMealType}.png',
+                      'lib/assets/diet/$_selectedMealType.png',
                       width: 24,
                       height: 24,
                       fit: BoxFit.contain,
@@ -927,7 +934,7 @@ Widget _buildCaptureView() {
                       color: AppTheme.warningColor, size: 28),
                   const SizedBox(width: 8),
                   Text(
-                    '${food.totalCalories.toStringAsFixed(0)}',
+                    food.totalCalories.toStringAsFixed(0),
                     style: TextStyle(
                       fontSize: 42,
                       fontWeight: FontWeight.bold,
@@ -1213,7 +1220,7 @@ Widget _buildCaptureView() {
 
   // ── Analyzing View ────────────────────────────────────────────
   Widget _buildAnalyzingView() {
-    return Container(
+    return SizedBox(
       height: 400,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1378,79 +1385,4 @@ Widget _buildCaptureView() {
         return Icons.restaurant;
     }
   }
-}
-
-// ─── Frame Painter (Enhanced) ───────────────────────────────────
-class _FramePainter extends CustomPainter {
-  final Color color;
-  final Color glowColor;
-
-  _FramePainter({required this.color, this.glowColor = Colors.transparent});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Glow
-    if (glowColor != Colors.transparent) {
-      final glowPaint = Paint()
-        ..color = glowColor
-        ..style = PaintingStyle.fill
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(0, 0, size.width, size.height),
-          const Radius.circular(20),
-        ),
-        glowPaint,
-      );
-    }
-
-    // Main frame
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5;
-
-    final cornerPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4;
-
-    const cornerLen = 28.0;
-    const gap = 0.0;
-
-    // Rounded rect frame
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(gap, gap, size.width - gap * 2, size.height - gap * 2),
-      const Radius.circular(20),
-    );
-    canvas.drawRRect(rect, paint);
-
-    // Corner accents
-    final corners = [
-      Offset(gap, gap),
-      Offset(size.width - gap, gap),
-      Offset(gap, size.height - gap),
-      Offset(size.width - gap, size.height - gap),
-    ];
-
-    for (final corner in corners) {
-      final isTop = corner.dy == gap;
-      final isLeft = corner.dx == gap;
-      final isRight = corner.dx == size.width - gap;
-      final isBottom = corner.dy == size.height - gap;
-
-      // Horizontal line
-      final hStart = isLeft ? corner.dx : corner.dx - cornerLen;
-      final hEnd = isLeft ? corner.dx + cornerLen : corner.dx;
-      canvas.drawLine(Offset(hStart, corner.dy), Offset(hEnd, corner.dy), cornerPaint);
-
-      // Vertical line
-      final vStart = isTop ? corner.dy : corner.dy - cornerLen;
-      final vEnd = isTop ? corner.dy + cornerLen : corner.dy;
-      canvas.drawLine(Offset(corner.dx, vStart), Offset(corner.dx, vEnd), cornerPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

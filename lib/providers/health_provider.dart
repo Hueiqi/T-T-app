@@ -32,6 +32,16 @@ class HealthProvider extends ChangeNotifier {
   bool get isGpsSimulation => _gpsMode;
   Stream<int> get simulatedHeartRateStream => _simController.stream;
 
+  /// Every heart rate reading this provider produces, whichever source is
+  /// live — the simulation or a connected BLE strap. Consumers that just want
+  /// "the current HR" (e.g. WorkoutProvider recording a session) should use
+  /// this rather than [simulatedHeartRateStream], which stops emitting the
+  /// moment a real strap takes over.
+  Stream<int> get heartRateStream => _hrController.stream;
+
+  final StreamController<int> _hrController =
+      StreamController<int>.broadcast();
+
   // ── Public state ──
   int _currentHeartRate = 75;
   List<int> _heartRateHistory = [];
@@ -109,14 +119,9 @@ class HealthProvider extends ChangeNotifier {
   Future<void> syncHealthData() async {
     if (!_isHealthConnectAuthorized) return;
     try {
-      final steps = await _healthConnectService.getStepsToday();
-      if (steps > 0) {
-        _stepsToday = steps;
-      }
-      // Optionally sync heart rate from Health Connect
-      // final hr = await _healthConnectService.getHeartRateToday();
-      // if (hr.isNotEmpty) { ... }
-      notifyListeners();
+      // Delegates to updateStepsToday so step-source precedence lives in
+      // exactly one place (see the note there about double-counting).
+      await updateStepsToday();
     } catch (e) {
       debugPrint('Health Connect sync error: $e');
     }
@@ -125,20 +130,23 @@ class HealthProvider extends ChangeNotifier {
   // ── Initialisation (existing) ──
   Future<bool> initializeHealthAccess() async {
     try {
-      // First check Health Connect
+      // Our custom Health Connect plugin only reads steps; heart rate, sleep,
+      // and workout data are read via the `health` package (HealthService),
+      // filtered to Mi Fitness's records. Both must be authorized so Home
+      // shows real data instead of falling back to the simulated default.
+      // Authorize the Mi-Fitness-filtered service FIRST: authorizeHealthConnect()
+      // triggers a step sync, and if this hasn't been authorized by then the
+      // filtered read returns 0 and the sync falls back to the inflated
+      // unfiltered total, briefly showing a wrong step count on Home.
+      final legacyOk = await _healthService.authorize();
+
       await checkAvailability();
+      bool healthConnectOk = false;
       if (_isHealthConnectAvailable) {
-        final authorized = await authorizeHealthConnect();
-        if (authorized) {
-          _isAuthorized = true;
-          _error = null;
-          await syncHealthData();
-          notifyListeners();
-          return true;
-        }
+        healthConnectOk = await authorizeHealthConnect();
       }
-      // Fallback to legacy health service (if any)
-      _isAuthorized = await _healthService.authorize();
+
+      _isAuthorized = healthConnectOk || legacyOk;
       if (_isAuthorized) {
         _error = null;
         await Future.wait([
@@ -148,13 +156,28 @@ class HealthProvider extends ChangeNotifier {
       } else {
         _error = 'Health permission denied';
       }
+
+      // Heart rate defaults to the simulation: Health Connect only receives
+      // periodic HR syncs from the watch (often none at all), so without this
+      // the display would sit on a static placeholder. A connected BLE
+      // smartwatch is a genuine live source, so never override that.
+      _startSimulationIfNoLiveSource();
+
       notifyListeners();
       return _isAuthorized;
     } catch (e) {
       _error = 'Failed to initialize health access: $e';
+      // Still give the UI a live heart rate even if health init failed.
+      _startSimulationIfNoLiveSource();
       notifyListeners();
       return false;
     }
+  }
+
+  void _startSimulationIfNoLiveSource() {
+    if (_simulating) return;
+    if (_smartwatchConnected && _bluetoothService.isConnected) return;
+    _beginSimulation(gps: false);
   }
 
   // ── Heart-rate simulation ──
@@ -229,6 +252,7 @@ class HealthProvider extends ChangeNotifier {
         _heartRateHistory = _heartRateHistory.sublist(_heartRateHistory.length - 100);
       }
       if (!_simController.isClosed) _simController.add(bpm);
+      if (!_hrController.isClosed) _hrController.add(bpm);
       notifyListeners();
     });
     notifyListeners();
@@ -287,13 +311,20 @@ class HealthProvider extends ChangeNotifier {
       _bleScanSubscription?.cancel();
       _bleScanSubscription = null;
 
+      // A real BLE heart rate source takes over from the default simulation —
+      // otherwise the sim timer keeps overwriting _currentHeartRate every
+      // second and would fight the live readings below.
+      stopHeartRateSimulation();
+
       _bleHrSubscription = _bluetoothService.heartRateStream.listen(
         (hr) {
           _currentHeartRate = hr;
           _heartRateHistory.add(hr);
           if (_heartRateHistory.length > 100) {
-            _heartRateHistory = _heartRateHistory.sublist(-100);
+            _heartRateHistory =
+                _heartRateHistory.sublist(_heartRateHistory.length - 100);
           }
+          if (!_hrController.isClosed) _hrController.add(hr);
           notifyListeners();
         },
         onError: (e) {
@@ -344,6 +375,9 @@ class HealthProvider extends ChangeNotifier {
     _discoveredDevices = [];
     _error = null;
     stopMonitoring();
+    // The live source is gone — fall back to the default simulation so the
+    // heart rate display stays active rather than freezing on the last value.
+    _startSimulationIfNoLiveSource();
     notifyListeners();
   }
 
@@ -367,18 +401,27 @@ class HealthProvider extends ChangeNotifier {
 
   Future<void> updateStepsToday() async {
     try {
-      // Prefer Health Connect if available
-      if (_isHealthConnectAuthorized) {
-        final steps = await _healthConnectService.getStepsToday();
-        if (steps > 0) {
-          _stepsToday = steps;
-          notifyListeners();
-          return;
-        }
+      // Prefer the Mi-Fitness-filtered source. Health Connect is a shared
+      // store: the watch, the phone's built-in pedometer, and any other
+      // fitness app all write their own StepsRecords for the same walk.
+      // Summing every record (as the raw Health Connect read does) counts
+      // the same steps two or three times over, so filter to the watch.
+      final watchSteps = await _healthService.getStepsToday();
+      final rawTotal = _isHealthConnectAuthorized
+          ? await _healthConnectService.getStepsToday()
+          : -1;
+      debugPrint('STEPS DEBUG: miFitnessFiltered=$watchSteps unfilteredHealthConnect=$rawTotal');
+      if (watchSteps > 0) {
+        _stepsToday = watchSteps;
+        notifyListeners();
+        return;
       }
-      // Fallback to legacy
-      _stepsToday = await _healthService.getStepsToday();
-      notifyListeners();
+      // Nothing from the watch (not worn / not synced yet) — fall back to
+      // the unfiltered Health Connect total rather than showing zero.
+      if (_isHealthConnectAuthorized) {
+        _stepsToday = await _healthConnectService.getStepsToday();
+        notifyListeners();
+      }
     } catch (e) {
       // silent fail
     }
@@ -447,6 +490,7 @@ class HealthProvider extends ChangeNotifier {
     _simTimer?.cancel();
     _gpsSub?.cancel();
     _simController.close();
+    _hrController.close();
     _bluetoothService.dispose();
     super.dispose();
   }

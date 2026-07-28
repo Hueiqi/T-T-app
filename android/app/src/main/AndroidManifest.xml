@@ -10,7 +10,12 @@
     <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
-    
+    <!-- Reading EXERCISE (WORKOUT) records via the `health` package pulls in
+         linked distance data, which Health Connect gates behind its own
+         permission even though we never query distance directly. Without
+         this, exercise-session reads throw READ_DISTANCE SecurityException. -->
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+
     <!-- Health Connect WRITE permissions -->
     <uses-permission android:name="android.permission.health.WRITE_HEART_RATE" />
     <uses-permission android:name="android.permission.health.WRITE_STEPS" />
@@ -96,29 +101,35 @@
             </intent-filter>
         </activity>
 
-        <!-- Required for flutter_web_auth to capture redirect on Android
-        <activity android:name="com.linusu.flutter_web_auth.CallbackActivity"
+        <!-- Captures the browser redirect for the PKCE web-login flow
+             (flutter_web_auth_2). Uses its own scheme, distinct from the
+             native Spotify SDK's myfitnessttapp:// filter on MainActivity, so
+             Android never has to disambiguate between two handlers. -->
+        <activity android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
             android:exported="true">
-            <intent-filter android:label="flutter_web_auth">
+            <intent-filter android:label="flutter_web_auth_2">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="myfitnessttapp" android:host="callback" />
+                <data android:scheme="ttfitnessauth" android:host="callback" />
             </intent-filter>
-            <intent-filter android:label="flutter_web_auth">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="watchspotify" android:host="callback" />
-            </intent-filter>
-        </activity> -->
+        </activity>
 
-        <!-- Required for Health Connect permission rationale screen -->
+        <!-- Required for Health Connect permission rationale screen.
+             Android 14+ (API 34+) requires the VIEW_PERMISSION_USAGE action
+             with the HEALTH_PERMISSIONS category for Health Connect to treat
+             this app as a valid health-data client and list it in its app
+             list; the older androidx.health action alone is not enough on
+             API 34+ devices. Both are kept for back-compat with API <34. -->
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"
             android:targetActivity=".MainActivity"
             android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>

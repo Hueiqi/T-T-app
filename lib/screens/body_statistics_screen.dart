@@ -11,6 +11,7 @@ import '../providers/place_provider.dart';
 import '../config/theme.dart';
 import '../models/user_model.dart';
 import '../models/workout_model.dart';
+import '../models/sleep_model.dart';
 
 class BodyStatisticsScreen extends StatefulWidget {
   final bool showAppBar;
@@ -20,10 +21,13 @@ class BodyStatisticsScreen extends StatefulWidget {
   State<BodyStatisticsScreen> createState() => _BodyStatisticsScreenState();
 }
 
+enum _StatsPeriod { day, month, year }
+
 class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
   int _selectedTab = 0;
   bool _isLoading = true;
   String? _loadError;
+  _StatsPeriod _period = _StatsPeriod.day;
 
   @override
   void initState() {
@@ -170,6 +174,12 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
             ),
             const SizedBox(height: 20),
 
+            // ─── PERIOD TOGGLE (charts on Overview/Sleep tabs) ──
+            if (_selectedTab == 0 || _selectedTab == 3) ...[
+              _buildPeriodToggle(),
+              const SizedBox(height: 16),
+            ],
+
             // ─── TAB CONTENT ────────────────────────────────
             if (_selectedTab == 0)
               _buildOverviewTab(user, workout, nutrition, sleep),
@@ -206,6 +216,39 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPeriodToggle() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: _StatsPeriod.values.map((p) {
+        final isSelected = _period == p;
+        final label = switch (p) {
+          _StatsPeriod.day => 'Day',
+          _StatsPeriod.month => 'Month',
+          _StatsPeriod.year => 'Year',
+        };
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: ChoiceChip(
+            label: Text(label),
+            selected: isSelected,
+            onSelected: (_) => setState(() => _period = p),
+            selectedColor: AppTheme.primaryColor,
+            labelStyle: TextStyle(
+              color: isSelected ? Colors.white : AppTheme.textSecondary,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 12,
+            ),
+            backgroundColor: Colors.grey.shade100,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide.none,
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -342,14 +385,14 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Weekly Calories Burned',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  Text(
+                    _caloriesChartTitle,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
                     height: 200,
-                    child: _buildWeeklyCaloriesChart(workout.workouts),
+                    child: _buildCaloriesChart(workout.workouts),
                   ),
                 ],
               ),
@@ -397,29 +440,79 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
-  Widget _buildWeeklyCaloriesChart(List<Workout> allWorkouts) {
-    final last7Days = List.generate(7, (i) {
-      final d = DateTime.now().subtract(Duration(days: 6 - i));
-      return DateTime(d.year, d.month, d.day);
-    });
+  String get _caloriesChartTitle => switch (_period) {
+        _StatsPeriod.day => 'Calories Burned (Last 7 Days)',
+        _StatsPeriod.month => 'Calories Burned (Last 6 Months)',
+        _StatsPeriod.year => 'Calories Burned (Last 5 Years)',
+      };
 
-    final dayLabels = last7Days.map((d) {
-      const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      return weekdays[d.weekday - 1];
-    }).toList();
+  /// Buckets [startTimes]-tagged values by the selected period, returning
+  /// (labels, totals) with the most recent bucket last.
+  (List<String>, List<double>) _bucketByPeriod(
+    List<DateTime> timestamps,
+    List<double> values,
+  ) {
+    final now = DateTime.now();
+    switch (_period) {
+      case _StatsPeriod.day:
+        final days = List.generate(7, (i) => DateTime(now.year, now.month, now.day).subtract(Duration(days: 6 - i)));
+        const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        final labels = days.map((d) => weekdays[d.weekday - 1]).toList();
+        final totals = days.map((day) {
+          final dayEnd = day.add(const Duration(hours: 24));
+          double sum = 0;
+          for (var i = 0; i < timestamps.length; i++) {
+            if (!timestamps[i].isBefore(day) && timestamps[i].isBefore(dayEnd)) {
+              sum += values[i];
+            }
+          }
+          return sum;
+        }).toList();
+        return (labels, totals);
+      case _StatsPeriod.month:
+        final months = List.generate(6, (i) {
+          final m = DateTime(now.year, now.month - (5 - i), 1);
+          return m;
+        });
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        final labels = months.map((m) => monthNames[m.month - 1]).toList();
+        final totals = months.map((m) {
+          final monthEnd = DateTime(m.year, m.month + 1, 1);
+          double sum = 0;
+          for (var i = 0; i < timestamps.length; i++) {
+            if (!timestamps[i].isBefore(m) && timestamps[i].isBefore(monthEnd)) {
+              sum += values[i];
+            }
+          }
+          return sum;
+        }).toList();
+        return (labels, totals);
+      case _StatsPeriod.year:
+        final years = List.generate(5, (i) => now.year - (4 - i));
+        final labels = years.map((y) => y.toString()).toList();
+        final totals = years.map((y) {
+          double sum = 0;
+          for (var i = 0; i < timestamps.length; i++) {
+            if (timestamps[i].year == y) sum += values[i];
+          }
+          return sum;
+        }).toList();
+        return (labels, totals);
+    }
+  }
 
-    final dailyCalories = last7Days.map((day) {
-      final dayEnd = day.add(const Duration(hours: 24));
-      return allWorkouts
-          .where((w) =>
-              w.endTime != null &&
-              w.endTime!.isAfter(day) &&
-              w.endTime!.isBefore(dayEnd))
-          .fold<double>(0, (sum, w) => sum + w.caloriesBurned);
-    }).toList();
+  Widget _buildCaloriesChart(List<Workout> allWorkouts) {
+    final finished = allWorkouts.where((w) => w.endTime != null).toList();
+    final (labels, totals) = _bucketByPeriod(
+      finished.map((w) => w.endTime!).toList(),
+      finished.map((w) => w.caloriesBurned).toList(),
+    );
+    return _buildBucketedBarChart(labels, totals, AppTheme.primaryColor, 'kcal');
+  }
 
-    final maxCals = dailyCalories.reduce((a, b) => a > b ? a : b);
-    final chartMax = maxCals > 0 ? maxCals * 1.3 : 500.0;
+  Widget _buildBucketedBarChart(List<String> labels, List<double> totals, Color color, String unit) {
+    final maxVal = totals.isEmpty ? 0.0 : totals.reduce((a, b) => a > b ? a : b);
+    final chartMax = maxVal > 0 ? maxVal * 1.3 : 500.0;
 
     return BarChart(
       BarChartData(
@@ -435,19 +528,23 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              getTitlesWidget: (v, m) => Text(dayLabels[v.toInt()], style: const TextStyle(fontSize: 10)),
+              getTitlesWidget: (v, m) {
+                final idx = v.toInt();
+                if (idx < 0 || idx >= labels.length) return const Text('');
+                return Text(labels[idx], style: const TextStyle(fontSize: 10));
+              },
             ),
           ),
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
-        barGroups: List.generate(7, (i) {
+        barGroups: List.generate(totals.length, (i) {
           return BarChartGroupData(
             x: i,
             barRods: [
               BarChartRodData(
-                toY: dailyCalories[i],
-                color: AppTheme.primaryColor,
+                toY: totals[i],
+                color: color,
                 width: 20,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(6),
@@ -463,7 +560,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           touchTooltipData: BarTouchTooltipData(
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               return BarTooltipItem(
-                '${dailyCalories[group.x.toInt()].toStringAsFixed(0)} kcal',
+                '${totals[group.x.toInt()].toStringAsFixed(0)} $unit',
                 const TextStyle(color: Colors.white, fontSize: 12),
               );
             },
@@ -798,9 +895,95 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
+  String get _sleepChartTitle => switch (_period) {
+        _StatsPeriod.day => 'Sleep Overview (Last 7 Days)',
+        _StatsPeriod.month => 'Sleep Overview (Last 6 Months)',
+        _StatsPeriod.year => 'Sleep Overview (Last 5 Years)',
+      };
+
+  Widget _buildSleepChart(List<SleepData> allRecords) {
+    final (labels, totals) = _bucketByPeriod(
+      allRecords.map((r) => r.date).toList(),
+      allRecords.map((r) => r.hoursSlept).toList(),
+    );
+    // Day view sums a single night's hours per bucket; month/year view
+    // instead needs an average across the nights that fall in each bucket.
+    List<double> values = totals;
+    if (_period != _StatsPeriod.day) {
+      final now = DateTime.now();
+      final counts = List.generate(labels.length, (i) {
+        if (_period == _StatsPeriod.month) {
+          final m = DateTime(now.year, now.month - (labels.length - 1 - i), 1);
+          final monthEnd = DateTime(m.year, m.month + 1, 1);
+          return allRecords.where((r) => !r.date.isBefore(m) && r.date.isBefore(monthEnd)).length;
+        } else {
+          final y = now.year - (labels.length - 1 - i);
+          return allRecords.where((r) => r.date.year == y).length;
+        }
+      });
+      values = List.generate(totals.length, (i) => counts[i] > 0 ? totals[i] / counts[i] : 0.0);
+    }
+
+    return BarChart(
+      BarChartData(
+        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              getTitlesWidget: (v, m) => Text('${v.toInt()}', style: const TextStyle(fontSize: 10)),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (v, m) {
+                final idx = v.toInt();
+                if (idx < 0 || idx >= labels.length) return const Text('');
+                return Text(labels[idx], style: const TextStyle(fontSize: 10));
+              },
+            ),
+          ),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        barGroups: List.generate(values.length, (i) {
+          return BarChartGroupData(
+            x: i,
+            barRods: [
+              BarChartRodData(
+                toY: values[i],
+                color: AppTheme.secondaryColor,
+                width: 20,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(6),
+                  topRight: Radius.circular(6),
+                ),
+              ),
+            ],
+          );
+        }),
+        minY: 0,
+        maxY: 12,
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              return BarTooltipItem(
+                '${values[group.x.toInt()].toStringAsFixed(1)} hrs',
+                const TextStyle(color: Colors.white, fontSize: 12),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   // ─── SLEEP TAB ──────────────────────────────────────────────
   Widget _buildSleepTab(SleepProvider sleep) {
     final history = sleep.sleepHistory;
+    final allRecords = sleep.allRecords;
 
     return Column(
       children: [
@@ -809,60 +992,16 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                const Text(
-                  'Weekly Sleep Overview',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  _sleepChartTitle,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
                   height: 200,
-                  child: history.isEmpty
+                  child: allRecords.isEmpty
                       ? const Center(child: Text('No sleep data', style: TextStyle(color: AppTheme.textSecondary)))
-                      : LineChart(
-                          LineChartData(
-                            gridData: FlGridData(show: true, drawVerticalLine: false),
-                            titlesData: FlTitlesData(
-                              leftTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: 40,
-                                  getTitlesWidget: (v, m) => Text('${v.toInt()}', style: const TextStyle(fontSize: 10)),
-                                ),
-                              ),
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget: (v, m) {
-                                    final idx = v.toInt();
-                                    if (idx < 0 || idx >= history.length) return const Text('');
-                                    const dates = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                                    return Text(dates[history[idx].date.weekday - 1], style: const TextStyle(fontSize: 10));
-                                  },
-                                ),
-                              ),
-                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            ),
-                            lineBarsData: [
-                              LineChartBarData(
-                                spots: history.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.hoursSlept)).toList(),
-                                isCurved: true,
-                                color: AppTheme.secondaryColor,
-                                dotData: const FlDotData(show: true),
-                                belowBarData: BarAreaData(show: true, color: AppTheme.secondaryColor.withValues(alpha: 0.1)),
-                              ),
-                            ],
-                            minY: 0,
-                            maxY: 12,
-                            lineTouchData: LineTouchData(
-                              touchTooltipData: LineTouchTooltipData(
-                                getTooltipItems: (spots) => spots.map((s) {
-                                  return LineTooltipItem('${s.y.toStringAsFixed(1)} hrs', const TextStyle(color: Colors.white, fontSize: 12));
-                                }).toList(),
-                              ),
-                            ),
-                          ),
-                        ),
+                      : _buildSleepChart(allRecords),
                 ),
                 const SizedBox(height: 16),
                 if (history.isNotEmpty) ...[

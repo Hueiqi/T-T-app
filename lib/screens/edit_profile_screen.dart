@@ -5,7 +5,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/nutrition_provider.dart';
-import '../models/user_model.dart';
 import '../config/theme.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -150,6 +149,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       await auth.updateProfile(updatedUser);
 
+      if (!mounted) return;
       final nutrition = context.read<NutritionProvider>();
       await nutrition.calculateAndSetTDEE(
         user: updatedUser,
@@ -285,7 +285,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         final shouldPop = await _onWillPop();
-        if (shouldPop && mounted) Navigator.pop(context);
+        if (shouldPop && context.mounted) Navigator.pop(context);
       },
       child: Scaffold(
         appBar: AppBar(
@@ -634,7 +634,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required ValueChanged<T?> onChanged,
   }) {
     return DropdownButtonFormField<T>(
-      value: value,
+      initialValue: value,
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
@@ -657,7 +658,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       items: items
           .map((item) => DropdownMenuItem<T>(
                 value: item['value'] as T,
-                child: Text(item['label']!),
+                child: Text(
+                  item['label']!,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ))
           .toList(),
       onChanged: onChanged,

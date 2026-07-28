@@ -8,7 +8,7 @@ class SpotifyConfig {
   SpotifyConfig._();
 
   /// Spotify application client id (from the Spotify Developer Dashboard).
-  static const String clientId = '29085e1330524952b1d60fc3aa09eeb0';
+  static const String clientId = '78d1c8f053e74d7a9b91d584373874e5';
 
   /// Must exactly match a Redirect URI registered in the Spotify Dashboard.
   /// The web app must therefore be served on 127.0.0.1:8888.
@@ -20,6 +20,14 @@ class SpotifyConfig {
   static const String mobileRedirectUri = 'myfitnessttapp://callback';
   static const String sdkRedirectUri = 'spotify-sdk://auth';
   static const String watchRedirectUri = 'watchspotify://callback';
+
+  /// Redirect URI for the PKCE browser-login flow (flutter_web_auth_2), used
+  /// instead of the native SDK's app-to-app handshake. Must be registered in
+  /// the Spotify Dashboard and match the CallbackActivity intent-filter in
+  /// AndroidManifest.xml. Deliberately a different scheme from
+  /// [mobileRedirectUri] so the two flows never contend for the same handler.
+  static const String pkceRedirectUri = 'ttfitnessauth://callback';
+  static const String pkceCallbackScheme = 'ttfitnessauth';
   static const String authorizeUrl = 'https://accounts.spotify.com/authorize';
   static const String tokenUrl = 'https://accounts.spotify.com/api/token';
   static const String apiBase = 'https://api.spotify.com/v1';

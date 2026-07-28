@@ -19,8 +19,12 @@ class StorageService {
       final fileName = '${_uuid.v4()}.jpg';
       final ref = _storage.ref().child('meals/$userId/$fileName');
 
-      // Upload the file
-      final uploadTask = await ref.putFile(imageFile);
+      // Upload the file. The contentType is set explicitly so the Storage
+      // rules' image/* check passes regardless of extension inference.
+      final uploadTask = await ref.putFile(
+        imageFile,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
       final downloadUrl = await uploadTask.ref.getDownloadURL();
       return downloadUrl;
     } catch (e) {

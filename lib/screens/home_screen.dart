@@ -22,6 +22,7 @@ import '../services/firebase_service.dart';
 import '../services/health_connect_service.dart';
 import '../widgets/quick_tour.dart';
 import '../widgets/news_carousel.dart';
+import '../widgets/heart_rate_meter.dart';
 import '../utils/shimmer.dart';
 import 'workout_screen.dart';
 import 'nutrition_screen.dart';
@@ -148,10 +149,125 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
 
+  void _showQuickAddSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Quick Add',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                _QuickAddTile(
+                  icon: Icons.camera_alt,
+                  color: const Color(0xFFFF9800),
+                  label: 'Log a Meal',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, '/food-capture');
+                  },
+                ),
+                _QuickAddTile(
+                  icon: Icons.fitness_center,
+                  color: AppTheme.primaryColor,
+                  label: 'Start Workout',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, '/workout');
+                  },
+                ),
+                _QuickAddTile(
+                  icon: Icons.monitor_weight,
+                  color: AppTheme.secondaryColor,
+                  label: 'Log Weight',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showWeightDialog();
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showWeightDialog() {
+    final nutrition = context.read<NutritionProvider>();
+    final controller = TextEditingController(
+      text: nutrition.todayWeight != null
+          ? nutrition.todayWeight!.weight.toStringAsFixed(1)
+          : '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log Today\'s Weight'),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Weight (kg)',
+            prefixIcon: Icon(Icons.monitor_weight),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final w = double.tryParse(controller.text.trim());
+              if (w == null || w <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a valid weight.'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                return;
+              }
+              final auth = context.read<AuthProvider>();
+              if (auth.user == null) return;
+              await context
+                  .read<NutritionProvider>()
+                  .saveWeight(userId: auth.user!.uid, weight: w);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(child: _screens[_currentIndex]),
+      floatingActionButton: _currentIndex == 0
+          ? FloatingActionButton(
+              onPressed: _showQuickAddSheet,
+              tooltip: 'Quick Add',
+              child: const Icon(Icons.add),
+            )
+          : null,
       bottomNavigationBar: Stack(
         key: _bottomNavKey,
         children: [
@@ -192,6 +308,38 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ─── Helper widgets ─────────────────────────────────────────────
+
+class _QuickAddTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickAddTile({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+      trailing: const Icon(Icons.chevron_right, size: 20),
+      onTap: onTap,
+    );
+  }
+}
 
 class _NavBarMarker extends StatelessWidget {
   final int index;
@@ -321,6 +469,10 @@ class _DashboardTabState extends State<_DashboardTab>
         final updated = auth.user!.copyWith(hasSeenQuickTour: true);
         await auth.updateProfile(updated);
       }
+
+      // updateProfile above is awaited, so the screen may have been disposed
+      // before these provider lookups run.
+      if (!mounted) return;
 
       final nutrition = context.read<NutritionProvider>();
       final health = context.read<HealthProvider>();
@@ -703,6 +855,8 @@ class _DashboardTabState extends State<_DashboardTab>
     return filtered;
   }
 
+  // Kept for reuse — currently not placed on the Home layout.
+  // ignore: unused_element
   Widget _buildWeightProgressCard() {
     final filtered = _getFilteredWeights();
     if (filtered.isEmpty) {
@@ -789,7 +943,7 @@ class _DashboardTabState extends State<_DashboardTab>
                         showTitles: true,
                         reservedSize: 40,
                         getTitlesWidget: (value, meta) => Text(
-                          '${value.toStringAsFixed(1)}',
+                          value.toStringAsFixed(1),
                           style: const TextStyle(fontSize: 10),
                         ),
                       ),
@@ -1004,7 +1158,7 @@ class _DashboardTabState extends State<_DashboardTab>
                         showTitles: true,
                         reservedSize: 36,
                         getTitlesWidget: (value, meta) => Text(
-                          '${value.toStringAsFixed(0)}',
+                          value.toStringAsFixed(0),
                           style: const TextStyle(fontSize: 10),
                         ),
                       ),
@@ -1417,6 +1571,8 @@ class _DashboardTabState extends State<_DashboardTab>
   }
 
   // ─── REPORTS CARD ─────────────────────────────────────────────
+  // Kept for reuse — currently not placed on the Home layout.
+  // ignore: unused_element
   Widget _buildReportsCard() {
     final workout = context.read<WorkoutProvider>();
     final meals = _reportMeals;
@@ -1814,9 +1970,13 @@ class _DashboardTabState extends State<_DashboardTab>
           if (!isConnected)
             ElevatedButton(
               onPressed: () async {
+                // Captured before the awaits below so no context lookup
+                // happens after the screen may have been disposed.
+                final messenger = ScaffoldMessenger.of(context);
+
                 final available = await health.checkAvailability();
                 if (!available) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(
                       content: Text('Health Connect not installed. Please install it from Play Store.'),
                     ),
@@ -1826,13 +1986,13 @@ class _DashboardTabState extends State<_DashboardTab>
                 final initialized = await health.authorizeHealthConnect();
                 if (initialized) {
                   await health.syncHealthData();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(
                       content: Text('Connected! Steps: ${health.stepsToday}, HR: ${health.currentHeartRate} bpm'),
                     ),
                   );
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(content: Text('Permission denied. Please grant Health Connect permissions.')),
                   );
                 }
@@ -1959,56 +2119,24 @@ class _DashboardTabState extends State<_DashboardTab>
                   ),
                   const SizedBox(height: 16),
 
-                  // Row 1: Steps + Today's Calories
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _StatusCard(
-                          icon: Icons.directions_walk,
-                          label: 'Steps',
-                          value: stepsToday.toString(),
-                          unit: 'steps',
-                          color: Colors.green,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _StatusCard(
-                          icon: Icons.restaurant,
-                          label: 'Calories Eaten',
-                          value: calories > 0 ? '${calories.toStringAsFixed(0)}' : '--',
-                          unit: 'kcal',
-                          color: AppTheme.warningColor,
-                        ),
-                      ),
-                    ],
+                  // Combined Steps / Calories Eaten / Sleep overview bar
+                  _DailyOverviewBarCard(
+                    stepsToday: stepsToday,
+                    caloriesEaten: calories,
+                    sleepHours: sleep?.hoursSlept,
                   ),
                   const SizedBox(height: 12),
 
-                  // Row 2: Calories + Sleep
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _CaloriesCard(
-                          eatenCalories: calories,
-                          burnedCalories: caloriesBurned,
-                          targetCalories: currentPlan?.dailyCalories.toDouble(),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _StatusCard(
-                          icon: Icons.bedtime,
-                          label: 'Sleep',
-                          value: sleep != null
-                              ? sleep.hoursSlept.toStringAsFixed(1)
-                              : '--',
-                          unit: 'hours',
-                          color: AppTheme.secondaryColor,
-                        ),
-                      ),
-                    ],
+                  _CaloriesCard(
+                    eatenCalories: calories,
+                    burnedCalories: caloriesBurned,
+                    targetCalories: currentPlan?.dailyCalories.toDouble(),
                   ),
+                  const SizedBox(height: 12),
+
+                  // Live heart rate gauge — HealthProvider defaults to the
+                  // simulation at launch, so this animates immediately.
+                  const HeartRateMeterCard(),
                   const SizedBox(height: 16),
 
                   // ── Sleep Summary Card ──
@@ -2594,6 +2722,8 @@ class _DashboardTabState extends State<_DashboardTab>
 
   // ── Build: Planning Section ──
 
+  // Kept for reuse — currently not placed on the Home layout.
+  // ignore: unused_element
   Widget _buildPlanningSection(FitnessPlan? plan) {
     if (plan == null) {
       return Card(
@@ -2757,79 +2887,6 @@ class _DashboardTabState extends State<_DashboardTab>
 
 // ─── Card Widgets ──────────────────────────────────────────────
 
-class _StatusCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final String unit;
-  final Color color;
-  final Widget? child;
-  const _StatusCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.unit,
-    required this.color,
-    this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: '$label: $value $unit',
-      child: Card(
-        child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        value,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (unit.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 4),
-                        child: Text(
-                          unit,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.textSecondary),
-                        ),
-                      ),
-                  ],
-                ),
-                if (child != null) ...[const SizedBox(height: 4), child!],
-              ],
-            ),
-          ),
-        ),
-      );
-  }
-}
-
 // ─── Calories Card ─────────────────────────────────────────────
 class _CaloriesCard extends StatelessWidget {
   final double eatenCalories;
@@ -2894,49 +2951,51 @@ class _CaloriesCard extends StatelessWidget {
                   'Net Balance',
                   style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
                 ),
-                const SizedBox(height: 4),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Row(
-                    children: [
-                      Text(
-                        '${net.toStringAsFixed(0)} kcal',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: inDeficit ? AppTheme.successColor : AppTheme.warningColor,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Icon(
-                        inDeficit ? Icons.arrow_downward : Icons.arrow_upward,
-                        size: 18,
-                        color: inDeficit ? AppTheme.successColor : AppTheme.warningColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        inDeficit ? 'deficit' : 'surplus',
+                const SizedBox(height: 2),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      inDeficit ? Icons.arrow_downward : Icons.arrow_upward,
+                      size: 14,
+                      color: inDeficit ? AppTheme.successColor : AppTheme.warningColor,
+                    ),
+                    const SizedBox(width: 2),
+                    Flexible(
+                      child: Text(
+                        '${net.abs().toStringAsFixed(0)} kcal ${inDeficit ? 'deficit' : 'surplus'}',
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 12,
+                          fontWeight: FontWeight.w600,
                           color: inDeficit ? AppTheme.successColor : AppTheme.warningColor,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            _CalorieBarChart(
+              eatenCalories: eatenCalories,
+              burnedCalories: burnedCalories,
+              targetCalories: target,
             ),
             if (target != null) ...[
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Eaten ${eatenCalories.toStringAsFixed(0)} / ${target.toStringAsFixed(0)} kcal',
-                    style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  Expanded(
+                    child: Text(
+                      'Eaten ${eatenCalories.toStringAsFixed(0)} / ${target.toStringAsFixed(0)} kcal',
+                      style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  if (remaining != null)
+                  if (remaining != null) ...[
+                    const SizedBox(width: 6),
                     Text(
                       '${remaining >= 0 ? remaining.toStringAsFixed(0) : '0'} left',
                       style: TextStyle(
@@ -2945,6 +3004,7 @@ class _CaloriesCard extends StatelessWidget {
                         color: remaining >= 0 ? AppTheme.primaryColor : AppTheme.warningColor,
                       ),
                     ),
+                  ],
                 ],
               ),
               const SizedBox(height: 6),
@@ -3020,8 +3080,224 @@ class _CaloriesCard extends StatelessWidget {
   }
 }
 
+// ─── Calorie Bar Chart ─────────────────────────────────────────
+/// Horizontal stacked bar comparing eaten vs. burned calories against the
+/// daily target, replacing the old plain "net balance" number display.
+class _CalorieBarChart extends StatelessWidget {
+  final double eatenCalories;
+  final double burnedCalories;
+  final double? targetCalories;
+
+  const _CalorieBarChart({
+    required this.eatenCalories,
+    required this.burnedCalories,
+    this.targetCalories,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = [
+      eatenCalories,
+      burnedCalories,
+      targetCalories ?? 0,
+    ].reduce((a, b) => a > b ? a : b);
+    final total = scale <= 0 ? 1.0 : scale;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _bar(
+          label: 'Eaten',
+          value: eatenCalories,
+          total: total,
+          color: AppTheme.accentColor,
+        ),
+        const SizedBox(height: 6),
+        _bar(
+          label: 'Burned',
+          value: burnedCalories,
+          total: total,
+          color: AppTheme.warningColor,
+        ),
+        if (targetCalories != null) ...[
+          const SizedBox(height: 6),
+          _bar(
+            label: 'Target',
+            value: targetCalories!,
+            total: total,
+            color: AppTheme.primaryColor,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _bar({
+    required String label,
+    required double value,
+    required double total,
+    required Color color,
+  }) {
+    final fraction = (value / total).clamp(0.0, 1.0);
+    return Row(
+      children: [
+        SizedBox(
+          width: 48,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(5),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 10,
+              backgroundColor: AppTheme.textSecondary.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 44,
+          child: Text(
+            value.toStringAsFixed(0),
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Daily Overview Bar Card ────────────────────────────────────
+/// Combines Steps, Calories Eaten, and Sleep into one card of horizontal
+/// bars, replacing the old separate stat tiles for those three metrics.
+class _DailyOverviewBarCard extends StatelessWidget {
+  final int stepsToday;
+  final double caloriesEaten;
+  final double? sleepHours;
+
+  static const int _stepGoal = 10000;
+  static const double _calorieGoal = 2500;
+  static const double _sleepGoal = 8;
+
+  const _DailyOverviewBarCard({
+    required this.stepsToday,
+    required this.caloriesEaten,
+    this.sleepHours,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Daily Overview',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _overviewBar(
+              icon: Icons.directions_walk,
+              label: 'Steps',
+              valueLabel: stepsToday.toString(),
+              fraction: (stepsToday / _stepGoal).clamp(0.0, 1.0),
+              color: Colors.green,
+            ),
+            const SizedBox(height: 10),
+            _overviewBar(
+              icon: Icons.restaurant,
+              label: 'Calories',
+              valueLabel: caloriesEaten > 0
+                  ? '${caloriesEaten.toStringAsFixed(0)} kcal'
+                  : '--',
+              fraction: (caloriesEaten / _calorieGoal).clamp(0.0, 1.0),
+              color: AppTheme.warningColor,
+            ),
+            const SizedBox(height: 10),
+            _overviewBar(
+              icon: Icons.bedtime,
+              label: 'Sleep',
+              valueLabel:
+                  sleepHours != null ? '${sleepHours!.toStringAsFixed(1)} h' : '--',
+              fraction: sleepHours != null
+                  ? (sleepHours! / _sleepGoal).clamp(0.0, 1.0)
+                  : 0.0,
+              color: AppTheme.secondaryColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _overviewBar({
+    required IconData icon,
+    required String label,
+    required String valueLabel,
+    required double fraction,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 58,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(5),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 10,
+              backgroundColor: AppTheme.textSecondary.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 64,
+          child: Text(
+            valueLabel,
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ─── HR Sparkline ─────────────────────────────────────────────
 
+// Superseded by HeartRateMeterCard on Home; kept for reuse elsewhere.
+// ignore: unused_element
 class _HrSparkline extends StatelessWidget {
   final List<int> data;
   final Color lineColor;

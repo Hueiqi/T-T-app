@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 class LocationService {
@@ -30,7 +31,7 @@ class LocationService {
       ),
     ).listen(
       (Position position) => _positionController.add(position),
-      onError: (e) => print('Location error: $e'),
+      onError: (e) => debugPrint('Location error: $e'),
     );
   }
 

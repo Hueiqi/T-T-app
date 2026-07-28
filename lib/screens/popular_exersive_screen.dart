@@ -1,6 +1,5 @@
 // lib/screens/popular_workouts_screen.dart
 import 'package:fitness_app/config/routes.dart';
-import 'package:fitness_app/data/activity/activity_repository.dart' as ActivityRepository;
 import 'package:flutter/material.dart';
 import '../data/activity/activity_repository.dart';
 import '../config/theme.dart';
@@ -15,7 +14,7 @@ class PopularWorkoutsScreen extends StatefulWidget {
 
 class _PopularWorkoutsScreenState extends State<PopularWorkoutsScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<ActivityRoutine> _filtered = ActivityRepository.allRoutines;
+  final List<ActivityRoutine> _filtered = allRoutines;
   final Set<String> _completedIds = {'abs_10min', 'beginner_abs_10min'};
   final Map<String, int> _completionCount = {
     'abs_10min': 3,

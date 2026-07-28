@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show Factory;
+import 'package:flutter/gestures.dart'
+    show EagerGestureRecognizer, OneSequenceGestureRecognizer;
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:intl/intl.dart';
 import '../config/theme.dart';
 import '../models/workout_model.dart';
+import '../providers/workout_music_provider.dart';
 
 class WorkoutCompleteScreen extends StatefulWidget {
   final Map<String, dynamic> result;
@@ -20,16 +24,36 @@ class _WorkoutCompleteScreenState extends State<WorkoutCompleteScreen>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
-  double get _distance => (widget.result['distance'] as double?) ?? 0;
-  double get _calories => (widget.result['caloriesBurned'] as double?) ?? 0;
+  // `as double?` throws if the value arrives as an int (e.g. a distance of
+  // exactly 0), so read these as num and convert.
+  double get _distance =>
+      (widget.result['distance'] as num?)?.toDouble() ?? 0;
+  double get _calories =>
+      (widget.result['caloriesBurned'] as num?)?.toDouble() ?? 0;
   int get _durationSeconds =>
-      (widget.result['durationSeconds'] as int?) ?? 0;
-  int get _avgHr => (widget.result['avgHr'] as int?) ?? 0;
-  int get _maxHr => (widget.result['maxHr'] as int?) ?? 0;
+      (widget.result['durationSeconds'] as num?)?.toInt() ?? 0;
+  int get _avgHr => (widget.result['avgHr'] as num?)?.toInt() ?? 0;
+  int get _maxHr => (widget.result['maxHr'] as num?)?.toInt() ?? 0;
   bool get _hasHrData => (widget.result['hasHrData'] as bool?) ?? false;
   Workout? get _workout => widget.result['workout'] as Workout?;
-  List<Map<String, double>> get _routePoints =>
-      (widget.result['routePoints'] as List<Map<String, double>>?) ?? [];
+  /// Route points arrive through Navigator arguments, so the runtime type is
+  /// `List<dynamic>` (of `Map<dynamic, dynamic>`) even though endWorkout built
+  /// a `List<Map<String, double>>`. Casting the whole list fails, and with a
+  /// `?? []` fallback that failure is silent — the route map just never shows.
+  /// Converting element by element is what actually survives the trip.
+  List<Map<String, double>> get _routePoints {
+    final raw = widget.result['routePoints'];
+    if (raw is! List) return const [];
+    final points = <Map<String, double>>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final lat = (item['lat'] as num?)?.toDouble();
+      final lng = (item['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      points.add({'lat': lat, 'lng': lng});
+    }
+    return points;
+  }
 
   String get _formattedDuration {
     final h = _durationSeconds ~/ 3600;
@@ -51,14 +75,9 @@ class _WorkoutCompleteScreenState extends State<WorkoutCompleteScreen>
   }
 
   String get _workoutTypeLabel {
-    switch (_workout?.type) {
-      case 'running':
-        return 'Run';
-      case 'walking':
-        return 'Walk';
-      default:
-        return 'Workout';
-    }
+    final type = _workout?.type;
+    if (type == null) return 'Workout';
+    return WorkoutMusicProvider.labelForType(type);
   }
 
   @override
@@ -125,6 +144,17 @@ class _WorkoutCompleteScreenState extends State<WorkoutCompleteScreen>
       ),
     );
 
+    await _fitRoute();
+  }
+
+  /// Frames the whole route in view — on first draw, and via the "Fit route"
+  /// button after the user has zoomed or panned away.
+  Future<void> _fitRoute() async {
+    if (_mapController == null || _routePoints.length < 2) return;
+
+    final coordinates =
+        _routePoints.map((p) => LatLng(p['lat']!, p['lng']!)).toList();
+
     var minLat = coordinates.first.latitude;
     var maxLat = coordinates.first.latitude;
     var minLng = coordinates.first.longitude;
@@ -139,7 +169,8 @@ class _WorkoutCompleteScreenState extends State<WorkoutCompleteScreen>
       southwest: LatLng(minLat, minLng),
       northeast: LatLng(maxLat, maxLng),
     );
-    _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, left: 60, top: 60, right: 60, bottom: 60));
+    await _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds,
+        left: 60, top: 60, right: 60, bottom: 60));
   }
 
   @override
@@ -213,25 +244,67 @@ class _WorkoutCompleteScreenState extends State<WorkoutCompleteScreen>
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: SizedBox(
-                                height: 220,
+                                height: 260,
                                 width: double.infinity,
-                                child: MapLibreMap(
-                                  onMapCreated: _onMapCreated,
-                                  styleString:
-                                      'https://tiles.openfreemap.org/styles/positron',
-                                  initialCameraPosition: CameraPosition(
-                                    target: LatLng(
-                                      _routePoints.first['lat']!,
-                                      _routePoints.first['lng']!,
+                                child: Stack(
+                                  children: [
+                                    MapLibreMap(
+                                      onMapCreated: _onMapCreated,
+                                      styleString:
+                                          'https://tiles.openfreemap.org/styles/positron',
+                                      initialCameraPosition: CameraPosition(
+                                        target: LatLng(
+                                          _routePoints.first['lat']!,
+                                          _routePoints.first['lng']!,
+                                        ),
+                                        zoom: 14,
+                                      ),
+                                      compassEnabled: false,
+                                      rotateGesturesEnabled: false,
+                                      tiltGesturesEnabled: false,
+                                      zoomGesturesEnabled: true,
+                                      scrollGesturesEnabled: true,
+                                      // Claim the drag gesture from the
+                                      // surrounding scroll view, which would
+                                      // otherwise swallow pans over the map.
+                                      gestureRecognizers: <Factory<
+                                          OneSequenceGestureRecognizer>>{
+                                        Factory<OneSequenceGestureRecognizer>(
+                                          () => EagerGestureRecognizer(),
+                                        ),
+                                      },
                                     ),
-                                    zoom: 14,
-                                  ),
-                                  compassEnabled: false,
-                                  rotateGesturesEnabled: false,
-                                  zoomGesturesEnabled: false,
-                                  dragEnabled: false,
-                                  scrollGesturesEnabled: false,
-                                  tiltGesturesEnabled: false,
+                                    Positioned(
+                                      right: 8,
+                                      bottom: 8,
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _CompleteMapButton(
+                                            icon: Icons.add,
+                                            tooltip: 'Zoom in',
+                                            onTap: () =>
+                                                _mapController?.animateCamera(
+                                                    CameraUpdate.zoomIn()),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          _CompleteMapButton(
+                                            icon: Icons.remove,
+                                            tooltip: 'Zoom out',
+                                            onTap: () =>
+                                                _mapController?.animateCamera(
+                                                    CameraUpdate.zoomOut()),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          _CompleteMapButton(
+                                            icon: Icons.fit_screen,
+                                            tooltip: 'Fit route',
+                                            onTap: _fitRoute,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -369,6 +442,40 @@ class _WorkoutCompleteScreenState extends State<WorkoutCompleteScreen>
     final pMin = paceSeconds ~/ 60;
     final pSec = paceSeconds % 60;
     return '$pMin:${pSec.toString().padLeft(2, '0')} /km';
+  }
+}
+
+// ─── Map Control Button ─────────────────────────────────────────
+class _CompleteMapButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _CompleteMapButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white,
+        elevation: 2,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(icon, size: 20, color: AppTheme.textPrimary),
+          ),
+        ),
+      ),
+    );
   }
 }
 

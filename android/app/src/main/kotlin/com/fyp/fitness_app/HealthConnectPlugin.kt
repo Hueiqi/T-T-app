@@ -3,12 +3,17 @@ package com.fyp.fitness_app
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
+import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.NonNull
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
-import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -32,18 +37,43 @@ class HealthConnectPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private val coroutineScope = CoroutineScope(Dispatchers.Main)
     private var activity: android.app.Activity? = null
 
+    /// Set by MainActivity after it registers the Health Connect permission
+    /// contract. Must be registered before the activity reaches RESUMED, so
+    /// MainActivity owns the launcher and hands it to us.
+    var permissionLauncher: ActivityResultLauncher<Set<String>>? = null
+    private var pendingPermissionResult: Result? = null
+
+    /// Called by MainActivity's ActivityResultCallback once the user has
+    /// actually responded to the Health Connect permission screen.
+    fun onPermissionResult(grantedPermissions: Set<String>) {
+        Log.d("HealthConnectPlugin", "onPermissionResult callback fired, grantedPermissions=$grantedPermissions")
+        val result = pendingPermissionResult ?: run {
+            Log.d("HealthConnectPlugin", "onPermissionResult: no pending result to resolve")
+            return
+        }
+        pendingPermissionResult = null
+        val granted = grantedPermissions.containsAll(requiredPermissions)
+        result.success(mapOf("granted" to granted, "needsInstall" to false))
+    }
+
+    // Health Connect's PermissionController contract expects the typed
+    // permission strings from HealthPermission, e.g.
+    // "androidx.health.permission.StepsRecord.READ" — NOT the raw
+    // AndroidManifest permission strings ("android.permission.health.READ_STEPS").
+    // Passing manifest strings here makes the contract silently resolve to an
+    // empty grant set without ever showing the consent UI.
     private val requiredPermissions = setOf(
-        "android.permission.health.READ_HEART_RATE",
-        "android.permission.health.READ_STEPS",
-        "android.permission.health.READ_SLEEP",
-        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
-        "android.permission.health.READ_TOTAL_CALORIES_BURNED",
-        "android.permission.health.READ_EXERCISE",
-        "android.permission.health.WRITE_HEART_RATE",
-        "android.permission.health.WRITE_STEPS",
-        "android.permission.health.WRITE_ACTIVE_CALORIES_BURNED",
-        "android.permission.health.WRITE_TOTAL_CALORIES_BURNED",
-        "android.permission.health.WRITE_EXERCISE"
+        HealthPermission.getReadPermission(HeartRateRecord::class),
+        HealthPermission.getReadPermission(StepsRecord::class),
+        HealthPermission.getReadPermission(SleepSessionRecord::class),
+        HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
+        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+        HealthPermission.getReadPermission(ExerciseSessionRecord::class),
+        HealthPermission.getWritePermission(HeartRateRecord::class),
+        HealthPermission.getWritePermission(StepsRecord::class),
+        HealthPermission.getWritePermission(ActiveCaloriesBurnedRecord::class),
+        HealthPermission.getWritePermission(TotalCaloriesBurnedRecord::class),
+        HealthPermission.getWritePermission(ExerciseSessionRecord::class)
     )
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
@@ -152,39 +182,34 @@ class HealthConnectPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         val client = getClient()
             ?: return result.error("UNAVAILABLE", "Health Connect not available", null)
 
+        val launcher = permissionLauncher
+            ?: return result.error("NO_LAUNCHER", "Permission launcher not registered", null)
+
+        Log.d("HealthConnectPlugin", "requestPermissions: launcher present, checking existing grants")
+
         coroutineScope.launch {
             try {
                 val granted = client.permissionController.getGrantedPermissions()
+                Log.d("HealthConnectPlugin", "existing grants=$granted")
                 if (granted.containsAll(requiredPermissions)) {
                     result.success(mapOf("granted" to true, "needsInstall" to false))
                     return@launch
                 }
-            } catch (_: Exception) {}
-
-            try {
-                val intent = Intent("androidx.health.ACTION_REQUEST_PERMISSIONS").apply {
-                    setPackage("com.google.android.apps.healthdata")
-                    putStringArrayListExtra("androidx.health.PERMISSION_LIST", ArrayList(requiredPermissions))
-                    putExtra("androidx.health.PACKAGE_NAME", context.packageName)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                currentActivity.startActivity(intent)
-                result.success(mapOf("granted" to true, "needsInstall" to false))
             } catch (e: Exception) {
-                val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
-                    data = Uri.parse("package:${context.packageName}")
-                    setClassName(
-                        "com.google.android.apps.healthdata",
-                        "com.google.android.healthconnect.controller.permissions.api.HealthConnectPermissionsActivity"
-                    )
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                try {
-                    currentActivity.startActivity(fallbackIntent)
-                    result.success(mapOf("granted" to true, "needsInstall" to false))
-                } catch (e2: Exception) {
-                    result.error("PERMISSION_ERROR", "Could not open Health Connect permissions: ${e2.message}", null)
-                }
+                Log.d("HealthConnectPlugin", "getGrantedPermissions threw: $e")
+            }
+
+            // Don't resolve `result` yet — onPermissionResult() will resolve it
+            // once the user actually responds to the permission screen.
+            pendingPermissionResult = result
+            try {
+                Log.d("HealthConnectPlugin", "launching permission request for $requiredPermissions")
+                launcher.launch(requiredPermissions)
+                Log.d("HealthConnectPlugin", "launcher.launch() returned (this just means the launch call itself didn't throw)")
+            } catch (e: Exception) {
+                Log.d("HealthConnectPlugin", "launcher.launch() threw: $e")
+                pendingPermissionResult = null
+                result.error("PERMISSION_ERROR", "Could not open Health Connect permissions: ${e.message}", null)
             }
         }
     }

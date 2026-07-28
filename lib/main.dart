@@ -21,7 +21,6 @@ import 'providers/workout_music_provider.dart';
 
 // 👇 Add these imports
 import 'spotify/services/auth/auth.dart'; // exports mobile_auth_controller
-import 'providers/music_provider.dart';
 
 
 import 'services/exercise_db.dart';
@@ -62,7 +61,9 @@ void main() async {
         ChangeNotifierProvider(create: (_) => WorkoutProvider()),
         ChangeNotifierProvider(create: (_) => NutritionProvider()),
         ChangeNotifierProvider(create: (_) => SleepProvider()),
-        ChangeNotifierProvider(create: (_) => MusicProvider()),
+        // Use the instance the Spotify token was set on above; creating a new
+        // MusicProvider here would discard that token.
+        ChangeNotifierProvider(create: (_) => musicProvider),
         ChangeNotifierProvider(create: (_) => healthProvider),
         ChangeNotifierProvider(create: (_) => PlanningProvider()),
         ChangeNotifierProvider(create: (_) => MotionProvider()),
@@ -78,7 +79,7 @@ void main() async {
         ),
         ChangeNotifierProvider(create: (_) => WorkoutMusicProvider()),
       ],
-      child: const FitSyncApp(),
+      child: FitSyncApp(spotifyAuth: spotifyAuth),
     ),
   );
 }

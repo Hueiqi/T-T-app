@@ -27,10 +27,6 @@ class _PlanningScreenState extends State<PlanningScreen> {
   String _selectedFilter = 'All';
   ExerciseDb? _dailyExercise;
   final _random = Random();
-  int _totalWorkouts = 0;
-  double _totalCaloriesBurned = 0;
-  int _currentStreak = 0;
-  double _todayCalories = 0;
 
   @override
   void initState() {
@@ -48,26 +44,10 @@ class _PlanningScreenState extends State<PlanningScreen> {
     if (auth.user == null) return;
 
     final workoutProv = context.read<WorkoutProvider>();
+    // The dashboard figures (totals, streak, today's burn) are read straight
+    // off WorkoutProvider by the widgets that display them, so this call only
+    // needs to populate the provider and trigger a rebuild.
     workoutProv.loadDashboardData(auth.user!.uid).then((_) {
-      final workouts = workoutProv.workouts;
-      _totalWorkouts = workouts.length;
-      _totalCaloriesBurned =
-          workouts.fold<double>(0, (sum, w) => sum + w.caloriesBurned);
-      _todayCalories = workoutProv.todayCaloriesBurned;
-
-      if (workouts.length >= 2) {
-        int streak = 0;
-        final now = DateTime.now();
-        for (int i = 0; i < workouts.length; i++) {
-          if (workouts[i].endTime != null &&
-              now.difference(workouts[i].endTime!).inDays <= streak + 1) {
-            streak++;
-          } else {
-            break;
-          }
-        }
-        _currentStreak = streak;
-      }
       if (mounted) setState(() {});
     });
 

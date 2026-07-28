@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../config/theme.dart';
 import '../config/routes.dart';
 import '../models/meal_model.dart';
+import '../utils/food_icon_matcher.dart';
 import '../widgets/bottom_nav_shell.dart';
 import 'meal_history_screen.dart';
 import 'food_capture_screen.dart';
@@ -185,13 +186,14 @@ class _NutritionScreenState extends State<NutritionScreen> {
               }
               final auth = context.read<AuthProvider>();
               if (auth.user == null) return;
+              // Resolved before the await so the navigation below is the only
+              // thing that has to survive the async gap.
+              final navigator = Navigator.of(context);
               await context
                   .read<NutritionProvider>()
                   .saveWeight(userId: auth.user!.uid, weight: w);
               if (ctx.mounted) Navigator.pop(ctx);
-              if (context.mounted) {
-                Navigator.pushNamed(context, AppRoutes.weightProgress);
-              }
+              navigator.pushNamed(AppRoutes.weightProgress);
             },
             child: const Text('Save'),
           ),
@@ -325,6 +327,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                       if (auth.user != null) {
                         await _loadMealsForDate(auth.user!.uid, _selectedDate);
                       }
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Meal logged successfully'),
@@ -521,6 +524,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                           ),
                         );
                         if (result == true) {
+                          if (!context.mounted) return;
                           final auth = context.read<AuthProvider>();
                           if (auth.user != null) {
                             await _loadMealsForDate(auth.user!.uid, _selectedDate);
@@ -1655,16 +1659,17 @@ class _FoodItemRow extends StatelessWidget {
   }
 
   Widget _defaultIconContainer() {
+    final category = FoodIconMatcher.categoryFor(meal.foodName);
     return Container(
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.15),
+        color: category.color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: const Icon(
-        Icons.restaurant,
-        color: Colors.grey,
+      child: Icon(
+        category.icon,
+        color: category.color,
         size: 22,
       ),
     );
@@ -1679,6 +1684,8 @@ class _QuickActionTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const _QuickActionTile({
+    // Optional image alternative to [icon]; no current caller supplies it.
+    // ignore: unused_element_parameter
     this.imagePath,
     this.icon,
     this.color,

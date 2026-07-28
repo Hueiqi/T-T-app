@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/nutrition_provider.dart';
 import '../models/meal_model.dart';
 import '../config/theme.dart';
+import '../utils/food_icon_matcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class MealHistoryScreen extends StatefulWidget {
@@ -289,12 +290,13 @@ class _HistoryMealCard extends StatelessWidget {
   }
 
   Widget _placeholderWidget() {
+    final category = FoodIconMatcher.categoryFor(meal.foodName);
     return Container(
-      color: Colors.grey.withValues(alpha: 0.15),
-      child: const Center(
+      color: category.color.withValues(alpha: 0.12),
+      child: Center(
         child: Icon(
-          Icons.restaurant,
-          color: Colors.grey,
+          category.icon,
+          color: category.color,
           size: 40,
         ),
       ),
@@ -448,17 +450,18 @@ class _HistoryMealCard extends StatelessWidget {
   }
 
   Widget _detailPlaceholder() {
+    final category = FoodIconMatcher.categoryFor(meal.foodName);
     return Container(
       height: 200,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.15),
+        color: category.color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Center(
+      child: Center(
         child: Icon(
-          Icons.restaurant,
-          color: Colors.grey,
+          category.icon,
+          color: category.color,
           size: 56,
         ),
       ),
