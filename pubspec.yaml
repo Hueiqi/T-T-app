@@ -1,7 +1,7 @@
 name: fitness_app
 description: "AI-Powered Fitness & Nutrition Tracker with Dynamic Music Adjustment"
 publish_to: 'none'
-version: 1.0.2+8
+version: 1.0.3+9
 
 environment:
   sdk: ^3.11.1

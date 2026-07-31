@@ -798,12 +798,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 12),
 
             // ── Action chips ──
-            _ActionChipButton(
-              icon: Icons.tune,
-              label: 'Notification Settings',
-              subtitle: 'Configure alerts',
-              // The screen loads its own settings, so no preload needed here.
-              onTap: () => Navigator.pushNamed(context, AppRoutes.notificationSettings),
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionChipButton(
+                    icon: Icons.tune,
+                    label: 'Notification Settings',
+                    subtitle: 'Configure alerts',
+                    // The screen loads its own settings, so no preload needed.
+                    onTap: () => Navigator.pushNamed(
+                        context, AppRoutes.notificationSettings),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             Row(
