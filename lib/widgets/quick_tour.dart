@@ -7,12 +7,19 @@ class QuickTourStep {
   final IconData icon;
   final VoidCallback? onActionTap;
 
+  /// Runs right before this step is shown — e.g. switching bottom-nav tabs
+  /// so [targetKey] belongs to a widget that isn't mounted yet. The overlay
+  /// waits a frame after this runs before measuring [targetKey], so the
+  /// newly-shown tab has had a chance to build.
+  final VoidCallback? beforeShow;
+
   const QuickTourStep({
     this.targetKey,
     required this.title,
     required this.description,
     required this.icon,
     this.onActionTap,
+    this.beforeShow,
   });
 }
 
@@ -50,12 +57,29 @@ class QuickTourState extends State<QuickTour> {
 
   void _showStep() {
     _overlayEntry?.remove();
+    _overlayEntry = null;
     if (_currentStep >= widget.steps.length) {
       _finish();
       return;
     }
 
     final step = widget.steps[_currentStep];
+
+    if (step.beforeShow != null) {
+      step.beforeShow!.call();
+      // The tab/screen beforeShow switched to needs a frame to build before
+      // targetKey.currentContext exists — measuring synchronously here would
+      // always see the previous tab's (or no) render object.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _renderStep(step);
+      });
+      return;
+    }
+
+    _renderStep(step);
+  }
+
+  void _renderStep(QuickTourStep step) {
     final targetKey = step.targetKey;
     Rect? targetRect;
 

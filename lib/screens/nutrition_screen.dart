@@ -17,11 +17,18 @@ class NutritionScreen extends StatefulWidget {
   final bool showBottomNav;
   final bool showBack;
   final DateTime? initialDate;
+
+  /// Attached to the Quick Add FAB so the User Guide tour can spotlight it
+  /// after switching to this tab — Food Library and Scan Food live inside
+  /// that sheet rather than as their own persistent buttons on this screen.
+  final GlobalKey? quickAddKey;
+
   const NutritionScreen({
     super.key,
     this.showBottomNav = false,
     this.showBack = false,
     this.initialDate,
+    this.quickAddKey,
   });
 
   @override
@@ -271,6 +278,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
       // No AppBar — title and actions live in the scrolling body as a plain
       // row instead of a purple bar with its own status-bar tinting.
       floatingActionButton: FloatingActionButton(
+        key: widget.quickAddKey,
         heroTag: 'quickAddDiet',
         onPressed: () => showQuickAddSheet(context),
         backgroundColor: AppTheme.primaryColor,

@@ -145,6 +145,19 @@ class _QuickAddSheet extends StatelessWidget {
                       builder: (_) => const WorkoutHistoryScreen()));
                 },
               ),
+              // SleepScreen already shows the 7-day chart plus the full
+              // record list, so this routes there rather than duplicating it.
+              _QuickAddTile(
+                icon: Icons.bedtime,
+                color: const Color(0xFF3F51B5),
+                label: 'Sleep History',
+                subtitle: 'Nightly hours and trends',
+                onTap: () {
+                  final nav = Navigator.of(context);
+                  nav.pop();
+                  nav.pushNamed(AppRoutes.sleep);
+                },
+              ),
               const SizedBox(height: 8),
             ],
           ),

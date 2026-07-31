@@ -43,6 +43,12 @@ class _HomeScreenState extends State<HomeScreen> {
   late final List<Widget> _screens;
   late final List<QuickTourStep> _tourSteps;
 
+  // Lives here rather than inside _DashboardTabState so the tour can
+  // spotlight buttons on OTHER tabs too — QuickTour wraps this whole
+  // Scaffold (see build() below), not just the Dashboard tab's subtree, so
+  // its overlay survives a bottom-nav tab switch.
+  final _quickTourKey = GlobalKey<QuickTourState>();
+
   final _dashboardKey = GlobalKey();
   final _startWorkoutKey = GlobalKey();
   final _logMealKey = GlobalKey();
@@ -56,6 +62,16 @@ class _HomeScreenState extends State<HomeScreen> {
   final _navDietKey = GlobalKey();
   final _navProfileKey = GlobalKey();
 
+  // Real, persistently-mounted targets on tabs other than Dashboard (each
+  // tab screen attaches the key to an actual widget via a constructor
+  // parameter — see WorkoutScreen.playlistButtonKey and
+  // NutritionScreen.quickAddKey). The Sleep card lives on the Dashboard tab
+  // itself, so it uses a plain key like _startWorkoutKey below, no
+  // cross-tab switch needed.
+  final _workoutPlaylistKey = GlobalKey();
+  final _dietQuickAddKey = GlobalKey();
+  final _sleepCardKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -65,12 +81,20 @@ class _HomeScreenState extends State<HomeScreen> {
         dashboardKey: _dashboardKey,
         tourSteps: _tourSteps,
         aiChatKey: _aiChatKey,
+        sleepCardKey: _sleepCardKey,
+        onStartTour: () => _quickTourKey.currentState?.start(),
       ),
       const _PlanningTab(),
-      const _WorkoutTab(),
-      const _NutritionTab(),
+      _WorkoutTab(playlistButtonKey: _workoutPlaylistKey),
+      _NutritionTab(quickAddKey: _dietQuickAddKey),
       const _ProfileTab(),
     ];
+  }
+
+  /// Switches bottom-nav tabs — used as [QuickTourStep.beforeShow] so a step
+  /// can spotlight a target on a tab other than the one currently showing.
+  void _switchToTab(int index) {
+    setState(() => _currentIndex = index);
   }
 
   List<QuickTourStep> _buildTourSteps() {
@@ -147,57 +171,110 @@ class _HomeScreenState extends State<HomeScreen> {
         icon: Icons.auto_awesome,
         onActionTap: () => Navigator.pushNamed(context, '/ai-chat'),
       ),
+      // The next three steps spotlight real buttons on OTHER tabs —
+      // beforeShow switches _currentIndex first, then QuickTour waits a
+      // frame before measuring targetKey, so the tab has time to build.
+      QuickTourStep(
+        targetKey: _sleepCardKey,
+        beforeShow: () => _switchToTab(0),
+        title: 'Sleep Summary',
+        description:
+            'Back on Home: this card shows last night\'s sleep and feeds '
+            'your workout recommendation. Tap the arrow to see your full '
+            'sleep history and trends.',
+        icon: Icons.bedtime,
+      ),
+      QuickTourStep(
+        targetKey: _workoutPlaylistKey,
+        beforeShow: () => _switchToTab(2),
+        title: 'Workout Playlist',
+        description:
+            'On the Workout tab: assign your own Spotify playlists to each '
+            'workout type (Chill, Slow Run, Sprint Run) so the right music '
+            'starts automatically.',
+        icon: Icons.queue_music,
+      ),
+      QuickTourStep(
+        targetKey: _dietQuickAddKey,
+        beforeShow: () => _switchToTab(3),
+        title: 'Log Food, Fast',
+        description:
+            'On the Diet tab: this button scans a meal with your camera, '
+            'lets you type one in, or opens your Food Library — including '
+            'foods you\'ve saved and an online search.',
+        icon: Icons.add,
+      ),
     ];
   }
 
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // Each tab supplies its own SafeArea now that none of them uses an
-      // AppBar, so this shell doesn't need to consume the top inset itself —
-      // but doing it here too is harmless (SafeArea is idempotent) and keeps
-      // any tab that forgets its own inset from sliding under the status bar.
-      body: _screens[_currentIndex],
-      // No FAB here: each tab supplies its own Quick Add button, which also
-      // covers the case where that screen is reached as a standalone named
-      // route rather than as a tab inside this shell.
-      bottomNavigationBar: Stack(
-        key: _bottomNavKey,
-        children: [
-          BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: (i) => setState(() => _currentIndex = i),
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard),
-                label: 'Home',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.auto_awesome),
-                label: 'Planning',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.fitness_center),
-                label: 'Workout',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.restaurant),
-                label: 'Diet',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person),
-                label: 'Profile',
-              ),
-                    ],
-          ),
-          _NavBarMarker(key: _navPlanningKey, index: 1, totalItems: 5),
-          _NavBarMarker(key: _navWorkoutKey, index: 2, totalItems: 5),
-          _NavBarMarker(key: _navDietKey, index: 3, totalItems: 5),
-          _NavBarMarker(key: _navProfileKey, index: 4, totalItems: 5),
-        ],
+    // Wraps the whole Scaffold (body + bottom nav), not just the Dashboard
+    // tab's content, so its overlay survives a bottom-nav tab switch —
+    // that's what lets a step spotlight a button on Workout or Diet after
+    // switching to it via QuickTourStep.beforeShow.
+    return QuickTour(
+      key: _quickTourKey,
+      steps: _tourSteps,
+      onFinished: () => _markTourSeen(),
+      onSkipped: () => _markTourSeen(),
+      child: Scaffold(
+        // Each tab supplies its own SafeArea now that none of them uses an
+        // AppBar, so this shell doesn't need to consume the top inset itself —
+        // but doing it here too is harmless (SafeArea is idempotent) and keeps
+        // any tab that forgets its own inset from sliding under the status bar.
+        body: _screens[_currentIndex],
+        // No FAB here: each tab supplies its own Quick Add button, which also
+        // covers the case where that screen is reached as a standalone named
+        // route rather than as a tab inside this shell.
+        bottomNavigationBar: Stack(
+          key: _bottomNavKey,
+          children: [
+            BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: (i) => setState(() => _currentIndex = i),
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.dashboard),
+                  label: 'Home',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.auto_awesome),
+                  label: 'Planning',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.fitness_center),
+                  label: 'Workout',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.restaurant),
+                  label: 'Diet',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
+              ],
+            ),
+            _NavBarMarker(key: _navPlanningKey, index: 1, totalItems: 5),
+            _NavBarMarker(key: _navWorkoutKey, index: 2, totalItems: 5),
+            _NavBarMarker(key: _navDietKey, index: 3, totalItems: 5),
+            _NavBarMarker(key: _navProfileKey, index: 4, totalItems: 5),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _markTourSeen() async {
+    final auth = context.read<AuthProvider>();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('quick_tour_done', true);
+    if (auth.user != null) {
+      final updated = auth.user!.copyWith(hasSeenQuickTour: true);
+      await auth.updateProfile(updated);
+    }
   }
 }
 
@@ -232,16 +309,20 @@ class _PlanningTab extends StatelessWidget {
 }
 
 class _WorkoutTab extends StatelessWidget {
-  const _WorkoutTab();
+  final GlobalKey? playlistButtonKey;
+  const _WorkoutTab({this.playlistButtonKey});
   @override
-  Widget build(BuildContext context) =>
-      const WorkoutScreen(showBottomNav: false);
+  Widget build(BuildContext context) => WorkoutScreen(
+        showBottomNav: false,
+        playlistButtonKey: playlistButtonKey,
+      );
 }
 
 class _NutritionTab extends StatelessWidget {
-  const _NutritionTab();
+  final GlobalKey? quickAddKey;
+  const _NutritionTab({this.quickAddKey});
   @override
-  Widget build(BuildContext context) => const NutritionScreen();
+  Widget build(BuildContext context) => NutritionScreen(quickAddKey: quickAddKey);
 }
 
 class _ProfileTab extends StatelessWidget {
@@ -257,11 +338,19 @@ class _DashboardTab extends StatefulWidget {
   final GlobalKey? dashboardKey;
   final List<QuickTourStep> tourSteps;
   final GlobalKey aiChatKey;
+  final GlobalKey? sleepCardKey;
+
+  /// Starts the QuickTour that now lives in _HomeScreenState (wrapping the
+  /// whole Scaffold, not just this tab), so steps can spotlight targets on
+  /// other bottom-nav tabs too.
+  final VoidCallback onStartTour;
 
   const _DashboardTab({
     this.dashboardKey,
     required this.tourSteps,
     required this.aiChatKey,
+    this.sleepCardKey,
+    required this.onStartTour,
   });
 
   @override
@@ -270,7 +359,6 @@ class _DashboardTab extends StatefulWidget {
 
 class _DashboardTabState extends State<_DashboardTab>
     with WidgetsBindingObserver {
-  final _quickTourKey = GlobalKey<QuickTourState>();
   bool _showTourPrompt = false;
   bool _isDashboardLoading = true;
   List<Map<String, dynamic>> _calorieHistory = [];
@@ -325,7 +413,7 @@ class _DashboardTabState extends State<_DashboardTab>
         if (!mounted) return;
         setState(() => _showTourPrompt = true);
         Future.delayed(const Duration(milliseconds: 600), () {
-          _quickTourKey.currentState?.start();
+          if (mounted) widget.onStartTour();
         });
       } else if (!userDone) {
         final updated = auth.user!.copyWith(hasSeenQuickTour: true);
@@ -1900,39 +1988,21 @@ class _DashboardTabState extends State<_DashboardTab>
     final nutrition = context.read<NutritionProvider>();
     final workout = context.read<WorkoutProvider>();
 
-    return QuickTour(
-      key: _quickTourKey,
-      steps: widget.tourSteps,
-      onFinished: () async {
-        final auth = context.read<AuthProvider>();
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('quick_tour_done', true);
-        if (auth.user != null) {
-          final updated = auth.user!.copyWith(hasSeenQuickTour: true);
-          await auth.updateProfile(updated);
-        }
-      },
-      onSkipped: () async {
-        final auth = context.read<AuthProvider>();
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('quick_tour_done', true);
-        if (auth.user != null) {
-          final updated = auth.user!.copyWith(hasSeenQuickTour: true);
-          await auth.updateProfile(updated);
-        }
-      },
-      child: Scaffold(
-        // No AppBar — the greeting and its two actions live in the scrolling
-        // body as a plain row instead of a purple bar with its own
-        // status-bar tinting.
-        floatingActionButton: FloatingActionButton(
-          heroTag: 'quickAddHome',
-          onPressed: () => showQuickAddSheet(context),
-          tooltip: 'Quick Add',
-          child: const Icon(Icons.add),
-        ),
-        body: SafeArea(
-          child: RefreshIndicator(
+    // QuickTour now wraps the whole Scaffold up in _HomeScreenState (so its
+    // overlay survives a bottom-nav tab switch) — this just returns the
+    // Scaffold directly; onFinished/onSkipped moved up with it.
+    return Scaffold(
+      // No AppBar — the greeting and its two actions live in the scrolling
+      // body as a plain row instead of a purple bar with its own
+      // status-bar tinting.
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'quickAddHome',
+        onPressed: () => showQuickAddSheet(context),
+        tooltip: 'Quick Add',
+        child: const Icon(Icons.add),
+      ),
+      body: SafeArea(
+        child: RefreshIndicator(
           onRefresh: _loadData,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -1957,7 +2027,7 @@ class _DashboardTabState extends State<_DashboardTab>
                         IconButton(
                           icon: const Icon(Icons.help_outline),
                           tooltip: 'Quick Tour',
-                          onPressed: () => _quickTourKey.currentState?.start(),
+                          onPressed: widget.onStartTour,
                         ),
                       IconButton(
                         key: widget.aiChatKey,
@@ -2006,7 +2076,10 @@ class _DashboardTabState extends State<_DashboardTab>
 
                   // ── Sleep Summary Card ──
                   if (!_isDashboardLoading)
-                    _buildSleepSummaryCard(sleep),
+                    KeyedSubtree(
+                      key: widget.sleepCardKey,
+                      child: _buildSleepSummaryCard(sleep),
+                    ),
                   const SizedBox(height: 16),
 
                   // ── Today's Workout Recommendation ──
@@ -2044,7 +2117,6 @@ class _DashboardTabState extends State<_DashboardTab>
               ),
             ),
           ),
-        ),
         ),
       ),
     );
@@ -2562,7 +2634,7 @@ class _DashboardTabState extends State<_DashboardTab>
               ),
               const SizedBox(width: 8),
               TextButton(
-                onPressed: () => _quickTourKey.currentState?.start(),
+                onPressed: widget.onStartTour,
                 style: TextButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: const Color(0xFF6366F1),

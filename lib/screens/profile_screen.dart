@@ -849,6 +849,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionChipButton(
+                    icon: Icons.menu_book,
+                    label: 'User Guide',
+                    subtitle: 'How to use every feature',
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.userGuide),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

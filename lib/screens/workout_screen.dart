@@ -20,7 +20,15 @@ import 'workout_history_screen.dart';
 class WorkoutScreen extends StatefulWidget {
   final bool showBottomNav;
 
-  const WorkoutScreen({super.key, this.showBottomNav = true});
+  /// Attached to the Workout Playlist icon so the User Guide tour can
+  /// spotlight it after switching to this tab.
+  final GlobalKey? playlistButtonKey;
+
+  const WorkoutScreen({
+    super.key,
+    this.showBottomNav = true,
+    this.playlistButtonKey,
+  });
 
   @override
   State<WorkoutScreen> createState() => _WorkoutScreenState();
@@ -69,6 +77,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                       // mid-session. Keep it here so it's available in both
                       // states.
                       IconButton(
+                        key: widget.playlistButtonKey,
                         icon: const Icon(Icons.queue_music),
                         tooltip: 'Workout Playlist',
                         onPressed: () => Navigator.pushNamed(

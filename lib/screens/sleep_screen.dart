@@ -1074,7 +1074,7 @@ class _SleepBarChart extends StatelessWidget {
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
-                horizontalInterval: 2,
+                horizontalInterval: 3,
                 getDrawingHorizontalLine: (value) =>
                     FlLine(color: Colors.grey.withValues(alpha: 0.2), strokeWidth: 1),
               ),
@@ -1114,7 +1114,7 @@ class _SleepBarChart extends StatelessWidget {
               ),
               borderData: FlBorderData(show: false),
               minY: 0,
-              maxY: 12,
+              maxY: 15,
               barGroups: reversed
                   .asMap()
                   .entries
