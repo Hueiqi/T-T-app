@@ -6,8 +6,6 @@ import '../providers/auth_provider.dart';
 import '../providers/workout_provider.dart';
 import '../providers/nutrition_provider.dart';
 import '../providers/sleep_provider.dart';
-import '../providers/motion_provider.dart';
-import '../providers/place_provider.dart';
 import '../config/theme.dart';
 import '../models/user_model.dart';
 import '../models/workout_model.dart';
@@ -119,8 +117,6 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     final workout = context.watch<WorkoutProvider>();
     final nutrition = context.watch<NutritionProvider>();
     final sleep = context.watch<SleepProvider>();
-    final motion = context.watch<MotionProvider>();
-    final place = context.watch<PlaceProvider>();
 
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -165,8 +161,6 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                       _buildTabButton('Workout', 1),
                       _buildTabButton('Nutrition', 2),
                       _buildTabButton('Sleep', 3),
-                      _buildTabButton('Movement', 4),
-                      _buildTabButton('Places', 5),
                     ],
                   ),
                 ),
@@ -186,8 +180,6 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
             if (_selectedTab == 1) _buildWorkoutTab(workout, user),
             if (_selectedTab == 2) _buildNutritionTab(nutrition, user),
             if (_selectedTab == 3) _buildSleepTab(sleep),
-            if (_selectedTab == 4) _buildMovementTab(motion),
-            if (_selectedTab == 5) _buildPlacesTab(place),
           ],
         ),
       ),
@@ -1104,114 +1096,6 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  // ─── MOVEMENT TAB ────────────────────────────────────────────
-  Widget _buildMovementTab(MotionProvider motion) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Today's Movement",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.directions_walk,
-                    label: 'Steps',
-                    value: '${motion.stepsToday}',
-                    color: Colors.green,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    icon: Icons.speed,
-                    label: 'Intensity',
-                    value: '${(motion.motionIntensity * 100).toInt()}%',
-                    color: Colors.orange,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.info_outline, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Intensity is calculated from gyroscope rotation speed (0-1).',
-                    style: const TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ─── PLACES TAB ──────────────────────────────────────────────
-  Widget _buildPlacesTab(PlaceProvider place) {
-    final places = place.visitedPlaces;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Visited Places',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Text('${places.length} total',
-                    style: const TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 12)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (places.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(
-                  child: Text(
-                    'No places logged yet. Stay in one spot for 15 min!',
-                    style: TextStyle(color: AppTheme.textSecondary),
-                  ),
-                ),
-              )
-            else
-              SizedBox(
-                height: 200,
-                child: ListView.builder(
-                  itemCount: places.length > 10 ? 10 : places.length,
-                  itemBuilder: (context, index) {
-                    final p = places[index];
-                    return ListTile(
-                      leading: const Icon(Icons.location_on,
-                          color: AppTheme.primaryColor),
-                      title: Text(
-                          '${p.latitude.toStringAsFixed(4)}, ${p.longitude.toStringAsFixed(4)}'),
-                      subtitle: Text('Visited: ${p.visitedAt.toLocal()}'),
-                      dense: true,
-                    );
-                  },
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 

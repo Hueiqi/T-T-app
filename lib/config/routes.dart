@@ -20,7 +20,6 @@ class AppRoutes {
   static const String welcome = '/welcome';
   static const String forgotPassword = '/forgot-password';
   static const String notificationSettings = '/notification-settings';
-  static const String notificationHistory = '/notification-history';
   static const String aiChat = '/ai-chat';
   static const String planning = '/planning';
   static const String nutritionSuccess = '/nutrition-success';

@@ -26,31 +26,36 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     'logReminderDinnerTime': const TimeOfDay(hour: 20, minute: 0),
   };
 
-  bool _loaded = false;
-
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_loaded) {
-      _loadExistingSettings();
-      _loaded = true;
-    }
+  void initState() {
+    super.initState();
+    // Load our own settings rather than relying on the caller having preloaded
+    // them — not every entry point into this screen does.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
-  void _loadExistingSettings() {
+  Future<void> _bootstrap() async {
+    final auth = context.read<AuthProvider>();
     final provider = context.read<NotificationProvider>();
-    final s = provider.settings;
-    if (s != null) {
-      _formState['workoutReminderEnabled'] = s.workoutReminderEnabled;
-      _formState['workoutReminderTime'] = s.workoutReminderTime;
-      _formState['calorieAlertEnabled'] = s.calorieAlertEnabled;
-      _formState['calorieAlertTime'] = s.calorieAlertTime;
-      _formState['sleepReminderEnabled'] = s.sleepReminderEnabled;
-      _formState['sleepReminderTime'] = s.sleepReminderTime;
-      _formState['logReminderEnabled'] = s.logReminderEnabled;
-      _formState['logReminderLunchTime'] = s.logReminderLunchTime;
-      _formState['logReminderDinnerTime'] = s.logReminderDinnerTime;
+    if (auth.user != null) {
+      await provider.loadSettings(auth.user!.uid);
     }
+    if (!mounted) return;
+    setState(_applySettingsToForm);
+  }
+
+  void _applySettingsToForm() {
+    final s = context.read<NotificationProvider>().settings;
+    if (s == null) return;
+    _formState['workoutReminderEnabled'] = s.workoutReminderEnabled;
+    _formState['workoutReminderTime'] = s.workoutReminderTime;
+    _formState['calorieAlertEnabled'] = s.calorieAlertEnabled;
+    _formState['calorieAlertTime'] = s.calorieAlertTime;
+    _formState['sleepReminderEnabled'] = s.sleepReminderEnabled;
+    _formState['sleepReminderTime'] = s.sleepReminderTime;
+    _formState['logReminderEnabled'] = s.logReminderEnabled;
+    _formState['logReminderLunchTime'] = s.logReminderLunchTime;
+    _formState['logReminderDinnerTime'] = s.logReminderDinnerTime;
   }
 
   Future<void> _pickTime(String key) async {
@@ -68,7 +73,17 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
 
   Future<void> _save() async {
     final auth = context.read<AuthProvider>();
-    if (auth.user == null) return;
+    if (auth.user == null) {
+      // Previously returned silently, so the button appeared to do nothing.
+      debugPrint('NotifSettings: save aborted — auth.user is null');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You must be signed in to save notification settings.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     final settings = NotificationSettings(
       userId: auth.user!.uid,
@@ -83,8 +98,10 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
       logReminderDinnerTime: _formState['logReminderDinnerTime'] as TimeOfDay,
     );
 
+    debugPrint('NotifSettings: saving workoutTime=${settings.workoutReminderTime}');
     final provider = context.read<NotificationProvider>();
     final success = await provider.saveSettings(settings);
+    debugPrint('NotifSettings: after save, provider.settings.workoutTime=${provider.settings?.workoutReminderTime}');
 
     if (!mounted) return;
 

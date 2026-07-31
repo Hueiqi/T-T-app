@@ -6,7 +6,6 @@ import '../models/workout_model.dart';
 import '../models/meal_model.dart';
 import '../models/sleep_model.dart';
 import '../models/notification_settings_model.dart';
-import '../models/notification_log_model.dart';
 import '../models/weight_entry_model.dart';
 import '../models/place_model.dart';
 import '../models/planning_model.dart';
@@ -496,16 +495,16 @@ Future<List<SavedFood>> getSavedFoods(String userId) async {
 
   Future<void> saveNotificationSettings(NotificationSettings settings) async {
     if (_demoMode) return;
-    try {
-      await _firestore!
-          .collection('users')
-          .doc(settings.userId)
-          .collection('notificationSettings')
-          .doc('preferences')
-          .set(settings.toMap());
-    } catch (e) {
-      debugPrint('saveNotificationSettings error: $e');
-    }
+    // Deliberately does NOT swallow errors: callers report success to the user
+    // based on this completing, so a silently-dropped write would show
+    // "saved" while Firestore still holds the old reminder times.
+    await _firestore!
+        .collection('users')
+        .doc(settings.userId)
+        .collection('notificationSettings')
+        .doc('preferences')
+        .set(settings.toMap());
+    debugPrint('saveNotificationSettings: wrote ${settings.toMap()}');
   }
 
   Future<NotificationSettings?> getNotificationSettings(String userId) async {
@@ -521,85 +520,10 @@ Future<List<SavedFood>> getSavedFoods(String userId) async {
         return NotificationSettings.fromMap(
             Map<String, dynamic>.from(doc.data() as Map), userId);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('getNotificationSettings error: $e');
+    }
     return null;
-  }
-
-  // ── Notification History ──
-
-  Future<void> logSentNotification(NotificationLog log) async {
-    if (_demoMode) return;
-    try {
-      await _firestore!
-          .collection('users')
-          .doc(log.userId)
-          .collection('notificationHistory')
-          .doc(log.id)
-          .set(log.toMap());
-    } catch (e) {
-      debugPrint('logSentNotification error: $e');
-    }
-  }
-
-  Future<void> markNotificationTapped(String userId, String logId) async {
-    if (_demoMode) return;
-    try {
-      await _firestore!
-          .collection('users')
-          .doc(userId)
-          .collection('notificationHistory')
-          .doc(logId)
-          .update({'tapped': true, 'tappedAt': DateTime.now().toIso8601String()});
-    } catch (e) {
-      debugPrint('markNotificationTapped error: $e');
-    }
-  }
-
-  Future<List<NotificationLog>> getNotificationHistory(String userId) async {
-    if (_demoMode) return [];
-    try {
-      final snapshot = await _firestore!
-          .collection('users')
-          .doc(userId)
-          .collection('notificationHistory')
-          .orderBy('sentAt', descending: true)
-          .limit(100)
-          .get();
-      return snapshot.docs
-          .map((doc) => NotificationLog.fromMap(
-              Map<String, dynamic>.from(doc.data() as Map)))
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<void> clearNotificationHistory(String userId) async {
-    if (_demoMode) return;
-    try {
-      final snapshot = await _firestore!
-          .collection('users')
-          .doc(userId)
-          .collection('notificationHistory')
-          .get();
-      for (final doc in snapshot.docs) {
-        await doc.reference.delete();
-      }
-    } catch (_) {}
-  }
-
-  Future<void> deleteNotification(String userId, String logId) async {
-    if (_demoMode) return;
-    try {
-      await _firestore!
-          .collection('users')
-          .doc(userId)
-          .collection('notificationHistory')
-          .doc(logId)
-          .delete();
-    } catch (e) {
-      debugPrint('deleteNotification error: $e');
-    }
   }
 
   // ── Weight Entries ──

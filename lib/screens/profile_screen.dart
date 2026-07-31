@@ -6,7 +6,6 @@ import '../providers/music_provider.dart';
 import '../providers/nutrition_provider.dart';
 import '../providers/workout_provider.dart';
 import '../providers/sleep_provider.dart';
-import '../providers/notification_provider.dart';
 import '../providers/health_provider.dart';
 import '../widgets/bottom_nav_shell.dart';
 import '../widgets/quick_add_sheet.dart';
@@ -747,7 +746,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ─── Connections & Settings (with Health Connect) ──
   Widget _buildConnectionsSettings(dynamic user, dynamic workout) {
-    final notifications = context.watch<NotificationProvider>();
     final health = context.watch<HealthProvider>();
 
     return Card(
@@ -800,32 +798,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 12),
 
             // ── Action chips ──
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionChipButton(
-                    icon: Icons.tune,
-                    label: 'Notification Settings',
-                    subtitle: 'Configure alerts',
-                    onTap: () async {
-                      final navigator = Navigator.of(context);
-                      if (user != null) {
-                        await notifications.loadSettings(user.uid);
-                      }
-                      navigator.pushNamed(AppRoutes.notificationSettings);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ActionChipButton(
-                    icon: Icons.history,
-                    label: 'Notification History',
-                    subtitle: 'View past alerts',
-                    onTap: () => Navigator.pushNamed(context, AppRoutes.notificationHistory),
-                  ),
-                ),
-              ],
+            _ActionChipButton(
+              icon: Icons.tune,
+              label: 'Notification Settings',
+              subtitle: 'Configure alerts',
+              // The screen loads its own settings, so no preload needed here.
+              onTap: () => Navigator.pushNamed(context, AppRoutes.notificationSettings),
             ),
             const SizedBox(height: 12),
             Row(

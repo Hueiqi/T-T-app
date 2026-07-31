@@ -24,7 +24,6 @@ import 'screens/onboarding_duration_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/notification_settings_screen.dart';
-import 'screens/notification_history_screen.dart';
 import 'screens/ai_chat_screen.dart';
 import 'screens/routine_historyscreen.dart';
 import 'screens/movement_screen.dart';
@@ -158,7 +157,6 @@ class _FitSyncAppState extends State<FitSyncApp> {
           AppRoutes.welcome: (_) => const WelcomeScreen(),
           AppRoutes.forgotPassword: (_) => const ForgotPasswordScreen(),
           AppRoutes.notificationSettings: (_) => const NotificationSettingsScreen(),
-          AppRoutes.notificationHistory: (_) => const NotificationHistoryScreen(),
           AppRoutes.planning: (_) => const PlanningScreen(),
           AppRoutes.popularWorkouts: (_) => PopularWorkoutsScreen(),
           AppRoutes.movement: (_) => const MovementScreen(),

@@ -1,22 +1,20 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'dart:math';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../services/notification_service.dart';
 import '../models/notification_settings_model.dart';
-import '../models/notification_log_model.dart';
 
 class NotificationProvider extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
   final NotificationService _notificationService = NotificationService();
 
   NotificationSettings? _settings;
-  List<NotificationLog> _history = [];
   bool _isLoading = false;
   bool _isSaving = false;
   String? _error;
 
   NotificationSettings? get settings => _settings;
-  List<NotificationLog> get history => _history;
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   String? get error => _error;
@@ -33,25 +31,47 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Reminders are scheduled by the OS on this device, so the device copy is
+  // the source of truth. Firestore is a sync/backup layer — if it is
+  // unreachable or rejects the write, the user's chosen times must survive.
+  static String _prefsKey(String userId) => 'notification_settings_$userId';
+
+  Future<void> _saveLocal(NotificationSettings settings) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsKey(settings.userId), jsonEncode(settings.toMap()));
+  }
+
+  Future<NotificationSettings?> _loadLocal(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefsKey(userId));
+      if (raw == null) return null;
+      return NotificationSettings.fromMap(
+          Map<String, dynamic>.from(jsonDecode(raw) as Map), userId);
+    } catch (e) {
+      debugPrint('NotificationProvider: local read failed: $e');
+      return null;
+    }
+  }
+
   Future<void> loadSettings(String userId) async {
     _isLoading = true;
     notifyListeners();
 
-    try {
-      _settings = await _firebaseService.getNotificationSettings(userId);
-    } catch (_) {}
-
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  Future<void> loadHistory(String userId) async {
-    _isLoading = true;
-    notifyListeners();
+    final local = await _loadLocal(userId);
+    if (local != null) _settings = local;
 
     try {
-      _history = await _firebaseService.getNotificationHistory(userId);
-    } catch (_) {}
+      final remote = await _firebaseService.getNotificationSettings(userId);
+      // Only adopt the cloud copy when this device has none of its own;
+      // otherwise a stale document would overwrite times just saved here.
+      if (remote != null && local == null) {
+        _settings = remote;
+        await _saveLocal(remote);
+      }
+    } catch (e) {
+      debugPrint('NotificationProvider: cloud load failed: $e');
+    }
 
     _isLoading = false;
     notifyListeners();
@@ -62,64 +82,31 @@ class NotificationProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    // Persist and reschedule first — these are what actually make the reminder
+    // fire, and must not be lost to a failed upload.
     try {
-      await _firebaseService.saveNotificationSettings(newSettings);
-
+      await _saveLocal(newSettings);
       await _notificationService.initialize();
       await _notificationService.scheduleAllNotifications(newSettings);
-
       _settings = newSettings;
-      _isSaving = false;
-      notifyListeners();
-      return true;
     } catch (e) {
+      debugPrint('NotificationProvider: save failed: $e');
       _error = 'Failed to save settings. Please try again.';
       _isSaving = false;
       notifyListeners();
       return false;
     }
-  }
 
-  Future<void> logSentNotification(String userId, String title, String body, {String type = 'general'}) async {
-    final log = NotificationLog(
-      id: 'notif_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
-      userId: userId,
-      type: type,
-      title: title,
-      body: body,
-      sentAt: DateTime.now(),
-    );
+    // Best-effort cloud sync: the reminder is already saved and scheduled, so a
+    // Firestore failure here must not be reported to the user as a lost save.
     try {
-      await _firebaseService.logSentNotification(log);
-      _history.insert(0, log);
-      notifyListeners();
-    } catch (_) {}
-  }
+      await _firebaseService.saveNotificationSettings(newSettings);
+    } catch (e) {
+      debugPrint('NotificationProvider: cloud sync failed (kept on device): $e');
+    }
 
-  Future<void> markTapped(String userId, String logId) async {
-    try {
-      await _firebaseService.markNotificationTapped(userId, logId);
-      final idx = _history.indexWhere((l) => l.id == logId);
-      if (idx != -1) {
-        _history[idx] = _history[idx].copyWith(tapped: true, tappedAt: DateTime.now().toIso8601String());
-        notifyListeners();
-      }
-    } catch (_) {}
-  }
-
-  Future<void> clearHistory(String userId) async {
-    try {
-      await _firebaseService.clearNotificationHistory(userId);
-      _history.clear();
-      notifyListeners();
-    } catch (_) {}
-  }
-
-  Future<void> removeFromHistory(String userId, String logId) async {
-    try {
-      await _firebaseService.deleteNotification(userId, logId);
-      _history.removeWhere((l) => l.id == logId);
-      notifyListeners();
-    } catch (_) {}
+    _isSaving = false;
+    notifyListeners();
+    return true;
   }
 }
