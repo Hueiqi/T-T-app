@@ -30,7 +30,11 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  // NOT edgeToEdge: that mode forces a transparent status bar and ignores
+  // statusBarColor, so the app bar's purple could never fill it. Edge-to-edge
+  // was only ever drawing the pale scaffold background up there anyway.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+      overlays: SystemUiOverlay.values);
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 

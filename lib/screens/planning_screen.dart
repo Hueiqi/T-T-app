@@ -11,6 +11,7 @@ import '../config/theme.dart';
 import '../config/routes.dart';
 import '../services/exercise_db.dart';
 import '../widgets/bottom_nav_shell.dart';
+import '../widgets/quick_add_sheet.dart';
 import 'plan_detail_screen.dart';
 
 class PlanningScreen extends StatefulWidget {
@@ -98,36 +99,38 @@ class _PlanningScreenState extends State<PlanningScreen> {
 
   Widget _buildMainScreen(PlanningProvider planning, AuthProvider auth) {
     return Scaffold(
-      appBar: null,
+      // No AppBar — title and actions live in the scrolling body as a plain
+      // row instead of a purple bar with its own status-bar tinting.
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'quickAddPlanning',
+        onPressed: () => showQuickAddSheet(context),
+        tooltip: 'Quick Add',
+        child: const Icon(Icons.add),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 8),
             // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
               child: Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: Text(
-                      'Training',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      'Planning',
+                      style:
+                          TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.history, color: AppTheme.primaryColor),
-                      tooltip: 'Activity History',
-                      onPressed: () => Navigator.pushNamed(context, AppRoutes.routineHistory),
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.history),
+                    tooltip: 'Activity History',
+                    onPressed: () =>
+                        Navigator.pushNamed(context, AppRoutes.routineHistory),
                   ),
                 ],
               ),

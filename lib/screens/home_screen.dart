@@ -20,6 +20,7 @@ import '../models/sleep_model.dart';
 import '../config/theme.dart';
 import '../services/firebase_service.dart';
 import '../services/health_connect_service.dart';
+import '../widgets/quick_add_sheet.dart';
 import '../widgets/quick_tour.dart';
 import '../widgets/news_carousel.dart';
 import '../widgets/heart_rate_meter.dart';
@@ -149,125 +150,18 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
 
-  void _showQuickAddSheet() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Quick Add',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 16),
-                _QuickAddTile(
-                  icon: Icons.camera_alt,
-                  color: const Color(0xFFFF9800),
-                  label: 'Log a Meal',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.pushNamed(context, '/food-capture');
-                  },
-                ),
-                _QuickAddTile(
-                  icon: Icons.fitness_center,
-                  color: AppTheme.primaryColor,
-                  label: 'Start Workout',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.pushNamed(context, '/workout');
-                  },
-                ),
-                _QuickAddTile(
-                  icon: Icons.monitor_weight,
-                  color: AppTheme.secondaryColor,
-                  label: 'Log Weight',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _showWeightDialog();
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showWeightDialog() {
-    final nutrition = context.read<NutritionProvider>();
-    final controller = TextEditingController(
-      text: nutrition.todayWeight != null
-          ? nutrition.todayWeight!.weight.toStringAsFixed(1)
-          : '',
-    );
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log Today\'s Weight'),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Weight (kg)',
-            prefixIcon: Icon(Icons.monitor_weight),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final w = double.tryParse(controller.text.trim());
-              if (w == null || w <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please enter a valid weight.'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-                return;
-              }
-              final auth = context.read<AuthProvider>();
-              if (auth.user == null) return;
-              await context
-                  .read<NutritionProvider>()
-                  .saveWeight(userId: auth.user!.uid, weight: w);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(child: _screens[_currentIndex]),
-      floatingActionButton: _currentIndex == 0
-          ? FloatingActionButton(
-              onPressed: _showQuickAddSheet,
-              tooltip: 'Quick Add',
-              child: const Icon(Icons.add),
-            )
-          : null,
+      // Each tab supplies its own SafeArea now that none of them uses an
+      // AppBar, so this shell doesn't need to consume the top inset itself —
+      // but doing it here too is harmless (SafeArea is idempotent) and keeps
+      // any tab that forgets its own inset from sliding under the status bar.
+      body: _screens[_currentIndex],
+      // No FAB here: each tab supplies its own Quick Add button, which also
+      // covers the case where that screen is reached as a standalone named
+      // route rather than as a tab inside this shell.
       bottomNavigationBar: Stack(
         key: _bottomNavKey,
         children: [
@@ -308,38 +202,6 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ─── Helper widgets ─────────────────────────────────────────────
-
-class _QuickAddTile extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String label;
-  final VoidCallback onTap;
-
-  const _QuickAddTile({
-    required this.icon,
-    required this.color,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: color, size: 20),
-      ),
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-      trailing: const Icon(Icons.chevron_right, size: 20),
-      onTap: onTap,
-    );
-  }
-}
 
 class _NavBarMarker extends StatelessWidget {
   final int index;
@@ -2060,8 +1922,17 @@ class _DashboardTabState extends State<_DashboardTab>
         }
       },
       child: Scaffold(
-        appBar: null,
-        body: RefreshIndicator(
+        // No AppBar — the greeting and its two actions live in the scrolling
+        // body as a plain row instead of a purple bar with its own
+        // status-bar tinting.
+        floatingActionButton: FloatingActionButton(
+          heroTag: 'quickAddHome',
+          onPressed: () => showQuickAddSheet(context),
+          tooltip: 'Quick Add',
+          child: const Icon(Icons.add),
+        ),
+        body: SafeArea(
+          child: RefreshIndicator(
           onRefresh: _loadData,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -2071,21 +1942,15 @@ class _DashboardTabState extends State<_DashboardTab>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Header ──
                   Row(
                     children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Hello, ${user?.displayName ?? 'User'}',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          'Hello, ${user?.displayName ?? 'User'}',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       if (_showTourPrompt)
@@ -2103,7 +1968,7 @@ class _DashboardTabState extends State<_DashboardTab>
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
 
                   // ── Tour Prompt ──
                   if (_showTourPrompt) _buildTourPrompt(),
@@ -2179,6 +2044,7 @@ class _DashboardTabState extends State<_DashboardTab>
               ),
             ),
           ),
+        ),
         ),
       ),
     );

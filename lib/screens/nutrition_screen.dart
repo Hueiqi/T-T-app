@@ -8,9 +8,9 @@ import '../config/routes.dart';
 import '../models/meal_model.dart';
 import '../utils/food_icon_matcher.dart';
 import '../widgets/bottom_nav_shell.dart';
+import '../widgets/quick_add_sheet.dart';
 import 'meal_history_screen.dart';
 import 'food_capture_screen.dart';
-import 'manual_food_entry_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class NutritionScreen extends StatefulWidget {
@@ -84,123 +84,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
     });
   }
 
-  void _showQuickActions() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Quick Actions',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 16),
-                _QuickActionTile(
-                  icon: Icons.edit_note,
-                  color: const Color(0xFF4CAF50),
-                  label: 'Add Food Manual',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ManualFoodEntryScreen(mealType: 'snack'),
-                      ),
-                    );
-                  },
-                ),
-                _QuickActionTile(
-                  icon: Icons.library_books,
-                  color: const Color(0xFF2196F3),
-                  label: 'Food Library',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.pushNamed(context, AppRoutes.foodSearch,
-                        arguments: 'snack');
-                  },
-                ),
-                _QuickActionTile(
-                  icon: Icons.monitor_weight,
-                  color: AppTheme.textSecondary,
-                  label: 'Add Weight',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _showWeightDialog();
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showWeightDialog() {
-    final nutrition = context.read<NutritionProvider>();
-    final controller = TextEditingController(
-      text: nutrition.todayWeight != null
-          ? nutrition.todayWeight!.weight.toStringAsFixed(1)
-          : '',
-    );
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log Today\'s Weight'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Weight (kg)',
-            prefixIcon: Icon(Icons.monitor_weight),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final w = double.tryParse(controller.text.trim());
-              if (w == null || w <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please enter a valid weight.'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-                return;
-              }
-              final auth = context.read<AuthProvider>();
-              if (auth.user == null) return;
-              // Resolved before the await so the navigation below is the only
-              // thing that has to survive the async gap.
-              final navigator = Navigator.of(context);
-              await context
-                  .read<NutritionProvider>()
-                  .saveWeight(userId: auth.user!.uid, weight: w);
-              if (ctx.mounted) Navigator.pop(ctx);
-              navigator.pushNamed(AppRoutes.weightProgress);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showManualAddDialog({Meal? existingMeal, String? preselectedMealType}) {
     final nameController = TextEditingController(text: existingMeal?.foodName ?? '');
@@ -385,10 +268,11 @@ class _NutritionScreenState extends State<NutritionScreen> {
     final totalFat = meals.fold<double>(0, (sum, m) => sum + m.fat);
 
     return Scaffold(
-      appBar: null,
+      // No AppBar — title and actions live in the scrolling body as a plain
+      // row instead of a purple bar with its own status-bar tinting.
       floatingActionButton: FloatingActionButton(
-        heroTag: 'add',
-        onPressed: _showQuickActions,
+        heroTag: 'quickAddDiet',
+        onPressed: () => showQuickAddSheet(context),
         backgroundColor: AppTheme.primaryColor,
         child: const Icon(Icons.add, color: Colors.white),
       ),
@@ -397,31 +281,24 @@ class _NutritionScreenState extends State<NutritionScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
               child: Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: Text(
                       'Diet',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style:
+                          TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.history, color: AppTheme.primaryColor),
-                      tooltip: 'Meal History',
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MealHistoryScreen()),
-                      ),
+                  IconButton(
+                    icon: const Icon(Icons.history),
+                    tooltip: 'Meal History',
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const MealHistoryScreen()),
                     ),
                   ),
                 ],
@@ -1672,56 +1549,6 @@ class _FoodItemRow extends StatelessWidget {
         color: category.color,
         size: 22,
       ),
-    );
-  }
-}
-
-class _QuickActionTile extends StatelessWidget {
-  final String? imagePath;
-  final IconData? icon;
-  final Color? color;
-  final String label;
-  final VoidCallback onTap;
-
-  const _QuickActionTile({
-    // Optional image alternative to [icon]; no current caller supplies it.
-    // ignore: unused_element_parameter
-    this.imagePath,
-    this.icon,
-    this.color,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: (color ?? AppTheme.primaryColor).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: imagePath != null
-            ? Padding(
-                padding: const EdgeInsets.all(8),
-                child: Image.asset(
-                  imagePath!,
-                  width: 24,
-                  height: 24,
-                  errorBuilder: (_, __, ___) => Icon(
-                    icon ?? Icons.fastfood,
-                    color: color ?? AppTheme.primaryColor,
-                    size: 20,
-                  ),
-                ),
-              )
-            : Icon(icon, color: color ?? AppTheme.primaryColor, size: 20),
-      ),
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-      trailing: const Icon(Icons.chevron_right, size: 20),
-      onTap: onTap,
     );
   }
 }

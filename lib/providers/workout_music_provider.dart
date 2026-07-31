@@ -20,16 +20,51 @@ class SavedPlaylist {
   final String name;
   final String? imageUrl;
 
-  const SavedPlaylist({required this.uri, required this.name, this.imageUrl});
+  /// Track count, owner and description come straight from the Spotify
+  /// playlist object. They're stored alongside the name so the list can show
+  /// real detail without a network call on every rebuild.
+  final int totalTracks;
+  final String ownerName;
+  final String description;
 
-  Map<String, dynamic> toJson() =>
-      {'uri': uri, 'name': name, 'imageUrl': imageUrl};
+  const SavedPlaylist({
+    required this.uri,
+    required this.name,
+    this.imageUrl,
+    this.totalTracks = 0,
+    this.ownerName = '',
+    this.description = '',
+  });
 
+  Map<String, dynamic> toJson() => {
+        'uri': uri,
+        'name': name,
+        'imageUrl': imageUrl,
+        'totalTracks': totalTracks,
+        'ownerName': ownerName,
+        'description': description,
+      };
+
+  // Entries saved before these fields existed simply decode with the
+  // defaults, so older assignments keep working.
   factory SavedPlaylist.fromJson(Map<String, dynamic> json) => SavedPlaylist(
         uri: json['uri'] as String,
         name: json['name'] as String? ?? 'Playlist',
         imageUrl: json['imageUrl'] as String?,
+        totalTracks: (json['totalTracks'] as num?)?.toInt() ?? 0,
+        ownerName: json['ownerName'] as String? ?? '',
+        description: json['description'] as String? ?? '',
       );
+
+  /// e.g. "24 tracks · Lim Jia Le" — the subtitle shown under the name.
+  String get subtitle {
+    final parts = <String>[];
+    if (totalTracks > 0) {
+      parts.add('$totalTracks ${totalTracks == 1 ? 'track' : 'tracks'}');
+    }
+    if (ownerName.isNotEmpty) parts.add(ownerName);
+    return parts.join(' · ');
+  }
 }
 
 /// Maps workout conditions (chill / slow run / sprint run) to the user's own

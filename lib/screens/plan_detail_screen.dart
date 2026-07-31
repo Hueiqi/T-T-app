@@ -878,6 +878,10 @@ Widget _buildMacroSection(FitnessPlan plan, NutritionProvider nutrition) {
   }
 
   Widget _buildScheduleTimeline(FitnessPlan plan) {
+    // Derived per calendar day so the workout slot reflects today's actual
+    // weeklyWorkouts entry (or shows as a rest day), instead of the same
+    // fixed template every day of the plan.
+    final todaySchedule = plan.scheduleForDate(DateTime.now());
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       padding: const EdgeInsets.all(16),
@@ -912,10 +916,10 @@ Widget _buildMacroSection(FitnessPlan plan, NutritionProvider nutrition) {
             ],
           ),
           const SizedBox(height: 12),
-          ...List.generate(plan.dailySchedule.length, (i) {
-            final activity = plan.dailySchedule[i];
+          ...List.generate(todaySchedule.length, (i) {
+            final activity = todaySchedule[i];
             final isChecked = _completedScheduleItems.contains(i);
-            final isLast = i == plan.dailySchedule.length - 1;
+            final isLast = i == todaySchedule.length - 1;
             final isNext = !isChecked && (i == 0 || _completedScheduleItems.contains(i - 1));
             return _buildTimelineItem(activity, i, isChecked, isLast, isNext);
           }),

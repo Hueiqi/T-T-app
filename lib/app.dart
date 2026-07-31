@@ -23,7 +23,6 @@ import 'screens/onboarding_plan_screen.dart';
 import 'screens/onboarding_duration_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/forgot_password_screen.dart';
-import 'screens/otp_verification_screen.dart';
 import 'screens/notification_settings_screen.dart';
 import 'screens/notification_history_screen.dart';
 import 'screens/ai_chat_screen.dart';
@@ -157,7 +156,6 @@ class _FitSyncAppState extends State<FitSyncApp> {
           AppRoutes.onboardingDuration: (_) => const OnboardingDurationScreen(),
           AppRoutes.welcome: (_) => const WelcomeScreen(),
           AppRoutes.forgotPassword: (_) => const ForgotPasswordScreen(),
-          AppRoutes.otpVerify: (_) => const OtpVerificationScreen(),
           AppRoutes.notificationSettings: (_) => const NotificationSettingsScreen(),
           AppRoutes.notificationHistory: (_) => const NotificationHistoryScreen(),
           AppRoutes.planning: (_) => const PlanningScreen(),

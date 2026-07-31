@@ -14,5 +14,10 @@
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
+        <!-- The app pins itself to ThemeMode.light, so the app bar is the same
+             purple regardless of the OS dark-mode setting. Mirror the day
+             values here or the status bar mismatches the bar below it. -->
+        <item name="android:statusBarColor">@color/app_bar_color</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

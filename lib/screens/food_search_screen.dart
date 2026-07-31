@@ -458,11 +458,11 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 8),
-            // Search bar
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            // Search bar. No background colour — the band is the scaffold's
+            // own colour, and the input below is filled white so it still
+            // reads as a distinct field (both were indigo50 otherwise).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
               child: TextField(
                 controller: _searchController,
                 onChanged: (v) {
@@ -488,7 +488,7 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                         )
                       : null,
                   filled: true,
-                  fillColor: AppTheme.backgroundColor,
+                  fillColor: Colors.white,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -497,10 +497,10 @@ class _FoodSearchScreenState extends State<FoodSearchScreen> {
                 ),
               ),
             ),
-            // Filters
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+            // Filters. No background colour either — sits on the scaffold's
+            // colour like the search bar above it.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(

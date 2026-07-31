@@ -14,7 +14,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _phoneController = TextEditingController(text: '+60');
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
   Timer? _lockoutTimer;
@@ -30,7 +29,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _lockoutTimer?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
-    _phoneController.dispose();
     super.dispose();
   }
 
@@ -76,26 +74,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (success && mounted) {
       Navigator.pushReplacementNamed(context, '/home');
-    }
-  }
-
-  Future<void> _sendOtp() async {
-    if (_phoneController.text.trim().length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid phone number')),
-      );
-      return;
-    }
-
-    final auth = context.read<AuthProvider>();
-    final success = await auth.sendPhoneOtp(_phoneController.text.trim());
-
-    if (success && mounted) {
-      Navigator.pushNamed(
-        context,
-        '/otp-verify',
-        arguments: {'phone': _phoneController.text.trim()},
-      );
     }
   }
 
@@ -251,27 +229,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   label: const Text('Continue with Google'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number',
-                    hintText: '+60 12 345 6789',
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _sendOtp,
-                  icon: const Icon(Icons.phone_android),
-                  label: const Text('Continue with Phone'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: AppTheme.successColor,
-                    side: const BorderSide(color: AppTheme.successColor),
                   ),
                 ),
                 const SizedBox(height: 8),

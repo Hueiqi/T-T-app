@@ -70,6 +70,11 @@ class WorkoutDay {
       );
 }
 
+/// Monday..Sunday, matching DateTime.weekday (1..7) and WorkoutDay.day.
+const List<String> kWeekdayNames = [
+  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+];
+
 class FitnessPlan {
   final String id;
   final String title;
@@ -120,6 +125,72 @@ class FitnessPlan {
     required this.weeklyWorkouts,
     this.isSelected = false,
   });
+
+  /// Rest-day version of the 'workout' slot in [dailySchedule], for days
+  /// with no [WorkoutDay] entry in [weeklyWorkouts]. Slotted at the same
+  /// time as whichever workout activity it replaces, so the rest of the
+  /// day's timing is undisturbed.
+  static DailyActivity _restDayActivity(String time) => DailyActivity(
+        time: time,
+        title: 'Rest Day',
+        description:
+            'No scheduled training — light stretching or a walk is fine, '
+            'but let your body recover today.',
+        type: 'rest',
+      );
+
+  /// [dailySchedule] for a specific date, built from the plan's base daily
+  /// template with the main 'workout' slot swapped for that day's actual
+  /// [WorkoutDay] (or a rest day, if [weeklyWorkouts] has none scheduled).
+  ///
+  /// Without this, every day of the plan showed the exact same generic
+  /// "Workout" entry from [dailySchedule] regardless of what [weeklyWorkouts]
+  /// — which already varies per weekday — actually says, and a rest day had
+  /// no way to show up in the schedule at all.
+  ///
+  /// Some templates have two 'workout' entries in one day (e.g. a morning
+  /// cardio slot plus a main evening session). Only the first is treated as
+  /// the "main" slot that reflects [weeklyWorkouts]/rest; a second slot is
+  /// left as its generic description on a training day, and dropped
+  /// entirely on a rest day rather than duplicating the rest message.
+  List<DailyActivity> scheduleForDate(DateTime date) {
+    if (dailySchedule.isEmpty) return dailySchedule;
+    if (weeklyWorkouts.isEmpty) return dailySchedule;
+
+    final dayName = kWeekdayNames[date.weekday - 1];
+    final todayWorkout =
+        weeklyWorkouts.where((w) => w.day == dayName).firstOrNull;
+    final isRestDay = todayWorkout == null;
+
+    var sawMainWorkoutSlot = false;
+    final result = <DailyActivity>[];
+    for (final activity in dailySchedule) {
+      if (activity.type != 'workout') {
+        result.add(activity);
+        continue;
+      }
+
+      if (!sawMainWorkoutSlot) {
+        sawMainWorkoutSlot = true;
+        result.add(isRestDay
+            ? _restDayActivity(activity.time)
+            : DailyActivity(
+                time: activity.time,
+                title: todayWorkout.focus,
+                description: todayWorkout.exercises.isEmpty
+                    ? activity.description
+                    : '${todayWorkout.durationMinutes} min · '
+                        '${todayWorkout.exercises.take(3).join(', ')}',
+                type: 'workout',
+              ));
+        continue;
+      }
+
+      // Secondary workout slot: keep as-is on a training day, drop on rest.
+      if (!isRestDay) result.add(activity);
+    }
+    return result;
+  }
 
   FitnessPlan copyWith({bool? isSelected}) => FitnessPlan(
         id: id,

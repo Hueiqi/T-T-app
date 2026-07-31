@@ -9,6 +9,7 @@ import '../providers/sleep_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/health_provider.dart';
 import '../widgets/bottom_nav_shell.dart';
+import '../widgets/quick_add_sheet.dart';
 import '../providers/planning_provider.dart';
 import '../services/tdee_calculator.dart';
 import '../config/theme.dart';
@@ -80,7 +81,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final workout = context.watch<WorkoutProvider>();
 
     return Scaffold(
-      appBar: null,
+      // No AppBar — title lives in the scrolling body as plain text instead
+      // of a purple bar with its own status-bar tinting.
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'quickAddProfile',
+        onPressed: () => showQuickAddSheet(context),
+        tooltip: 'Quick Add',
+        child: const Icon(Icons.add),
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadDashboard,
@@ -89,6 +97,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Profile',
+                    style:
+                        TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 _buildProfileHeader(user),
                 const SizedBox(height: 16),
                 _buildQuickActions(),

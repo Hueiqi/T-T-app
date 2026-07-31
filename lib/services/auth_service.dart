@@ -167,62 +167,6 @@ class AuthService {
     _currentUser = user;
   }
 
-  Future<String?> sendPhoneOtp(String phoneNumber) async {
-    if (_demoMode) {
-      return 'demo-verification-id';
-    }
-    if (_auth == null) return null;
-
-    Completer<String?> completer = Completer();
-
-    await _auth!.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      timeout: const Duration(seconds: 60),
-      verificationCompleted: (credential) async {
-        if (!completer.isCompleted) {
-          completer.complete(null);
-        }
-        final result = await _auth!.signInWithCredential(credential);
-        await _loadUser(result.user!.uid);
-      },
-      verificationFailed: (error) {
-        if (!completer.isCompleted) {
-          completer.completeError(error);
-        }
-      },
-      codeSent: (verificationId, forceResendingToken) {
-        if (!completer.isCompleted) {
-          completer.complete(verificationId);
-        }
-      },
-      codeAutoRetrievalTimeout: (verificationId) {
-        if (!completer.isCompleted) {
-          completer.complete(verificationId);
-        }
-      },
-    );
-
-    return completer.future;
-  }
-
-  Future<AppUser?> verifyPhoneOtp(String verificationId, String smsCode) async {
-    if (_demoMode) {
-      _currentUser = AppUser(
-        uid: 'demo_user',
-        email: 'demo@fitsync.app',
-        displayName: 'Demo User',
-      );
-      return _currentUser;
-    }
-    final credential = PhoneAuthProvider.credential(
-      verificationId: verificationId,
-      smsCode: smsCode,
-    );
-    final result = await _auth!.signInWithCredential(credential);
-    await _loadUser(result.user!.uid);
-    return _currentUser;
-  }
-
   Future<bool> resetPassword(String email, String name, String newPassword) async {
     if (_demoMode) return true;
     if (_auth == null) return false;

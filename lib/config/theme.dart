@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
@@ -50,6 +51,15 @@ class AppTheme {
       foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: true,
+      // The app runs edge-to-edge (SystemUiMode.edgeToEdge in main), so the
+      // status bar is transparent and shows whatever sits behind it. Painting
+      // it the app bar's purple — with light icons so the clock and battery
+      // stay readable — makes the bar reach the top of the screen.
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: Color.fromARGB(255, 145, 146, 245),
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
       titleTextStyle: GoogleFonts.poppins(
         fontSize: 20,
         fontWeight: FontWeight.w600,

@@ -287,18 +287,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                 ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () =>
-                      Navigator.pushNamed(context, '/phone-login'),
-                  icon: const Icon(Icons.phone_android),
-                  label: const Text('Sign up with Phone'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: AppTheme.successColor,
-                    side: const BorderSide(color: AppTheme.successColor),
-                  ),
-                ),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,

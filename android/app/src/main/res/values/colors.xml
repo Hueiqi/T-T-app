@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches AppTheme.appBarColor in lib/config/theme.dart (0xFF9192F5).
+         Used for the window's statusBarColor so the app bar's purple extends
+         behind the status bar on OEM skins that ignore Flutter's
+         systemOverlayStyle. Keep the two values in sync. -->
+    <color name="app_bar_color">#FF9192F5</color>
+</resources>

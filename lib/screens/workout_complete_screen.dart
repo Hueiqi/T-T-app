@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show Factory;
 import 'package:flutter/gestures.dart'
-    show EagerGestureRecognizer, OneSequenceGestureRecognizer;
+    show ScaleGestureRecognizer, OneSequenceGestureRecognizer;
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:intl/intl.dart';
 import '../config/theme.dart';
@@ -264,13 +264,14 @@ class _WorkoutCompleteScreenState extends State<WorkoutCompleteScreen>
                                       tiltGesturesEnabled: false,
                                       zoomGesturesEnabled: true,
                                       scrollGesturesEnabled: true,
-                                      // Claim the drag gesture from the
-                                      // surrounding scroll view, which would
-                                      // otherwise swallow pans over the map.
+                                      // Only the scale gesture: claiming every
+                                      // gesture would swallow vertical drags
+                                      // and stop the page scrolling over the
+                                      // map. Pinch zooms; drags scroll.
                                       gestureRecognizers: <Factory<
                                           OneSequenceGestureRecognizer>>{
                                         Factory<OneSequenceGestureRecognizer>(
-                                          () => EagerGestureRecognizer(),
+                                          () => ScaleGestureRecognizer(),
                                         ),
                                       },
                                     ),

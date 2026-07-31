@@ -9,8 +9,6 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isInitializing = true;
   String? _error;
-  String? _verificationId;
-  String? _phoneNumber;
   StreamSubscription? _authSubscription;
   VoidCallback? onLogout;
 
@@ -24,8 +22,6 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isInitializing => _isInitializing;
   String? get error => _error;
-  String? get verificationId => _verificationId;
-  String? get phoneNumber => _phoneNumber;
   bool get isAuthenticated => _user != null;
   int get failedAttempts => _failedAttempts;
   bool get isLockedOut =>
@@ -149,53 +145,6 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _user = await _authService.signInWithGoogle();
-      _isLoading = false;
-      notifyListeners();
-      return _user != null;
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<bool> sendPhoneOtp(String phoneNumber) async {
-    _isLoading = true;
-    _error = null;
-    _phoneNumber = phoneNumber;
-    notifyListeners();
-    try {
-      final vid = await _authService.sendPhoneOtp(phoneNumber);
-      if (vid != null) {
-        _verificationId = vid;
-        _isLoading = false;
-        notifyListeners();
-        return true;
-      }
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<bool> verifyPhoneOtp(String smsCode) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-    try {
-      if (_verificationId == null) {
-        _error = 'No verification code sent';
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-      _user = await _authService.verifyPhoneOtp(_verificationId!, smsCode);
       _isLoading = false;
       notifyListeners();
       return _user != null;

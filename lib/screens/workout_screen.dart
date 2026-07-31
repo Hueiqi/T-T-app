@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, Factory;
 import 'package:flutter/gestures.dart'
-    show EagerGestureRecognizer, OneSequenceGestureRecognizer;
+    show ScaleGestureRecognizer, OneSequenceGestureRecognizer;
 import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -14,6 +14,7 @@ import '../widgets/heart_rate_meter.dart';
 import '../config/theme.dart';
 import '../config/routes.dart';
 import '../widgets/bottom_nav_shell.dart';
+import '../widgets/quick_add_sheet.dart';
 import 'workout_history_screen.dart';
 
 class WorkoutScreen extends StatefulWidget {
@@ -30,72 +31,85 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final spotifyConnected = auth.user?.spotifyConnected == 'connected';
+    // No AppBar — the title and actions live in the scrolling body instead,
+    // as a plain row rather than a purple bar with its own status-bar tinting.
     return Scaffold(
-      appBar: null,
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'quickAddWorkout',
+        onPressed: () => showQuickAddSheet(context),
+        tooltip: 'Quick Add',
+        child: const Icon(Icons.add),
+      ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: const BoxDecoration(color: AppTheme.appBarColor),
-              child: Row(
+        child: Consumer<WorkoutProvider>(
+          builder: (context, workout, _) {
+            return SingleChildScrollView(
+              // Always scrollable so the page still responds to a drag when
+              // the content happens to fit, and so there's room to scroll
+              // past the bottom nav during an active workout.
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Workout',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.history, color: Colors.white),
-                    tooltip: 'Workout History',
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const WorkoutHistoryScreen(),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Workout',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      );
-                    },
+                      ),
+                      // The only other way in is a button on the "Ready to
+                      // Exercise?" card, which disappears once a workout
+                      // starts — leaving the playlist screen unreachable
+                      // mid-session. Keep it here so it's available in both
+                      // states.
+                      IconButton(
+                        icon: const Icon(Icons.queue_music),
+                        tooltip: 'Workout Playlist',
+                        onPressed: () => Navigator.pushNamed(
+                            context, AppRoutes.workoutMusic),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.history),
+                        tooltip: 'Workout History',
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const WorkoutHistoryScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
+                  if (workout.spotifyError != null && workout.isWorkoutActive)
+                    _WarningBanner(
+                      icon: Icons.error_outline,
+                      message: workout.spotifyError!,
+                      color: AppTheme.errorColor,
+                    ),
+
+                  if (workout.isWorkoutActive)
+                    _ActiveWorkoutPanel(
+                      workout: workout,
+                      spotifyConnected: spotifyConnected,
+                    )
+                  else
+                    _WorkoutStartPanel(
+                      workout: workout,
+                      spotifyConnected: spotifyConnected,
+                    ),
                 ],
               ),
-            ),
-            Expanded(
-              child: Consumer<WorkoutProvider>(
-                builder: (context, workout, _) {
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (workout.spotifyError != null && workout.isWorkoutActive)
-                          _WarningBanner(
-                            icon: Icons.error_outline,
-                            message: workout.spotifyError!,
-                            color: AppTheme.errorColor,
-                          ),
-
-                        if (workout.isWorkoutActive)
-                          _ActiveWorkoutPanel(
-                            workout: workout,
-                            spotifyConnected: spotifyConnected,
-                          )
-                        else
-                          _WorkoutStartPanel(
-                            workout: workout,
-                            spotifyConnected: spotifyConnected,
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
       bottomNavigationBar: widget.showBottomNav ? buildBottomNavBar(context) : null,
@@ -683,13 +697,15 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
                     rotateGesturesEnabled: false,
                     zoomGesturesEnabled: true,
                     scrollGesturesEnabled: true,
-                    // The map lives inside a SingleChildScrollView. Without
-                    // claiming the vertical drag gesture, the scroll view wins
-                    // the arena and one-finger pans (and the vertical part of a
-                    // pinch) scroll the page instead of moving the map.
+                    // Claim ONLY the scale gesture, not every gesture: an
+                    // EagerGestureRecognizer here swallows vertical drags too,
+                    // which makes the whole page feel unscrollable wherever
+                    // the map is. Pinch-to-zoom still reaches the map, while
+                    // one-finger drags fall through to the page scroll. Use
+                    // the +/- buttons to zoom without pinching.
                     gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
                       Factory<OneSequenceGestureRecognizer>(
-                        () => EagerGestureRecognizer(),
+                        () => ScaleGestureRecognizer(),
                       ),
                     },
                     // Show the blue "you are here" dot. Tracking mode is NOT
