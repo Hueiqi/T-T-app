@@ -221,8 +221,8 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
             ),
             const SizedBox(height: 20),
 
-            // ─── PERIOD TOGGLE (charts on Overview/Sleep tabs) ──
-            if (_selectedTab == 0 || _selectedTab == 3) ...[
+            // ─── PERIOD TOGGLE (Overview / Nutrition / Sleep charts) ──
+            if (_selectedTab == 0 || _selectedTab == 2 || _selectedTab == 3) ...[
               _buildPeriodToggle(),
               const SizedBox(height: 16),
             ],
@@ -244,7 +244,11 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: GestureDetector(
-        onTap: () => setState(() => _selectedTab = index),
+        onTap: () {
+          setState(() => _selectedTab = index);
+          // Nutrition tab needs its own date-range meal fetch.
+          if (index == 2) _loadPeriodMeals();
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
@@ -279,7 +283,10 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           child: ChoiceChip(
             label: Text(label),
             selected: isSelected,
-            onSelected: (_) => setState(() => _period = p),
+            onSelected: (_) {
+              setState(() => _period = p);
+              if (_selectedTab == 2) _loadPeriodMeals();
+            },
             selectedColor: AppTheme.primaryColor,
             labelStyle: TextStyle(
               color: isSelected ? Colors.white : AppTheme.textSecondary,
@@ -751,13 +758,24 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     final carbsGoal = nutrition.getCarbsGoal();
     final fatGoal = nutrition.getFatGoal();
 
+    final (_, daysElapsed, periodCaption) = _macroPeriod();
+    final divisor = daysElapsed < 1 ? 1 : daysElapsed;
+    // On Day the range fetch returns today's meals, so this matches what the
+    // provider reports; on Month/Year it averages across the days elapsed.
+    final protein =
+        _periodMeals.fold(0.0, (t, m) => t + m.protein) / divisor;
+    final carbs = _periodMeals.fold(0.0, (t, m) => t + m.carbs) / divisor;
+    final fat = _periodMeals.fold(0.0, (t, m) => t + m.fat) / divisor;
+    final periodCalories =
+        _periodMeals.fold(0.0, (t, m) => t + m.calories) / divisor;
+
     // Ensure maxY is never 0
     final List<double> values = [
-      nutrition.totalProtein,
+      protein,
       proteinGoal,
-      nutrition.totalCarbs,
+      carbs,
       carbsGoal,
-      nutrition.totalFat,
+      fat,
       fatGoal,
     ];
     final maxVal = values.reduce((a, b) => a > b ? a : b);
@@ -774,6 +792,16 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                   'Macronutrient Breakdown',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  periodCaption,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppTheme.textSecondary),
+                ),
+                if (_loadingMacros) ...[
+                  const SizedBox(height: 8),
+                  const LinearProgressIndicator(minHeight: 2),
+                ],
                 const SizedBox(height: 16),
                 SizedBox(
                   height: 220,
@@ -803,7 +831,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                       barGroups: [
                         BarChartGroupData(x: 0, barRods: [
                           BarChartRodData(
-                            toY: nutrition.totalProtein,
+                            toY: protein,
                             color: AppTheme.accentColor,
                             width: 24,
                             borderRadius: const BorderRadius.only(topLeft: Radius.circular(6), topRight: Radius.circular(6)),
@@ -817,7 +845,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                         ]),
                         BarChartGroupData(x: 1, barRods: [
                           BarChartRodData(
-                            toY: nutrition.totalCarbs,
+                            toY: carbs,
                             color: AppTheme.warningColor,
                             width: 24,
                             borderRadius: const BorderRadius.only(topLeft: Radius.circular(6), topRight: Radius.circular(6)),
@@ -831,7 +859,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                         ]),
                         BarChartGroupData(x: 2, barRods: [
                           BarChartRodData(
-                            toY: nutrition.totalFat,
+                            toY: fat,
                             color: AppTheme.primaryColor,
                             width: 24,
                             borderRadius: const BorderRadius.only(topLeft: Radius.circular(6), topRight: Radius.circular(6)),
@@ -862,10 +890,10 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _buildRow('Protein', '${nutrition.totalProtein.toStringAsFixed(0)}g / ${proteinGoal.toInt()}g'),
-                _buildRow('Carbs', '${nutrition.totalCarbs.toStringAsFixed(0)}g / ${carbsGoal.toInt()}g'),
-                _buildRow('Fat', '${nutrition.totalFat.toStringAsFixed(0)}g / ${fatGoal.toInt()}g'),
-                _buildRow('Calories', '${nutrition.totalCaloriesToday.toStringAsFixed(0)} / ${nutrition.dailyCalorieGoal.toStringAsFixed(0)} kcal'),
+                _buildRow('Protein', '${protein.toStringAsFixed(0)}g / ${proteinGoal.toInt()}g'),
+                _buildRow('Carbs', '${carbs.toStringAsFixed(0)}g / ${carbsGoal.toInt()}g'),
+                _buildRow('Fat', '${fat.toStringAsFixed(0)}g / ${fatGoal.toInt()}g'),
+                _buildRow('Calories', '${periodCalories.toStringAsFixed(0)} / ${nutrition.dailyCalorieGoal.toStringAsFixed(0)} kcal'),
               ],
             ),
           ),
