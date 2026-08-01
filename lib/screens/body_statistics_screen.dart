@@ -531,25 +531,6 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
 
     return Column(
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                const Text(
-                  'Heart Rate Zones Distribution',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 200,
-                  child: _buildHeartRatePieChart(workout.heartRateHistory),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
         if (workout.heartRateHistory.isNotEmpty)
           Card(
             child: Padding(
@@ -1150,35 +1131,6 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
     );
   }
 
-  // ─── HEART RATE PIE CHART (with empty check) ────────────────
-  Widget _buildHeartRatePieChart(List<int> hrHistory) {
-    if (hrHistory.isEmpty) {
-      return const Center(
-        child: Text('No HR data', style: TextStyle(color: AppTheme.textSecondary)),
-      );
-    }
-    int resting = hrHistory.where((hr) => hr < 60).length;
-    int normal = hrHistory.where((hr) => hr >= 60 && hr < 100).length;
-    int fatBurn = hrHistory.where((hr) => hr >= 100 && hr < 130).length;
-    int cardio = hrHistory.where((hr) => hr >= 130 && hr < 160).length;
-    int peak = hrHistory.where((hr) => hr >= 160).length;
-
-    final sections = [
-      PieChartSectionData(value: resting.toDouble(), title: 'Resting', color: Colors.blue, radius: 60),
-      PieChartSectionData(value: normal.toDouble(), title: 'Normal', color: Colors.green, radius: 60),
-      PieChartSectionData(value: fatBurn.toDouble(), title: 'Fat Burn', color: AppTheme.warningColor, radius: 60),
-      PieChartSectionData(value: cardio.toDouble(), title: 'Cardio', color: AppTheme.accentColor, radius: 60),
-      PieChartSectionData(value: peak.toDouble(), title: 'Peak', color: AppTheme.errorColor, radius: 60),
-    ].where((s) => s.value > 0).toList();
-
-    if (sections.isEmpty) {
-      return const Center(
-        child: Text('No HR zones data', style: TextStyle(color: AppTheme.textSecondary)),
-      );
-    }
-
-    return PieChart(PieChartData(sections: sections));
-  }
 }
 
 // ─── STAT CARD ──────────────────────────────────────────────────
