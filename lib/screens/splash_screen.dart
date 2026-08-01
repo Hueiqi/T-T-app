@@ -9,6 +9,7 @@ import '../providers/sleep_provider.dart';
 import '../providers/music_provider.dart';
 import '../providers/planning_provider.dart';
 import '../providers/news_provider.dart';
+import '../providers/health_provider.dart';
 import '../providers/user_progress_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/notification_service.dart';
@@ -133,7 +134,11 @@ class _SplashScreenState extends State<SplashScreen>
     final music = context.read<MusicProvider>();
     final planning = context.read<PlanningProvider>();
     final news = context.read<NewsProvider>();
+    final health = context.read<HealthProvider>();
 
+    // Runs on sign-out and on every successful sign-in, so a new account
+    // begins at 0 steps / 0 hours slept instead of showing the previous
+    // session's figures until fresh data loads.
     auth.onLogout = () {
       workout.clear();
       nutrition.clear();
@@ -141,6 +146,7 @@ class _SplashScreenState extends State<SplashScreen>
       music.clear();
       planning.clear();
       news.clear();
+      health.clear();
     };
   }
 

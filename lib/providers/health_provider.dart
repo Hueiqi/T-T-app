@@ -478,6 +478,20 @@ class HealthProvider extends ChangeNotifier {
     };
   }
 
+  /// Resets per-account readings so a newly signed-in user starts at zero
+  /// steps with no inherited heart-rate history, rather than seeing whatever
+  /// the previous session left in memory.
+  ///
+  /// Device-level state (Health Connect authorisation, a paired BLE strap) is
+  /// deliberately left alone — that belongs to the phone, not to the account.
+  void clear() {
+    _stepsToday = 0;
+    _stepsHistory = {};
+    _heartRateHistory = [];
+    _error = null;
+    notifyListeners();
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();

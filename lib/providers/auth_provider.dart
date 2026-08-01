@@ -10,7 +10,14 @@ class AuthProvider extends ChangeNotifier {
   bool _isInitializing = true;
   String? _error;
   StreamSubscription? _authSubscription;
+  /// Wipes every per-user provider (steps, sleep, meals, workouts, ...).
+  /// Invoked on sign-out *and* on each successful sign-in, so an account never
+  /// starts out showing figures left behind by the previous session.
   VoidCallback? onLogout;
+
+  /// Called before a new session's data is loaded. Kept separate from the
+  /// sign-in result so a failed attempt does not wipe the current session.
+  void _resetSessionData() => onLogout?.call();
 
   int _failedAttempts = 0;
   DateTime? _lockoutUntil;
@@ -75,6 +82,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _user = await _authService.signInWithEmail(email, password);
+      // Drop the previous session's steps/sleep/meals before this account's
+      // own data is loaded, so nothing carries over between users.
+      _resetSessionData();
       _isLoading = false;
       _failedAttempts = 0;
       _lockoutUntil = null;
@@ -128,6 +138,9 @@ class AuthProvider extends ChangeNotifier {
         gender: gender,
         dietPreference: dietPreference,
       );
+      // A brand-new account must start at 0 steps and 0 hours of sleep, not
+      // inherit whatever was in memory from a previous session.
+      _resetSessionData();
       _isLoading = false;
       notifyListeners();
       return _user != null;
@@ -145,6 +158,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _user = await _authService.signInWithGoogle();
+      _resetSessionData();
       _isLoading = false;
       notifyListeners();
       return _user != null;
