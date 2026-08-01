@@ -10,7 +10,6 @@ import '../config/theme.dart';
 import '../services/firebase_service.dart';
 import '../models/meal_model.dart';
 import '../models/user_model.dart';
-import '../models/workout_model.dart';
 import '../models/sleep_model.dart';
 
 class BodyStatisticsScreen extends StatefulWidget {
@@ -47,14 +46,14 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
         return (
           DateTime(now.year, now.month, 1),
           now.day,
-          'Daily average · ${DateFormat('MMMM yyyy').format(now)}',
+          'Total · ${DateFormat('MMMM yyyy').format(now)}',
         );
       case _StatsPeriod.year:
         final start = DateTime(now.year, 1, 1);
         return (
           start,
           now.difference(start).inDays + 1,
-          'Daily average · ${now.year}',
+          'Total · ${now.year}',
         );
     }
   }
@@ -221,8 +220,10 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
             ),
             const SizedBox(height: 20),
 
-            // ─── PERIOD TOGGLE (Overview / Nutrition / Sleep charts) ──
-            if (_selectedTab == 0 || _selectedTab == 2 || _selectedTab == 3) ...[
+            // ─── PERIOD TOGGLE (Nutrition / Sleep charts) ──
+            // Overview no longer has a period-aware chart, so showing the
+            // toggle there would be a control that does nothing.
+            if (_selectedTab == 2 || _selectedTab == 3) ...[
               _buildPeriodToggle(),
               const SizedBox(height: 16),
             ],
@@ -429,29 +430,6 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Weekly Calories Chart (only if enough data)
-        if (workout.workouts.length >= 2)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _caloriesChartTitle,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 200,
-                    child: _buildCaloriesChart(workout.workouts),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        const SizedBox(height: 16),
-
         // Body Stats Summary
         Card(
           child: Padding(
@@ -491,12 +469,6 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
       ],
     );
   }
-
-  String get _caloriesChartTitle => switch (_period) {
-        _StatsPeriod.day => 'Calories Burned (Last 7 Days)',
-        _StatsPeriod.month => 'Calories Burned (Last 6 Months)',
-        _StatsPeriod.year => 'Calories Burned (Last 5 Years)',
-      };
 
   /// Buckets [startTimes]-tagged values by the selected period, returning
   /// (labels, totals) with the most recent bucket last.
@@ -551,75 +523,6 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
         }).toList();
         return (labels, totals);
     }
-  }
-
-  Widget _buildCaloriesChart(List<Workout> allWorkouts) {
-    final finished = allWorkouts.where((w) => w.endTime != null).toList();
-    final (labels, totals) = _bucketByPeriod(
-      finished.map((w) => w.endTime!).toList(),
-      finished.map((w) => w.caloriesBurned).toList(),
-    );
-    return _buildBucketedBarChart(labels, totals, AppTheme.primaryColor, 'kcal');
-  }
-
-  Widget _buildBucketedBarChart(List<String> labels, List<double> totals, Color color, String unit) {
-    final maxVal = totals.isEmpty ? 0.0 : totals.reduce((a, b) => a > b ? a : b);
-    final chartMax = maxVal > 0 ? maxVal * 1.3 : 500.0;
-
-    return BarChart(
-      BarChartData(
-        gridData: const FlGridData(show: false),
-        titlesData: FlTitlesData(
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 40,
-              getTitlesWidget: (v, m) => Text('${v.toInt()}', style: const TextStyle(fontSize: 10)),
-            ),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (v, m) {
-                final idx = v.toInt();
-                if (idx < 0 || idx >= labels.length) return const Text('');
-                return Text(labels[idx], style: const TextStyle(fontSize: 10));
-              },
-            ),
-          ),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        ),
-        barGroups: List.generate(totals.length, (i) {
-          return BarChartGroupData(
-            x: i,
-            barRods: [
-              BarChartRodData(
-                toY: totals[i],
-                color: color,
-                width: 20,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(6),
-                  topRight: Radius.circular(6),
-                ),
-              ),
-            ],
-          );
-        }),
-        minY: 0,
-        maxY: chartMax,
-        barTouchData: BarTouchData(
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              return BarTooltipItem(
-                '${totals[group.x.toInt()].toStringAsFixed(0)} $unit',
-                const TextStyle(color: Colors.white, fontSize: 12),
-              );
-            },
-          ),
-        ),
-      ),
-    );
   }
 
   // ─── WORKOUT TAB ──────────────────────────────────────────────
@@ -754,20 +657,22 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
   // ─── NUTRITION TAB ──────────────────────────────────────────
   Widget _buildNutritionTab(NutritionProvider nutrition, AppUser? user) {
     final meals = nutrition.todayMeals;
-    final proteinGoal = nutrition.getProteinGoal();
-    final carbsGoal = nutrition.getCarbsGoal();
-    final fatGoal = nutrition.getFatGoal();
-
     final (_, daysElapsed, periodCaption) = _macroPeriod();
-    final divisor = daysElapsed < 1 ? 1 : daysElapsed;
-    // On Day the range fetch returns today's meals, so this matches what the
-    // provider reports; on Month/Year it averages across the days elapsed.
-    final protein =
-        _periodMeals.fold(0.0, (t, m) => t + m.protein) / divisor;
-    final carbs = _periodMeals.fold(0.0, (t, m) => t + m.carbs) / divisor;
-    final fat = _periodMeals.fold(0.0, (t, m) => t + m.fat) / divisor;
-    final periodCalories =
-        _periodMeals.fold(0.0, (t, m) => t + m.calories) / divisor;
+    final days = daysElapsed < 1 ? 1 : daysElapsed;
+
+    // Actual intake is the true total across the selected period.
+    final protein = _periodMeals.fold(0.0, (t, m) => t + m.protein);
+    final carbs = _periodMeals.fold(0.0, (t, m) => t + m.carbs);
+    final fat = _periodMeals.fold(0.0, (t, m) => t + m.fat);
+    final periodCalories = _periodMeals.fold(0.0, (t, m) => t + m.calories);
+
+    // Goals are daily targets, so scale them over the same number of days.
+    // Left unscaled, a month or year of intake would tower over a one-day
+    // goal bar and make the comparison meaningless.
+    final proteinGoal = nutrition.getProteinGoal() * days;
+    final carbsGoal = nutrition.getCarbsGoal() * days;
+    final fatGoal = nutrition.getFatGoal() * days;
+    final calorieGoal = nutrition.dailyCalorieGoal * days;
 
     // Ensure maxY is never 0
     final List<double> values = [
@@ -893,7 +798,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                 _buildRow('Protein', '${protein.toStringAsFixed(0)}g / ${proteinGoal.toInt()}g'),
                 _buildRow('Carbs', '${carbs.toStringAsFixed(0)}g / ${carbsGoal.toInt()}g'),
                 _buildRow('Fat', '${fat.toStringAsFixed(0)}g / ${fatGoal.toInt()}g'),
-                _buildRow('Calories', '${periodCalories.toStringAsFixed(0)} / ${nutrition.dailyCalorieGoal.toStringAsFixed(0)} kcal'),
+                _buildRow('Calories', '${periodCalories.toStringAsFixed(0)} / ${calorieGoal.toStringAsFixed(0)} kcal'),
               ],
             ),
           ),
