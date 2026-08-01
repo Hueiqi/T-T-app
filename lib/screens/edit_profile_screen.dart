@@ -145,6 +145,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ? double.tryParse(_goalWeightController.text.trim())
             : null,
         photoUrl: uploadedUrl,
+        // _uploadAvatar returns null only when there is no photo to keep —
+        // i.e. the user chose "Remove Photo". copyWith needs this told
+        // explicitly, since a null photoUrl otherwise means "unchanged".
+        clearPhotoUrl: uploadedUrl == null,
       );
 
       await auth.updateProfile(updatedUser);

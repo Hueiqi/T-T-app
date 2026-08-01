@@ -74,7 +74,10 @@ class AppUser {
         'createdAt': createdAt.toIso8601String(),
         'lastActive': lastActive.toIso8601String(),
         'selectedPlanId': selectedPlanId,
-        if (photoUrl != null) 'photoUrl': photoUrl,
+        // Always written, including as null: updateUserProfile() uses
+        // Firestore update(), so omitting the key would leave a removed
+        // avatar in place instead of clearing it.
+        'photoUrl': photoUrl,
       };
 
   factory AppUser.fromMap(Map<String, dynamic> map) => AppUser(
@@ -130,6 +133,10 @@ class AppUser {
     bool? hasSeenQuickTour,
     String? selectedPlanId,
     String? photoUrl,
+    /// Set to true to actually remove the avatar. Passing `photoUrl: null`
+    /// cannot express this — null means "leave unchanged" for every other
+    /// field here, which is why removing a photo used to do nothing.
+    bool clearPhotoUrl = false,
   }) =>
       AppUser(
         uid: uid,
@@ -152,6 +159,6 @@ class AppUser {
         createdAt: createdAt,
         lastActive: lastActive,
         selectedPlanId: selectedPlanId ?? this.selectedPlanId,
-        photoUrl: photoUrl ?? this.photoUrl,
+        photoUrl: clearPhotoUrl ? null : (photoUrl ?? this.photoUrl),
       );
 }
