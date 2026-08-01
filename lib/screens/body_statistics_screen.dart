@@ -714,12 +714,11 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
                     BarChartData(
                       gridData: const FlGridData(show: false),
                       titlesData: FlTitlesData(
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 40,
-                            getTitlesWidget: (v, m) => Text('${v.toInt()}g', style: const TextStyle(fontSize: 10)),
-                          ),
+                        // Hidden: yearly totals run into five/six figures, and
+                        // the axis labels were unreadable. Exact values are in
+                        // the rows below the chart and in the bar tooltips.
+                        leftTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
                         ),
                         bottomTitles: AxisTitles(
                           sideTitles: SideTitles(

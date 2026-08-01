@@ -204,40 +204,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildQuickActions() {
     final actions = [
       _QuickActionItem(Icons.restaurant, 'Log Meal', () => Navigator.pushNamed(context, AppRoutes.foodCapture), const Color(0xFF059669)),
-      _QuickActionItem(Icons.fitness_center, 'Workout', () => Navigator.pushNamed(context, AppRoutes.activity), AppTheme.primaryColor),
       _QuickActionItem(Icons.bar_chart, 'Statistics', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BodyStatisticsScreen())), const Color(0xFF7C3AED)),
       _QuickActionItem(Icons.notifications, 'Alerts', () => Navigator.pushNamed(context, AppRoutes.notificationSettings), const Color(0xFFF59E0B)),
     ];
 
+    // Row + Expanded rather than a horizontal ListView of fixed-width tiles:
+    // the tiles divide the full width evenly instead of leaving dead space
+    // on the right.
     return SizedBox(
       height: 72,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: actions.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (ctx, i) {
-          final a = actions[i];
-          return InkWell(
-            onTap: a.onTap,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              width: 80,
-              decoration: BoxDecoration(
-                color: a.color.withValues(alpha: 0.08),
+      child: Row(
+        children: [
+          for (final (i, a) in actions.indexed) ...[
+            if (i > 0) const SizedBox(width: 10),
+            Expanded(
+              child: InkWell(
+                onTap: a.onTap,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: a.color.withValues(alpha: 0.15)),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(a.icon, color: a.color, size: 22),
-                  const SizedBox(height: 4),
-                  Text(a.label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: a.color)),
-                ],
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: a.color.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: a.color.withValues(alpha: 0.15)),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(a.icon, color: a.color, size: 22),
+                      const SizedBox(height: 4),
+                      Text(
+                        a.label,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: a.color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          );
-        },
+          ],
+        ],
       ),
     );
   }
