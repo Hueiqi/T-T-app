@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart';
+import '../config/routes.dart';
+import '../providers/auth_provider.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -61,8 +65,34 @@ class WelcomeScreen extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () =>
-                      Navigator.pushReplacementNamed(context, '/home'),
+                  // Registration ends here, so this is the one moment every
+                  // new user passes through: show the guide once, then go to
+                  // Home when they finish or skip it.
+                  onPressed: () async {
+                    final navigator = Navigator.of(context);
+                    final auth = context.read<AuthProvider>();
+
+                    await navigator.pushNamed(AppRoutes.userGuide);
+
+                    // The guide already covers what the live Quick Tour
+                    // shows, so mark the tour as seen — without this it
+                    // auto-starts on Home seconds later and the user gets two
+                    // walkthroughs back to back. Still available on demand
+                    // from the ? button on Home.
+                    try {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool('quick_tour_done', true);
+                      if (auth.user != null) {
+                        await auth.updateProfile(
+                          auth.user!.copyWith(hasSeenQuickTour: true),
+                        );
+                      }
+                    } catch (_) {
+                      // Never block reaching Home over a preference write.
+                    }
+
+                    navigator.pushReplacementNamed('/home');
+                  },
                   child: const Text('Start Your Journey'),
                 ),
               ),
