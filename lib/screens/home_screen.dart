@@ -23,7 +23,6 @@ import '../services/health_connect_service.dart';
 import '../widgets/quick_add_sheet.dart';
 import '../widgets/quick_tour.dart';
 import '../widgets/news_carousel.dart';
-import '../widgets/heart_rate_meter.dart';
 import '../utils/shimmer.dart';
 import 'workout_screen.dart';
 import 'nutrition_screen.dart';
@@ -53,7 +52,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final _startWorkoutKey = GlobalKey();
   final _logMealKey = GlobalKey();
   final _musicFitKey = GlobalKey();
-  final _heartRateKey = GlobalKey();
   final _aiChatKey = GlobalKey();
   final _bottomNavKey = GlobalKey();
 
@@ -123,13 +121,6 @@ class _HomeScreenState extends State<HomeScreen> {
         icon: Icons.music_note,
         onActionTap: () =>
             Navigator.pushNamed(context, '/music-recommendations'),
-      ),
-      QuickTourStep(
-        targetKey: _heartRateKey,
-        title: 'Heart Rate Monitor',
-        description:
-            'Toggle heart rate monitoring on/off. Uses Health Connect for real-time tracking.',
-        icon: Icons.favorite,
       ),
       QuickTourStep(
         targetKey: _navPlanningKey,
@@ -2083,11 +2074,6 @@ class _DashboardTabState extends State<_DashboardTab>
                     burnedCalories: caloriesBurned,
                     targetCalories: currentPlan?.dailyCalories.toDouble(),
                   ),
-                  const SizedBox(height: 12),
-
-                  // Live heart rate gauge — HealthProvider defaults to the
-                  // simulation at launch, so this animates immediately.
-                  const HeartRateMeterCard(),
                   const SizedBox(height: 16),
 
                   // ── Sleep Summary Card ──
