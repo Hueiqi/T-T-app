@@ -884,12 +884,19 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
 
     return BarChart(
       BarChartData(
-        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        // Interval 3 so gridlines and labels land cleanly on 0/3/6/9/12/15
+        // instead of stopping short of the 15-hour ceiling.
+        gridData: const FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 3,
+        ),
         titlesData: FlTitlesData(
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 40,
+              interval: 3,
               getTitlesWidget: (v, m) => Text('${v.toInt()}', style: const TextStyle(fontSize: 10)),
             ),
           ),
@@ -923,7 +930,7 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
           );
         }),
         minY: 0,
-        maxY: 12,
+        maxY: 15,
         barTouchData: BarTouchData(
           touchTooltipData: BarTouchTooltipData(
             getTooltipItem: (group, groupIndex, rod, rodIndex) {

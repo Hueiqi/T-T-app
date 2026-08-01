@@ -1046,45 +1046,61 @@ class _DashboardTabState extends State<_DashboardTab>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Both halves are Flexible and the chips scroll horizontally: the
+            // title block plus four chips overflowed the card on narrow
+            // screens, since neither side could give up any width.
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.monitor_weight, color: AppTheme.primaryColor, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text('Weight Progress',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  ],
-                ),
-                Row(
-                  children: ['All', '1M', '6M', '1Y'].map((filter) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: ChoiceChip(
-                        label: Text(filter),
-                        selected: _weightFilter == filter,
-                        onSelected: (_) =>
-                            setState(() => _weightFilter = filter),
-                        selectedColor: AppTheme.primaryColor,
-                        labelStyle: TextStyle(
-                          color: _weightFilter == filter
-                              ? Colors.white
-                              : AppTheme.textSecondary,
-                          fontSize: 11,
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        visualDensity: VisualDensity.compact,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        child: const Icon(Icons.monitor_weight, color: AppTheme.primaryColor, size: 20),
                       ),
-                    );
-                  }).toList(),
+                      const SizedBox(width: 12),
+                      const Flexible(
+                        child: Text('Weight Progress',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: ['All', '1M', '6M', '1Y'].map((filter) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: ChoiceChip(
+                            label: Text(filter),
+                            selected: _weightFilter == filter,
+                            onSelected: (_) =>
+                                setState(() => _weightFilter = filter),
+                            selectedColor: AppTheme.primaryColor,
+                            labelStyle: TextStyle(
+                              color: _weightFilter == filter
+                                  ? Colors.white
+                                  : AppTheme.textSecondary,
+                              fontSize: 11,
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 ),
               ],
             ),

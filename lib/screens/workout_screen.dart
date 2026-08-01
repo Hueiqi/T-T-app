@@ -9,6 +9,7 @@ import '../providers/workout_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/health_provider.dart';
 import '../providers/workout_music_provider.dart';
+import '../spotify/state/player_provider.dart';
 import '../services/reverse_geocode_service.dart';
 import '../widgets/heart_rate_meter.dart';
 import '../config/theme.dart';
@@ -36,9 +37,20 @@ class WorkoutScreen extends StatefulWidget {
 
 class _WorkoutScreenState extends State<WorkoutScreen> {
   @override
+  void initState() {
+    super.initState();
+    // Pull the saved Spotify token into WorkoutProvider's own service instance
+    // so the status shown here reflects reality before a workout is started.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<WorkoutProvider>().refreshSpotifyStatus(),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final spotifyConnected = auth.user?.spotifyConnected == 'connected';
+    // Live token state, not AppUser.spotifyConnected — that field is never set
+    // to 'connected' anywhere, so it always reported "No Spotify".
+    final spotifyConnected = context.watch<WorkoutProvider>().spotifyReady;
     // No AppBar — the title and actions live in the scrolling body instead,
     // as a plain row rather than a purple bar with its own status-bar tinting.
     return Scaffold(
@@ -185,6 +197,43 @@ class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
   /// Workout types mirror [WorkoutMusicProvider.conditions] so the type picked
   /// here is the same id the music screen assigns playlists to.
   String _selectedType = WorkoutMusicProvider.conditions.first.id;
+
+  /// Starts the playlist assigned to the selected status as soon as the
+  /// workout begins. Falls back to heart-rate-driven track selection when that
+  /// status has no playlist, so the workout is never silent by accident.
+  Future<void> _startMusicForStatus({
+    required WorkoutMusicProvider music,
+    required PlayerProvider player,
+    required ScaffoldMessengerState messenger,
+  }) async {
+    if (!widget.workout.spotifyReady) return;
+
+    // Assignments live on disk and the playlist screen may never have been
+    // opened this session, so make sure they are loaded before picking.
+    await music.load();
+
+    final pick = music.pickForCondition(_selectedType);
+    if (pick == null) {
+      await widget.workout.startBpmMusic();
+      return;
+    }
+
+    try {
+      // The playback engine lives at the app root and connects lazily.
+      if (!player.isReady) await player.initialize();
+      await player.playContext(pick.uri);
+      // Stop the 10s BPM timer replacing the playlist straight away.
+      widget.workout.holdMusicSelection(
+        label: pick.name,
+        subtitle: '${WorkoutMusicProvider.labelForType(_selectedType)} mode',
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not start "${pick.name}": $e')),
+      );
+      await widget.workout.startBpmMusic();
+    }
+  }
 
   IconData _iconForType(String type) {
     switch (type) {
@@ -355,11 +404,13 @@ class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
                     health.startHeartRateSimulation();
                   }
 
+                  final music = context.read<WorkoutMusicProvider>();
+                  final player = context.read<PlayerProvider>();
+                  final messenger = ScaffoldMessenger.of(context);
+
                   try {
-                    // ✅ Fix: use widget.workout and widget.spotifyConnected
                     await widget.workout.startWorkout(
                       auth.user!.uid,
-                      spotifyConnected: widget.spotifyConnected,
                       workoutType: _selectedType,
                     );
 
@@ -369,6 +420,12 @@ class _WorkoutStartPanelState extends State<_WorkoutStartPanel> {
                     // data for everyone else.
                     widget.workout.attachExternalHeartRate(
                       health.heartRateStream,
+                    );
+
+                    await _startMusicForStatus(
+                      music: music,
+                      player: player,
+                      messenger: messenger,
                     );
                   } catch (e) {
                     if (context.mounted) {
@@ -632,15 +689,17 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
     );
   }
 
-  void _showSongPicker(BuildContext context) {
-    final workout = widget.workout;
+  void _showStatusPicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => _SongPickerSheet(workout: workout),
+      builder: (_) => _StatusPickerSheet(
+        workout: widget.workout,
+        music: context.read<WorkoutMusicProvider>(),
+        player: context.read<PlayerProvider>(),
+      ),
     );
   }
 
@@ -952,12 +1011,12 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () => _showSongPicker(context),
-                      icon: const Icon(Icons.library_music, size: 20),
+                      onPressed: () => _showStatusPicker(context),
+                      icon: const Icon(Icons.tune, size: 20),
                       label: Text(
                         workout.manualOverrideActive
-                            ? 'Manual override active (30s)'
-                            : 'Choose Song',
+                            ? 'Change Status'
+                            : 'Choose Status',
                       ),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -987,6 +1046,128 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─── Status Picker Sheet ────────────────────────────────────────
+/// Picks a workout status (Chill / Slow Run / Sprint Run) and plays one of
+/// the Spotify playlists assigned to it in Workout Playlists, instead of
+/// choosing an individual song.
+class _StatusPickerSheet extends StatelessWidget {
+  final WorkoutProvider workout;
+  final WorkoutMusicProvider music;
+  final PlayerProvider player;
+
+  const _StatusPickerSheet({
+    required this.workout,
+    required this.music,
+    required this.player,
+  });
+
+  Future<void> _play(BuildContext context, WorkoutCondition condition) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final pick = music.pickForCondition(condition.id);
+
+    if (pick == null) {
+      navigator.pop();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('No playlist assigned to ${condition.label} yet.'),
+          action: SnackBarAction(
+            label: 'Assign',
+            onPressed: () =>
+                navigator.pushNamed(AppRoutes.workoutMusic),
+          ),
+        ),
+      );
+      return;
+    }
+
+    navigator.pop();
+    try {
+      // The playback engine lives at the app root and connects lazily, so it
+      // may not be ready if the Spotify section was never opened this session.
+      if (!player.isReady) await player.initialize();
+      await player.playContext(pick.uri);
+      // Stop the BPM timer swapping this out for a keyword-searched track.
+      workout.holdMusicSelection(
+        label: pick.name,
+        subtitle: '${condition.label} mode',
+      );
+      messenger.showSnackBar(
+        SnackBar(content: Text('Playing "${pick.name}" — ${condition.label} mode')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not start playlist: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('Choose Status',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(
+              'Plays a playlist you assigned to that status.',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            ...WorkoutMusicProvider.conditions.map((c) {
+              final count = music.playlistsFor(c.id).length;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Text(c.emoji, style: const TextStyle(fontSize: 26)),
+                title: Text(c.label,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(
+                  count == 0
+                      ? 'No playlist assigned'
+                      : '$count ${count == 1 ? 'playlist' : 'playlists'}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: count == 0
+                        ? AppTheme.warningColor
+                        : AppTheme.textSecondary,
+                  ),
+                ),
+                trailing: const Icon(Icons.play_arrow),
+                onTap: () => _play(context, c),
+              );
+            }),
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, AppRoutes.workoutMusic);
+              },
+              icon: const Icon(Icons.queue_music, size: 18),
+              label: const Text('Manage Workout Playlists'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -312,6 +312,21 @@ class SpotifyService {
     }
   }
 
+  /// Ends the playback session when a workout finishes: stops the music and
+  /// releases the SDK connection, but deliberately keeps the stored token so
+  /// the user is not asked to log into Spotify again for the next workout.
+  /// Use [disconnect] instead when the user actually signs out.
+  Future<void> endPlaybackSession() async {
+    try {
+      await pausePlayback();
+    } catch (_) {}
+    _isPlaying = false;
+    _currentTrack = null;
+    try {
+      await SpotifySdk.disconnect();
+    } catch (_) {}
+  }
+
   Future<bool> disconnect() async {
     _accessToken = null;
     _tokenExpiry = null;

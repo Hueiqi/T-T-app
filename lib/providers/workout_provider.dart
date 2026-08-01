@@ -115,9 +115,33 @@ class WorkoutProvider extends ChangeNotifier {
   /// [workoutType] is one of the [WorkoutMusicProvider] condition ids
   /// ('chill', 'slow_run', 'sprint_run'), so the saved workout and the music
   /// playlists assigned to that condition stay in sync.
+  bool _spotifyReady = false;
+
+  /// Whether music can actually play right now. Derived from a live Spotify
+  /// token rather than [AppUser.spotifyConnected], which is never set to
+  /// 'connected' anywhere and so always reported "no Spotify".
+  bool get spotifyReady => _spotifyReady;
+
+  /// Loads the saved Spotify token into this provider's own [SpotifyService].
+  /// Each SpotifyService instance keeps the token in memory separately, so
+  /// without this the workout flow stays disconnected even when the user is
+  /// logged in elsewhere in the app.
+  Future<bool> refreshSpotifyStatus() async {
+    if (!_spotifyService.isConnected) {
+      try {
+        await _spotifyService.restoreSession();
+      } catch (_) {}
+    }
+    final ready = _spotifyService.isConnected;
+    if (ready != _spotifyReady) {
+      _spotifyReady = ready;
+      notifyListeners();
+    }
+    return ready;
+  }
+
   Future<void> startWorkout(
     String userId, {
-    bool spotifyConnected = false,
     String? workoutType,
   }) async {
     if (workoutType != null) _workoutType = workoutType;
@@ -173,16 +197,12 @@ class WorkoutProvider extends ChangeNotifier {
       });
     }
 
-        // 5. Start Spotify if connected
-    if (spotifyConnected && _spotifyService.isConnected) {
-      // Music is ready
-    } else if (spotifyConnected) {
+    // 5. Check Spotify, restoring the saved session first so being logged in
+    // from a previous run still counts. Music itself is not started here: the
+    // caller plays the playlist assigned to the chosen status, falling back to
+    // [startBpmMusic] when that status has none.
+    if (!await refreshSpotifyStatus()) {
       _spotifyError = 'Music not connected. Please log in via Spotify first.';
-    }
-
-    if (spotifyConnected && _spotifyError == null) {
-      final initialHr = _currentHeartRate > 0 ? _currentHeartRate : 90;
-      await _adjustMusicForHeartRate(initialHr);
     }
 
     _bpmAdjustTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
@@ -345,6 +365,27 @@ class WorkoutProvider extends ChangeNotifier {
     }
   }
 
+  /// Starts heart-rate-driven track selection. Used as the fallback when the
+  /// chosen workout status has no playlist assigned to it.
+  Future<void> startBpmMusic() async {
+    if (_spotifyError != null || !_spotifyService.isConnected) return;
+    final initialHr = _currentHeartRate > 0 ? _currentHeartRate : 90;
+    await _adjustMusicForHeartRate(initialHr);
+  }
+
+  /// Hands music control to something the user picked deliberately — a
+  /// workout-status playlist — and stops the BPM timer from replacing it.
+  /// Unlike [playSelectedTrack]'s 30-second override this holds for the rest
+  /// of the session: a playlist the user chose should not be swapped out for
+  /// a keyword-searched track ten seconds later. Cleared when the workout ends.
+  void holdMusicSelection({required String label, String subtitle = ''}) {
+    _manualOverrideActive = true;
+    _manualOverrideTimer?.cancel();
+    _currentTrackName = label;
+    _currentTrackArtist = subtitle;
+    notifyListeners();
+  }
+
   Future<void> searchSongs(String query) async {
     if (query.trim().isEmpty) {
       _searchResults = [];
@@ -390,8 +431,10 @@ class WorkoutProvider extends ChangeNotifier {
     _manualOverrideTimer?.cancel();
     _manualOverrideActive = false;
 
+    // Stop the music and release the Spotify connection now the workout is
+    // over, rather than leaving playback paused mid-track.
     try {
-      await _spotifyService.pausePlayback();
+      await _spotifyService.endPlaybackSession();
     } catch (_) {}
 
     if (_currentWorkout == null) {

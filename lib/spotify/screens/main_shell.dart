@@ -6,9 +6,8 @@ import '../state/player_provider.dart';
 import '../widgets/now_playing_bar.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
-import 'search_screen.dart';
 
-/// The signed-in app shell: bottom navigation between Home, Search and Library,
+/// The signed-in app shell: bottom navigation between Home and Library,
 /// with the Now-Playing bar pinned above the nav bar.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -22,7 +21,6 @@ class _MainShellState extends State<MainShell> {
 
   static const _tabs = [
     HomeScreen(),
-    SearchScreen(),
     LibraryScreen(),
   ];
 
@@ -64,11 +62,6 @@ class _MainShellState extends State<MainShell> {
                   icon: Icon(Icons.home_outlined),
                   activeIcon: Icon(Icons.home_filled),
                   label: 'Home',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.search),
-                  activeIcon: Icon(Icons.search),
-                  label: 'Search',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.library_music_outlined),

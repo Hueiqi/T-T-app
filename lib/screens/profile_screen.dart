@@ -38,12 +38,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final auth = context.read<AuthProvider>();
     if (auth.user == null) return;
 
-    if (auth.user!.spotifyConnected == 'connected') {
-      final music = context.read<MusicProvider>();
-      final restored = await music.restoreSession();
-      if (!restored && mounted) {
-        final updatedUser = auth.user!.copyWith(spotifyConnected: 'disconnected');
-        await auth.updateProfile(updatedUser);
+    // Restore unconditionally: this used to be gated on
+    // spotifyConnected == 'connected', but nothing ever writes that value, so
+    // the saved token was never reloaded and Spotify appeared disconnected
+    // on every launch. Keep the stored flag in step with the real result.
+    final music = context.read<MusicProvider>();
+    final restored = await music.restoreSession();
+    if (mounted) {
+      final desired = restored ? 'connected' : 'disconnected';
+      if (auth.user!.spotifyConnected != desired) {
+        await auth.updateProfile(
+          auth.user!.copyWith(spotifyConnected: desired),
+        );
       }
     }
 
