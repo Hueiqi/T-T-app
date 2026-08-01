@@ -594,8 +594,10 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
   Future<void> _endWorkout(BuildContext context) async {
     final auth = context.read<AuthProvider>();
     final user = auth.user;
-    final bool isFemale = user?.displayName.toLowerCase() == 'female';
-    final genderStr = isFemale ? 'female' : 'male';
+    // Was comparing displayName against 'female', so the female calorie factor
+    // effectively never applied. AppUser.gender is the actual field.
+    final genderStr =
+        user?.gender.toLowerCase() == 'female' ? 'female' : 'male';
 
     final workout = widget.workout;
     final hasHrData = workout.heartRateHistory.isNotEmpty;
@@ -616,6 +618,7 @@ class _ActiveWorkoutPanelState extends State<_ActiveWorkoutPanel> {
     final result = await workout.endWorkout(
       gender: genderStr,
       manualCalories: manualCalories,
+      weightKg: user?.weight,
     );
 
     if (!context.mounted) return;

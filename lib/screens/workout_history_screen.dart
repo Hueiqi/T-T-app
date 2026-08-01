@@ -42,7 +42,10 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
     final auth = context.read<AuthProvider>();
     if (auth.user == null) return;
     setState(() => _loading = true);
-    final workouts = await _firebaseService.getWorkouts(auth.user!.uid);
+    // The calendar strip browses well beyond the most recent 30 sessions, so
+    // the default limit would leave older dates looking empty.
+    final workouts =
+        await _firebaseService.getWorkouts(auth.user!.uid, limit: 1000);
     if (!mounted) return;
     setState(() {
       _allWorkouts = workouts.where((w) => w.endTime != null).toList();

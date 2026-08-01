@@ -109,14 +109,20 @@ class FirebaseService {
       }
 
       await batch.commit();
+      // The workout list is cached for 30s; without this the freshly-finished
+      // workout is missing from stats until the cache happens to expire.
+      invalidateCache();
     } catch (e) {
       debugPrint('saveWorkoutEndData error: $e');
     }
   }
 
-  Future<List<Workout>> getWorkouts(String userId) async {
+  /// [limit] caps how far back the history goes. The dashboard only needs the
+  /// most recent handful, but the statistics charts bucket by month and year
+  /// and need substantially more than that to be accurate.
+  Future<List<Workout>> getWorkouts(String userId, {int limit = 30}) async {
     if (_demoMode) return [];
-    final cacheKey = 'workouts_$userId';
+    final cacheKey = 'workouts_${userId}_$limit';
     final cached = _getCached(cacheKey) as List<Workout>?;
     if (cached != null) return cached;
     try {
@@ -125,7 +131,7 @@ class FirebaseService {
           .doc(userId)
           .collection('workouts')
           .orderBy('startTime', descending: true)
-          .limit(30)
+          .limit(limit)
           .get();
       final result = snapshot.docs
           .map((doc) => Workout.fromMap(

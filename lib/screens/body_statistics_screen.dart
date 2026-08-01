@@ -7,6 +7,8 @@ import '../providers/workout_provider.dart';
 import '../providers/nutrition_provider.dart';
 import '../providers/sleep_provider.dart';
 import '../config/theme.dart';
+import '../services/firebase_service.dart';
+import '../models/meal_model.dart';
 import '../models/user_model.dart';
 import '../models/workout_model.dart';
 import '../models/sleep_model.dart';
@@ -27,6 +29,53 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
   String? _loadError;
   _StatsPeriod _period = _StatsPeriod.day;
 
+  // Macro breakdown works off its own date-range fetch: the provider only ever
+  // holds today's meals, which cannot answer a month/year question.
+  final FirebaseService _firebaseService = FirebaseService();
+  List<Meal> _periodMeals = [];
+  bool _loadingMacros = false;
+
+  /// (rangeStart, daysElapsed, caption) for the macro breakdown. Totals are
+  /// divided by [daysElapsed] so month/year stay comparable to the *daily*
+  /// macro goals; summing a whole year against a one-day target is meaningless.
+  (DateTime, int, String) _macroPeriod() {
+    final now = DateTime.now();
+    switch (_period) {
+      case _StatsPeriod.day:
+        return (DateTime(now.year, now.month, now.day), 1, 'Today');
+      case _StatsPeriod.month:
+        return (
+          DateTime(now.year, now.month, 1),
+          now.day,
+          'Daily average · ${DateFormat('MMMM yyyy').format(now)}',
+        );
+      case _StatsPeriod.year:
+        final start = DateTime(now.year, 1, 1);
+        return (
+          start,
+          now.difference(start).inDays + 1,
+          'Daily average · ${now.year}',
+        );
+    }
+  }
+
+  Future<void> _loadPeriodMeals() async {
+    final auth = context.read<AuthProvider>();
+    if (auth.user == null) return;
+    final (start, _, _) = _macroPeriod();
+    setState(() => _loadingMacros = true);
+    final meals = await _firebaseService.getMealsForDateRange(
+      auth.user!.uid,
+      start,
+      DateTime.now(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _periodMeals = meals;
+      _loadingMacros = false;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,7 +90,11 @@ class _BodyStatisticsScreenState extends State<BodyStatisticsScreen> {
         return;
       }
       await Future.wait([
-        context.read<WorkoutProvider>().loadDashboardData(auth.user!.uid),
+        // The charts bucket by month (6) and year (5); the 30-workout default
+        // cannot cover those ranges, so older buckets read as empty.
+        context
+            .read<WorkoutProvider>()
+            .loadDashboardData(auth.user!.uid, workoutLimit: 1000),
         context.read<NutritionProvider>().loadTodayMeals(auth.user!.uid),
         context.read<NutritionProvider>().loadWeightHistory(auth.user!.uid),
         context.read<NutritionProvider>().loadTodayWeight(auth.user!.uid),

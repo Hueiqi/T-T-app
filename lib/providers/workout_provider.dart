@@ -363,9 +363,20 @@ class WorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// MET (metabolic equivalent) values per workout type, used to estimate
+  /// calories when no heart-rate data is available. Values follow the
+  /// Compendium of Physical Activities for light effort, jogging, and running.
+  static const Map<String, double> _metByWorkoutType = {
+    'chill': 3.5,
+    'slow_run': 7.0,
+    'sprint_run': 11.0,
+  };
+  static const double _defaultMet = 5.0;
+
   Future<Map<String, dynamic>> endWorkout({
     required String gender,
     double? manualCalories,
+    double? weightKg,
   }) async {
     _isWorkoutActive = false;
     _healthService.stopHeartRateMonitoring();
@@ -406,11 +417,17 @@ class WorkoutProvider extends ChangeNotifier {
     double caloriesBurned;
     if (manualCalories != null) {
       caloriesBurned = manualCalories;
-    } else if (!hasHrData || durationMinutes == 0) {
-      caloriesBurned = 0;
-    } else {
+    } else if (hasHrData && durationMinutes > 0) {
       final factor = gender == 'female' ? 0.045 : 0.05;
       caloriesBurned = avgHr * durationMinutes * factor;
+    } else {
+      // No heart-rate source — the phone has no HR sensor, so this is the
+      // normal case unless a wearable is paired through Health Connect.
+      // Estimate from MET rather than recording zero, which previously made
+      // every calorie chart read empty. Uses seconds so that sub-minute
+      // sessions (durationMinutes == 0) still produce a value.
+      final met = _metByWorkoutType[_workoutType] ?? _defaultMet;
+      caloriesBurned = met * (weightKg ?? 70) * (durationSeconds / 3600);
     }
 
     final sampledReadings = _heartRateHistory.length > 100
@@ -436,6 +453,9 @@ class WorkoutProvider extends ChangeNotifier {
     );
 
     await _firebaseService.saveWorkoutEndData(_currentWorkout!, caloriesBurned);
+    // Refresh the cached history so the finished workout shows up in the
+    // dashboard and statistics charts without needing an app restart.
+    await loadDashboardData(_currentWorkout!.userId);
     notifyListeners();
 
     return {
@@ -501,8 +521,8 @@ class WorkoutProvider extends ChangeNotifier {
     await loadDashboardData(workout.userId);
   }
 
-  Future<void> loadDashboardData(String userId) async {
-    _workouts = await _firebaseService.getWorkouts(userId);
+  Future<void> loadDashboardData(String userId, {int workoutLimit = 30}) async {
+    _workouts = await _firebaseService.getWorkouts(userId, limit: workoutLimit);
     await loadOSWorkoutSessions(userId);
     _recentWorkout = _workouts.isNotEmpty ? _workouts.first : null;
 
