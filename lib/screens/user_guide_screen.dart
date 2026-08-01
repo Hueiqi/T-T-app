@@ -5,6 +5,9 @@ import '../config/theme.dart';
 /// Content lives here as plain data (_GuideSection / _GuideItem) rather than
 /// scattered across screens, so it stays accurate without needing a
 /// screenshot or a live tour.
+///
+/// Each item answers two questions in as few words as possible: what the
+/// feature does, and where to tap to get to it.
 class UserGuideScreen extends StatefulWidget {
   const UserGuideScreen({super.key});
 
@@ -18,32 +21,55 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
 
   static final List<_GuideSection> _sections = [
     _GuideSection(
+      icon: Icons.waving_hand,
+      color: AppTheme.primaryColor,
+      title: 'Start here',
+      subtitle: 'The app in 30 seconds',
+      items: [
+        _GuideItem(
+          'Five tabs at the bottom',
+          'Home shows today. Planning makes your plan. Workout tracks '
+              'training. Diet logs food. Profile holds settings.',
+        ),
+        _GuideItem(
+          'The + button logs anything',
+          'Meals, workouts, weight and history are all behind it.',
+          where: 'Any main page → +',
+        ),
+        _GuideItem(
+          'Do these three first',
+          '1. Finish your profile.  2. Generate a plan.  3. Connect Health '
+              'Connect and Spotify.',
+          where: 'Profile',
+        ),
+      ],
+    ),
+    _GuideSection(
       icon: Icons.dashboard,
       color: AppTheme.primaryColor,
       title: 'Home',
+      subtitle: 'Everything about today',
       items: [
         _GuideItem(
-          'Today\'s Overview',
-          'Shows steps, calories eaten, and sleep for today at a glance. '
-              'Steps and heart rate come from Health Connect once connected; '
-              'otherwise heart rate is simulated so the gauge always has data.',
+          "Today's Overview",
+          'Your steps, calories eaten and sleep, all on one screen.',
+          where: 'Opens when you start the app',
         ),
         _GuideItem(
           'Heart rate gauge',
-          'Live reading with a colour-coded zone (resting, light, moderate, '
-              'vigorous, max). Tap the Health Connect card to link a real '
-              'source — without one, the value is simulated.',
+          'Your current heart rate, coloured by zone.',
+          where: 'Home → top of screen',
         ),
         _GuideItem(
-          'Quick Add (+ button)',
-          'The fastest way to log something from anywhere in the app: scan '
-              'or type in a meal, start a workout, log your weight, or jump to '
-              'Meal / Workout / Sleep history.',
+          'Sleep summary',
+          'Last night\'s sleep, and the workout intensity suggested for '
+              'today because of it.',
+          where: 'Home → Sleep card',
         ),
         _GuideItem(
-          'AI Assistant (✨ icon)',
-          'Ask fitness or nutrition questions in a chat, answered by the '
-              'app\'s AI service.',
+          'AI Assistant',
+          'Ask any fitness or food question and get an answer.',
+          where: 'Home → ✨ icon',
         ),
       ],
     ),
@@ -51,27 +77,28 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
       icon: Icons.auto_awesome,
       color: Color(0xFF8B5CF6),
       title: 'Planning',
+      subtitle: 'Your long-term plan',
       items: [
         _GuideItem(
-          'AI fitness plans',
-          'Generates plans personalised to your goal, activity level, diet '
-              'preference and profile. Each plan has a daily schedule, weekly '
-              'workout split, and macro targets.',
+          'Make an AI plan',
+          'Builds a plan around your goal, body and diet: what to eat, what '
+              'to train, and for how long.',
+          where: 'Planning → pick a plan',
         ),
         _GuideItem(
-          'Daily schedule & rest days',
-          'The schedule reflects the actual day of the week: if your plan\'s '
-              'weekly workout list has nothing scheduled for today, it shows '
-              'as a Rest Day instead of a generic workout.',
+          "Today's schedule",
+          'What to do today, hour by hour. Rest days appear on their own.',
+          where: 'Planning → main screen',
         ),
         _GuideItem(
           'Exercise Library',
-          'Browse and search exercises by muscle group or equipment, '
-              'independent of any specific plan.',
+          'Look up any exercise by muscle group or equipment.',
+          where: 'Planning → Exercise Library',
         ),
         _GuideItem(
           'Activity History',
-          'Every completed routine, with duration and estimated calories.',
+          'Every routine you have finished.',
+          where: 'Planning → history icon',
         ),
       ],
     ),
@@ -79,37 +106,38 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
       icon: Icons.fitness_center,
       color: AppTheme.primaryColor,
       title: 'Workout',
+      subtitle: 'Train and track',
       items: [
         _GuideItem(
-          'Workout type',
-          'Chill, Slow Run, or Sprint Run — this also decides which '
-              'Workout Playlist plays if you\'ve assigned one to that mode.',
+          'Pick your status first',
+          'Chill, Slow Run or Sprint Run. This also decides which playlist '
+              'plays.',
+          where: 'Workout → three buttons at top',
         ),
         _GuideItem(
-          'Live tracking',
-          'Once started: elapsed time, live heart rate (Avg/Max/Zone), '
-              'distance and steps from GPS, and a map showing your route. '
-              'Distance only updates once you move roughly 10 m or more — it '
-              'stays at 0.00 km indoors or standing still, correctly.',
+          'Start Workout',
+          'Starts the timer, heart rate, GPS map and your music together.',
+          where: 'Workout → Start Workout',
         ),
         _GuideItem(
-          'Map controls',
-          'Pinch to zoom, or use the +/− buttons. The ⌖ button recentres on '
-              'your position and resumes auto-follow after you\'ve panned '
-              'around.',
+          'While training',
+          'Time, heart rate with zone, distance, steps and your route on a '
+              'map.',
+        ),
+        _GuideItem(
+          'Change the music',
+          'Switch status mid-workout to change to a different playlist.',
+          where: 'During workout → Choose Status',
         ),
         _GuideItem(
           'Workout Playlist',
-          'Assign your own Spotify playlists to each workout type (Chill / '
-              'Slow Run / Sprint Run) so Play starts the right mood of music. '
-              'Only playlists you created or follow appear — liked songs and '
-              'algorithmic mixes like Discover Weekly are not returned by '
-              'Spotify\'s API.',
+          'Choose which of your Spotify playlists belongs to each status.',
+          where: 'Workout → ♫ icon',
         ),
         _GuideItem(
           'Workout History',
-          'Past sessions with calories, heart rate, distance and — if GPS '
-              'was on — the route map. Tap a session for full detail.',
+          'Past sessions with calories, heart rate and route map.',
+          where: 'Workout → 🕐 icon',
         ),
       ],
     ),
@@ -117,27 +145,28 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
       icon: Icons.restaurant,
       color: Color(0xFFEC4899),
       title: 'Diet',
+      subtitle: 'Log what you eat',
       items: [
         _GuideItem(
-          'Logging a meal',
-          'Three ways in via Quick Add: Scan Food (camera, auto-detects '
-              'nutrition), Add Food Manually (type it in), or Food Library '
-              '(search saved foods, your own meal history, or search online).',
+          'Three ways to log a meal',
+          'Photograph it, type it in, or find it in the Food Library.',
+          where: 'Diet → + button',
         ),
         _GuideItem(
-          'Food Library tabs',
-          '"My Foods" is your saved library, "Meals" is what you\'ve already '
-              'logged, and "Online" searches Open Food Facts for packaged '
-              'products by name.',
+          'Scan Food',
+          'Point the camera at a meal and the nutrition fills in for you.',
+          where: '+ → Scan Food',
         ),
         _GuideItem(
-          'Daily calendar strip',
-          'Jump between days to see or edit past meals. Editing recalculates '
-              'that day\'s totals.',
+          'Food Library',
+          'My Foods is what you saved, Meals is what you logged before, '
+              'Online searches packaged products by name.',
+          where: '+ → Food Library',
         ),
         _GuideItem(
-          'Meal History',
-          'Every meal ever logged, searchable, with full nutrition detail.',
+          'See another day',
+          'Slide the date strip to view or fix earlier meals.',
+          where: 'Diet → date strip',
         ),
       ],
     ),
@@ -145,20 +174,23 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
       icon: Icons.bedtime,
       color: Color(0xFF3F51B5),
       title: 'Sleep',
+      subtitle: 'Rest and readiness',
       items: [
         _GuideItem(
-          'Last night\'s sleep',
-          'Hours slept, deep sleep minutes, and a readiness score used '
-              'elsewhere in the app (e.g. workout recommendations on Home).',
+          'Last night',
+          'Hours slept, deep sleep, and a readiness score the app uses to '
+              'suggest how hard to train.',
+          where: '+ → Sleep History',
         ),
         _GuideItem(
           '7-Day Overview',
-          'A bar chart of the last week\'s sleep, colour-coded by how close '
-              'each night was to a healthy amount.',
+          'A bar for each of the last seven nights, coloured by how healthy '
+              'that night was.',
         ),
         _GuideItem(
-          'All Records',
-          'Full history of every night logged, oldest to newest.',
+          'Add sleep yourself',
+          'No watch? Type in how long you slept.',
+          where: 'Sleep → + icon',
         ),
       ],
     ),
@@ -166,27 +198,29 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
       icon: Icons.person,
       color: Color(0xFF7C3AED),
       title: 'Profile',
+      subtitle: 'Settings and reports',
       items: [
         _GuideItem(
-          'Recent Activity',
-          'Sleep, most recent workout, and today\'s calorie balance '
-              '(eaten vs. burned), each tappable for more detail.',
-        ),
-        _GuideItem(
-          'Reports & Statistics',
-          'Nutrition Reports break down intake over time; Body Statistics '
-              'covers weight, and toggles between day / month / year views.',
+          'Body Statistics',
+          'Weight, workouts, nutrition and sleep over time. Switch between '
+              'day, month and year.',
+          where: 'Profile → Statistics',
         ),
         _GuideItem(
           'Health Connect',
-          'Tap to connect your device\'s health data (steps, heart rate) so '
-              'Home shows real numbers instead of simulated ones. Android '
-              'only — this has no equivalent on iOS.',
+          'Link your watch or band so steps, heart rate and sleep are real '
+              'instead of simulated. Android only.',
+          where: 'Profile → Health Connect',
+        ),
+        _GuideItem(
+          'Spotify Library',
+          'Log in to Spotify and browse your playlists.',
+          where: 'Profile → Spotify Library',
         ),
         _GuideItem(
           'Notification Settings',
-          'Turn on/off and time reminders for workouts, meals, sleep, and '
-              'weigh-ins.',
+          'Choose which reminders you get, and set the time for each.',
+          where: 'Profile → Notification Settings',
         ),
       ],
     ),
@@ -194,22 +228,32 @@ class _UserGuideScreenState extends State<UserGuideScreen> {
       icon: Icons.lightbulb_outline,
       color: AppTheme.warningColor,
       title: 'Good to know',
+      subtitle: 'Before you rely on the numbers',
       items: [
         _GuideItem(
-          'Simulated vs. real heart rate',
-          'If no smartwatch or strap is connected, heart rate is simulated '
-              'so every screen that shows it always has data. A note under '
-              'the gauge says "Simulated" when this is the case.',
+          'Your heart rate is simulated',
+          'Your phone has no heart-rate sensor. Unless a watch or chest '
+              'strap is linked, the app makes the number up. A "Simulated" '
+              'note appears under the gauge — do not treat it as a real '
+              'health reading.',
         ),
         _GuideItem(
-          'GPS needs the outdoors',
-          'Distance, steps-from-GPS, and the route map all depend on a real '
-              'location fix — they will not populate meaningfully indoors.',
+          'Why that still matters',
+          'Heart rate decides your training zone, your calories burned, and '
+              'the music that adapts as you train. Simulating it keeps all '
+              'three working, so a workout is never left with a blank gauge, '
+              'zero calories and silence. Connect a real device when you '
+              'need the numbers to be accurate.',
         ),
         _GuideItem(
-          'Spotify playback needs login',
-          'Playlists and playback require signing in to Spotify from '
-              'Profile or the Workout Playlist screen first.',
+          'GPS only works outdoors',
+          'Distance and the route map stay empty indoors or standing still. '
+              'That is correct, not a fault.',
+        ),
+        _GuideItem(
+          'Music needs Spotify login',
+          'Playlists and playback only work after you sign in to Spotify.',
+          where: 'Profile → Spotify Library',
         ),
       ],
     ),
@@ -298,21 +342,31 @@ class _GuideSection {
   final IconData icon;
   final Color color;
   final String title;
+
+  /// One line under the section title saying what the whole section is for.
+  final String subtitle;
   final List<_GuideItem> items;
 
   const _GuideSection({
     required this.icon,
     required this.color,
     required this.title,
+    required this.subtitle,
     required this.items,
   });
 }
 
 class _GuideItem {
   final String title;
+
+  /// What the feature does, in plain words.
   final String description;
 
-  const _GuideItem(this.title, this.description);
+  /// Where to tap to reach it, e.g. "Workout → ♫ icon". Omitted for items
+  /// that are not a place you navigate to.
+  final String? where;
+
+  const _GuideItem(this.title, this.description, {this.where});
 }
 
 class _SectionPage extends StatelessWidget {
@@ -349,10 +403,21 @@ class _SectionPage extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 4),
+          Center(
+            child: Text(
+              section.subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
           for (final item in section.items)
             Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.only(bottom: 12),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
@@ -367,20 +432,49 @@ class _SectionPage extends StatelessWidget {
                     Text(
                       item.title,
                       style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
                         color: AppTheme.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     Text(
                       item.description,
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 13.5,
                         color: AppTheme.textSecondary,
                         height: 1.45,
                       ),
                     ),
+                    if (item.where != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: section.color.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.touch_app,
+                                size: 13, color: section.color),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                item.where!,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: section.color,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
