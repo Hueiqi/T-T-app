@@ -11,47 +11,42 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _newPasswordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  bool _obscureNew = true;
-  bool _obscureConfirm = true;
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _nameController.dispose();
     _emailController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _resetPassword() async {
+  /// Emails a reset link. This screen used to collect a new password and
+  /// report "Password reset successful", but nothing ever applied it —
+  /// Firebase has no client API to set the password of an account you are not
+  /// signed in as. Signed-in users change theirs on ChangePasswordScreen.
+  Future<void> _sendResetLink() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     final auth = context.read<AuthProvider>();
-    final success = await auth.resetPassword(
-      _emailController.text.trim(),
-      _nameController.text.trim(),
-      _newPasswordController.text,
-    );
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final success =
+        await auth.sendPasswordResetEmail(_emailController.text.trim());
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password reset successful. Please sign in.'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-        Navigator.pop(context);
-      }
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (success) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Reset link sent. Check your email to set a new '
+              'password, then sign in.'),
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+      navigator.pop();
     }
   }
 
@@ -83,23 +78,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Enter your details to create a new password',
+                  'Enter your email and we will send you a link to set a new '
+                  'password.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: AppTheme.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 32),
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Full Name',
-                    prefixIcon: Icon(Icons.person_outlined),
-                  ),
-                  validator: (v) =>
-                      v?.isEmpty ?? true ? 'Please enter your name' : null,
-                ),
-                const SizedBox(height: 16),
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -113,58 +99,34 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _newPasswordController,
-                  obscureText: _obscureNew,
-                  decoration: InputDecoration(
-                    labelText: 'New Password',
-                    prefixIcon: const Icon(Icons.lock_outlined),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureNew ? Icons.visibility_off : Icons.visibility,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscureNew = !_obscureNew),
-                    ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  validator: (v) {
-                    if (v?.isEmpty ?? true) return 'Please enter a password';
-                    if (v!.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  obscureText: _obscureConfirm,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm New Password',
-                    prefixIcon: const Icon(Icons.lock_outlined),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirm
-                            ? Icons.visibility_off
-                            : Icons.visibility,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline,
+                          size: 18, color: AppTheme.primaryColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Already signed in? Change your password directly '
+                          'from Profile instead.',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppTheme.textSecondary),
+                        ),
                       ),
-                      onPressed: () =>
-                          setState(() => _obscureConfirm = !_obscureConfirm),
-                    ),
+                    ],
                   ),
-                  validator: (v) {
-                    if (v != _newPasswordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _isLoading ? null : _resetPassword,
+                    onPressed: _isLoading ? null : _sendResetLink,
                     child: _isLoading
                         ? const SizedBox(
                             height: 20,
@@ -174,7 +136,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Reset Password'),
+                        : const Text('Send Reset Link'),
                   ),
                 ),
                 if (context.watch<AuthProvider>().error != null)

@@ -170,21 +170,41 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> resetPassword(
-    String email,
-    String name,
+  /// Emails a reset link. Does not set the password itself — see
+  /// [changePassword] for that.
+  Future<bool> sendPasswordResetEmail(String email) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final result = await _authService.sendPasswordResetEmail(email);
+      _isLoading = false;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Changes the signed-in user's password to exactly [newPassword], after
+  /// verifying [currentPassword].
+  Future<bool> changePassword(
+    String currentPassword,
     String newPassword,
   ) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
-      final result = await _authService.resetPassword(email, name, newPassword);
+      await _authService.changePassword(currentPassword, newPassword);
       _isLoading = false;
       notifyListeners();
-      return result;
+      return true;
     } catch (e) {
-      _error = e.toString();
+      _error = e.toString().replaceFirst('Exception: ', '');
       _isLoading = false;
       notifyListeners();
       return false;

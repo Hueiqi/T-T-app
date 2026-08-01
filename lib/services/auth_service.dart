@@ -167,7 +167,11 @@ class AuthService {
     _currentUser = user;
   }
 
-  Future<bool> resetPassword(String email, String name, String newPassword) async {
+  /// Sends a password-reset link by email. Note this does NOT set a password
+  /// directly: Firebase has no client API to set the password of an account
+  /// you are not signed in as, so the user completes the change via the link.
+  /// Use [changePassword] for a signed-in user.
+  Future<bool> sendPasswordResetEmail(String email) async {
     if (_demoMode) return true;
     if (_auth == null) return false;
     try {
@@ -180,6 +184,45 @@ class AuthService {
       throw Exception('Failed to send reset email. Please try again.');
     } catch (e) {
       throw Exception('Failed to send reset email. Please try again.');
+    }
+  }
+
+  /// Changes the signed-in user's password to exactly [newPassword].
+  ///
+  /// Firebase requires a recent login for this, so [currentPassword] is
+  /// verified by reauthenticating first. That doubles as the security check:
+  /// without it, anyone holding an unlocked phone could change the password.
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    if (_demoMode) return;
+    final user = _auth?.currentUser;
+    if (user == null || user.email == null) {
+      throw Exception('You must be signed in to change your password.');
+    }
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(
+          email: user.email!,
+          password: currentPassword,
+        ),
+      );
+      await user.updatePassword(newPassword);
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+          throw Exception('Current password is incorrect.');
+        case 'weak-password':
+          throw Exception('New password is too weak — use 6+ characters.');
+        case 'requires-recent-login':
+          throw Exception('Please sign out, sign in again, then retry.');
+        case 'too-many-requests':
+          throw Exception('Too many attempts. Please try again later.');
+        default:
+          throw Exception('Could not change password. Please try again.');
+      }
     }
   }
 

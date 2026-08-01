@@ -19,6 +19,7 @@ class AppRoutes {
   static const String onboardingDuration = '/onboarding-duration';
   static const String welcome = '/welcome';
   static const String forgotPassword = '/forgot-password';
+  static const String changePassword = '/change-password';
   static const String notificationSettings = '/notification-settings';
   static const String aiChat = '/ai-chat';
   static const String planning = '/planning';

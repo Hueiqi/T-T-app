@@ -832,6 +832,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Expanded(
                   child: _ActionChipButton(
+                    icon: Icons.lock_reset,
+                    label: 'Change Password',
+                    subtitle: 'Set a new password',
+                    onTap: () =>
+                        Navigator.pushNamed(context, AppRoutes.changePassword),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionChipButton(
                     icon: Icons.library_music,
                     label: 'Spotify Library',
                     subtitle: 'Browse playlists & albums',
