@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/health_service.dart';
 import '../services/spotify_service.dart';
 import '../services/firebase_service.dart';
+import '../services/motion_service.dart';
 import '../models/workout_model.dart';
 import '../models/sleep_model.dart';
 import '../models/music_track_model.dart';
@@ -14,6 +16,7 @@ class WorkoutProvider extends ChangeNotifier {
   final HealthService _healthService = HealthService();
   final SpotifyService _spotifyService = SpotifyService();
   final FirebaseService _firebaseService = FirebaseService();
+  final MotionService _motionService = MotionService();
   final Uuid _uuid = const Uuid();
   final bool _isWeb = kIsWeb;
 
@@ -47,6 +50,15 @@ class WorkoutProvider extends ChangeNotifier {
   StreamSubscription<Position>? _gpsSub;
   Position? _lastGpsFix;
   String? _gpsError;
+
+  // ── Pedometer step tracking ──
+  // Pedometer.stepCountStream reports a cumulative count since last device
+  // reboot, not since workout start, so a baseline is captured on the first
+  // reading and every later reading is a delta from it. This is what lets
+  // indoor workouts (treadmill, weights) register steps at all — GPS-derived
+  // steps stay 0 whenever there is no positional displacement.
+  StreamSubscription<int>? _pedometerSub;
+  int? _stepBaseline;
 
   String? get gpsError => _gpsError;
 
@@ -182,6 +194,9 @@ class WorkoutProvider extends ChangeNotifier {
 
     // 3. Start GPS so the live map has a route/position to display.
     _startGpsTracking();
+    // 3b. Start the pedometer so indoor workouts (no GPS displacement) still
+    // register steps.
+    _startPedometerTracking();
 
     // 4. Start HR streaming every 5 seconds (if smartwatch available)
     if (_smartwatchConnected) {
@@ -240,8 +255,39 @@ class WorkoutProvider extends ChangeNotifier {
   void addRoutePoint(double latitude, double longitude, double distanceDelta) {
     _routePoints.add({'lat': latitude, 'lng': longitude});
     _distance += distanceDelta;
-    _workoutSteps = (_distance * 1312).toInt();
+    // Steps from GPS distance are an estimate for outdoor cardio. Pedometer
+    // readings (_onPedometerStep) are the real count and take priority
+    // whenever they're higher, so neither source undercounts the other.
+    final estimated = (_distance * 1312).toInt();
+    if (estimated > _workoutSteps) _workoutSteps = estimated;
     notifyListeners();
+  }
+
+  /// Starts the phone's step-counter sensor for the workout. This is what
+  /// makes indoor sessions (treadmill, weights, HIIT) register steps at all —
+  /// [addRoutePoint]'s distance-based estimate stays 0 with no GPS movement.
+  Future<void> _startPedometerTracking() async {
+    if (_isWeb) return;
+    if (await Permission.activityRecognition.isDenied) {
+      final result = await Permission.activityRecognition.request();
+      if (!result.isGranted) return;
+    }
+    _stepBaseline = null;
+    _pedometerSub?.cancel();
+    _motionService.startListening();
+    _pedometerSub = _motionService.stepStream.listen((cumulative) {
+      _stepBaseline ??= cumulative;
+      final delta = cumulative - _stepBaseline!;
+      if (delta > _workoutSteps) _workoutSteps = delta;
+      notifyListeners();
+    });
+  }
+
+  void _stopPedometerTracking() {
+    _pedometerSub?.cancel();
+    _pedometerSub = null;
+    _stepBaseline = null;
+    _motionService.stopListening();
   }
 
   /// Subscribes to GPS for the duration of the workout, feeding the route that
@@ -424,6 +470,7 @@ class WorkoutProvider extends ChangeNotifier {
     _extHrSub?.cancel();
     _extHrSub = null;
     _stopGpsTracking();
+    _stopPedometerTracking();
     _currentTrackName = '';
     _currentTrackArtist = '';
     _currentMusicZone = '';
@@ -602,6 +649,7 @@ class WorkoutProvider extends ChangeNotifier {
     _distance = 0.0;
     _workoutSteps = 0;
     _stopGpsTracking();
+    _stopPedometerTracking();
     _gpsError = null;
     _routePoints.clear();
     _osWorkouts = [];
@@ -618,6 +666,8 @@ class WorkoutProvider extends ChangeNotifier {
     _manualOverrideTimer?.cancel();
     _extHrSub?.cancel();
     _stopGpsTracking();
+    _stopPedometerTracking();
+    _motionService.dispose();
     _healthService.stopHeartRateMonitoring();
     super.dispose();
   }
