@@ -255,11 +255,18 @@ class WorkoutProvider extends ChangeNotifier {
   void addRoutePoint(double latitude, double longitude, double distanceDelta) {
     _routePoints.add({'lat': latitude, 'lng': longitude});
     _distance += distanceDelta;
-    // Steps from GPS distance are an estimate for outdoor cardio. Pedometer
-    // readings (_onPedometerStep) are the real count and take priority
-    // whenever they're higher, so neither source undercounts the other.
-    final estimated = (_distance * 1312).toInt();
-    if (estimated > _workoutSteps) _workoutSteps = estimated;
+    // Steps from GPS distance are an estimate for outdoor cardio; the
+    // pedometer listener in _startPedometerTracking is the real count and
+    // takes priority whenever it's higher, so neither source undercounts.
+    _reportSteps((_distance * 1312).toInt());
+  }
+
+  /// Takes the higher of the current and newly reported step count, since
+  /// GPS-distance and pedometer readings are independent estimates of the
+  /// same quantity and neither should undercount the other.
+  void _reportSteps(int candidate) {
+    if (candidate <= _workoutSteps) return;
+    _workoutSteps = candidate;
     notifyListeners();
   }
 
@@ -272,14 +279,13 @@ class WorkoutProvider extends ChangeNotifier {
       final result = await Permission.activityRecognition.request();
       if (!result.isGranted) return;
     }
-    _stepBaseline = null;
     _pedometerSub?.cancel();
-    _motionService.startListening();
+    // Steps-only: the gyroscope/accelerometer streams MotionService can also
+    // provide have no consumer during a workout.
+    _motionService.startListening(includeMotionSensors: false);
     _pedometerSub = _motionService.stepStream.listen((cumulative) {
       _stepBaseline ??= cumulative;
-      final delta = cumulative - _stepBaseline!;
-      if (delta > _workoutSteps) _workoutSteps = delta;
-      notifyListeners();
+      _reportSteps(cumulative - _stepBaseline!);
     });
   }
 

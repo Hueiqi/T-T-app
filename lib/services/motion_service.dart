@@ -21,7 +21,11 @@ class MotionService {
 
   bool _isListening = false;
 
-  void startListening() {
+  /// [includeMotionSensors] controls whether the gyroscope/accelerometer
+  /// streams also start. A caller that only wants [stepStream] (e.g. a
+  /// workout that just needs a step count) can skip them, since otherwise
+  /// they'd run for the whole session with nothing subscribed to consume them.
+  void startListening({bool includeMotionSensors = true}) {
     if (_isListening) return;
     _isListening = true;
 
@@ -29,6 +33,8 @@ class MotionService {
       (stepCount) => _stepController.add(stepCount.steps),
       onError: (e) => debugPrint('Pedometer error: $e'),
     );
+
+    if (!includeMotionSensors) return;
 
     _gyroSubscription = gyroscopeEventStream().listen((GyroscopeEvent event) {
       _motionController.add({
